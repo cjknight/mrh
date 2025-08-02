@@ -34,13 +34,17 @@ Device::Device(MPI_Comm comm_)
   MPI_Comm_size(comm, &num_procs);
 
   printf("Device() :: rank= %i  num_procs= %i\n",rank,num_procs);
-  
+
   verbose_level = 0;
+
+  // Disable stdout except for MPI rank 0
+  
+  screen = nullptr;
+  if(rank == 0) screen = stdout;
   
   update_dfobj = 0;
   
   rho = nullptr;
-  //vj = nullptr;
   _vktmp = nullptr;
 
   buf_fdrv = nullptr;
@@ -177,7 +181,7 @@ Device::Device(MPI_Comm comm_)
 
 Device::~Device()
 {
-  if(verbose_level) printf("LIBGPU: destroying device\n");
+  if(verbose_level) fprintf(screen, "LIBGPU: destroying device\n");
 
   pm->dev_free_host(rho);
   //pm->dev_free_host(vj);
@@ -201,66 +205,65 @@ Device::~Device()
     double total = 0.0;
     for(int i=0; i<_NUM_SIMPLE_TIMER; ++i) total += t_array[i];
   
-    printf("\nLIBGPU :: SIMPLE_TIMER\n");
-    printf("\nLIBGPU :: SIMPLE_TIMER :: get_jk\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_get_jk()            time= %f s\n",0,t_array[0]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_get_jk()            time= %f s\n",1,t_array[1]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= get_jk()                 time= %f s\n",2,t_array[2]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER\n");
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER :: get_jk\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_get_jk()            time= %f s\n",0,t_array[0]);
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_get_jk()            time= %f s\n",1,t_array[1]);
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= get_jk()                 time= %f s\n",2,t_array[2]);
     
-    printf("\nLIBGPU :: SIMPLE_TIMER :: hessop\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= hessop_get_veff()        time= %f s\n",3,t_array[3]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER :: hessop\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= hessop_get_veff()        time= %f s\n",3,t_array[3]);
     
-    printf("\nLIBGPU :: SIMPLE_TIMER :: orbital_response\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= orbital_response()       time= %f s\n",4,t_array[4]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER :: orbital_response\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= orbital_response()       time= %f s\n",4,t_array[4]);
     
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER :: _update_h2eff\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= update_h2eff_sub()       time= %f s\n",5,t_array[5]);
     
-    printf("\nLIBGPU :: SIMPLE_TIMER :: _update_h2eff\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= update_h2eff_sub()       time= %f s\n",5,t_array[5]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER :: _h2eff_df \n");
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= h2eff_df()               time= %f s\n",6,t_array[6]);
     
-    printf("\nLIBGPU :: SIMPLE_TIMER :: _h2eff_df \n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= h2eff_df()               time= %f s\n",6,t_array[6]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER :: transfer_mo_coeff \n");
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= transfer_mo_coeff()      time= %f s\n",7,t_array[7]);
     
-    printf("\nLIBGPU :: SIMPLE_TIMER :: transfer_mo_coeff \n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= transfer_mo_coeff()      time= %f s\n",7,t_array[7]);
-    
-    printf("\nLIBGPU :: SIMPLE_TIMER :: df_ao2mo_pass1\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_ints_and_jkpc()     time= %f s\n",8,t_array[8]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= compute_ints_and_jkpc()  time= %f s\n",9,t_array[9]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_ints_and_jkpc()     time= %f s\n",10,t_array[10]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER :: df_ao2mo_pass1\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_ints_and_jkpc()     time= %f s\n",8,t_array[8]);
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= compute_ints_and_jkpc()  time= %f s\n",9,t_array[9]);
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_ints_and_jkpc()     time= %f s\n",10,t_array[10]);
 
-    printf("\nLIBGPU :: SIMPLE_TIMER :: eri_impham\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_eri_impham()     time= %f s\n",11,t_array[11]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= compute_eri_impham()  time= %f s\n",12,t_array[12]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_eri_impham()     time= %f s\n",13,t_array[13]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_TIMER :: eri_impham\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_eri_impham()     time= %f s\n",11,t_array[11]);
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= compute_eri_impham()  time= %f s\n",12,t_array[12]);
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_eri_impham()     time= %f s\n",13,t_array[13]);
 
-    printf("LIBGPU :: SIMPLE_TIMER :: total= %f s\n",total);
+    fprintf(screen, "LIBGPU :: SIMPLE_TIMER :: total= %f s\n",total);
     free(t_array);
     
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER\n");
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: get_jk\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= get_jk()             counts= %i \n",0,count_array[0]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER\n");
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER :: get_jk\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_COUNTER :: i= %i  name= get_jk()             counts= %i \n",0,count_array[0]);
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: hessop\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= hessop_get_veff()    counts= %i \n",1,count_array[1]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER :: hessop\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_COUNTER :: i= %i  name= hessop_get_veff()    counts= %i \n",1,count_array[1]);
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: orbital_response\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= orbital_response()   counts= %i \n",2,count_array[2]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER :: orbital_response\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_COUNTER :: i= %i  name= orbital_response()   counts= %i \n",2,count_array[2]);
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: update_h2eff_sub\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= update_h2eff_sub()   counts= %i \n",3,count_array[3]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER :: update_h2eff_sub\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_COUNTER :: i= %i  name= update_h2eff_sub()   counts= %i \n",3,count_array[3]);
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: _h2eff_df\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= h2eff_df()           counts= %i \n",4,count_array[4]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER :: _h2eff_df\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_COUNTER :: i= %i  name= h2eff_df()           counts= %i \n",4,count_array[4]);
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: transfer_mo_coeff\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= transfer_mo_coeff()  counts= %i \n",5,count_array[5]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER :: transfer_mo_coeff\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_COUNTER :: i= %i  name= transfer_mo_coeff()  counts= %i \n",5,count_array[5]);
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: ao2mo\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name=ao2mo_pass_v3()       counts= %i \n",6,count_array[6]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER :: ao2mo\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_COUNTER :: i= %i  name=ao2mo_pass_v3()       counts= %i \n",6,count_array[6]);
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: eri_impham\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name=eri_impham()       counts= %i \n",7,count_array[7]);
+    fprintf(screen, "\nLIBGPU :: SIMPLE_COUNTER :: eri_impham\n");
+    fprintf(screen, "LIBGPU :: SIMPLE_COUNTER :: i= %i  name=eri_impham()       counts= %i \n",7,count_array[7]);
 
     free(count_array);
   }
@@ -269,9 +272,9 @@ Device::~Device()
 
   if(use_eri_cache) {
     if(verbose_level) {
-      printf("\nLIBGPU :: eri cache statistics :: count= %zu\n",eri_list.size());
+      fprintf(screen, "\nLIBGPU :: eri cache statistics :: count= %zu\n",eri_list.size());
       for(int i=0; i<eri_list.size(); ++i)
-	printf("LIBGPU :: %i : eri= %p  Mbytes= %f  count= %i  update= %i device= %i\n", i, (void*) eri_list[i],
+	fprintf(screen, "LIBGPU :: %i : eri= %p  Mbytes= %f  count= %i  update= %i device= %i\n", i, (void*) eri_list[i],
 	       eri_size[i]*sizeof(double)/1024./1024., eri_count[i], eri_update[i], eri_device[i]);
     }
     
@@ -333,7 +336,7 @@ Device::~Device()
   if(verbose_level) {
     pm->print_mem_summary();
     
-    printf("LIBGPU :: Finished\n");
+    fprintf(screen, "LIBGPU :: Finished\n");
   }
 #endif
 
@@ -392,7 +395,7 @@ int Device::get_num_devices()
     
 void Device::get_dev_properties(int N)
 {
-  printf("LIBGPU: reporting device properties N= %i\n",N);
+  fprintf(screen, "LIBGPU: reporting device properties N= %i\n",N);
   
   char nname[16];
   gethostname(nname, 16);
@@ -403,8 +406,8 @@ void Device::get_dev_properties(int N)
     char list_cores[7*CPU_SETSIZE];
     get_cores(list_cores);
 #pragma omp ordered
-    printf("LIBGPU: To affinity and beyond!! nname= %s  rnk= %d  tid= %d: list_cores= (%s)\n",
-	   nname, rnk, omp_get_thread_num(), list_cores);
+    fprintf(screen, "LIBGPU: To affinity and beyond!! nname= %s  rnk= %d  tid= %d: list_cores= (%s)\n",
+	    nname, rnk, omp_get_thread_num(), list_cores);
   }
   
   pm->dev_properties(N);
@@ -414,7 +417,7 @@ void Device::get_dev_properties(int N)
     
 void Device::set_device(int id)
 {
-  if(verbose_level) printf("LIBGPU: setting device id= %i\n",id);
+  if(verbose_level) fprintf(screen, "LIBGPU: setting device id= %i\n",id);
   pm->dev_set_device(id);
 }
 
@@ -438,7 +441,7 @@ void Device::disable_eri_cache_()
     
 void Device::set_verbose_(int _verbose)
 {
-  verbose_level = _verbose; // setting nonzero prints affinity + timing info
+  if(screen) verbose_level = _verbose; // setting nonzero prints affinity + timing info
 }
 
 /* ---------------------------------------------------------------------- */

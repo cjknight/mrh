@@ -196,6 +196,7 @@ private:
   void get_cores(char *);
 
   int verbose_level;
+  FILE * screen;
   
   size_t grid_size, block_size;
   
@@ -212,7 +213,6 @@ private:
   // get_jk
   
   double * rho;
-  //double * vj;
   double * _vktmp;
  
   double * buf_fdrv;
