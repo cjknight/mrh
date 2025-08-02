@@ -67,13 +67,18 @@ ML_OBJ = $(TMP2:.cpp=.o)
 # -- target : 	Dependencies
 # --		Rule to create target
 
-$(EXE): $(C_OBJ) $(CUDA_OBJ) $(PM_OBJ) $(ML_OBJ)
+$(EXE): libmpi_stub.a $(C_OBJ) $(CUDA_OBJ) $(PM_OBJ) $(ML_OBJ)
 	$(LD) $(LDFLAGS) -o $@ $(C_OBJ) $(CUDA_OBJ) $(PM_OBJ) $(ML_OBJ) $(LIB)
 
 install: $(EXE)
 	 cp $(EXE) $(INSTALL)
 
+mpi:     libmpi_stub.a
+
 ####################################################################
+
+libmpi_stub.a:
+	cd mpi_stub; $(CXX) -c -fPIC mpi.cpp; $(AR) libmpi_stub.a mpi.o
 
 $(C_OBJ): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $<
@@ -101,6 +106,7 @@ realclean:
 	rm -f $(INSTALL)/$(EXE)
 	rm -rf $(EXE).dSYM
 	rm -f *.optrpt
+	rm -f ./mpi_stub/mpi.o ./mpi_stub/libmpi_stub.a
 
 #
 # -- Simple dependencies
@@ -124,3 +130,5 @@ mathlib_cublas.o : mathlib/mathlib_cublas.cpp mathlib/mathlib_cublas.h mathlib/m
 mathlib_mkl.o : mathlib/mathlib_mkl.cpp mathlib/mathlib_mkl.h mathlib/mathlib.h pm/pm_cuda.o pm/pm_sycl.o
 mathlib_rocm.o : mathlib/mathlib_rocm.cpp mathlib/mathlib_rocm.h mathlib/mathlib.h pm/pm_hip.o
 mathlib_host.o : mathlib/mathlib_host.cpp mathlib/mathlib_host.h mathlib/mathlib.h pm/pm_host.o
+
+mpi_stub/mpi.o : mpi_stub/mpi.cpp mpi_stub/mpi.h
