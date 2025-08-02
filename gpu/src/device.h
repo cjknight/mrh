@@ -6,6 +6,8 @@
 #include <chrono>
 #include <math.h>
 
+#include "mpi.h"
+
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 
@@ -70,7 +72,7 @@ class Device {
   
 public :
   
-  Device();
+  Device(MPI_Comm);
   ~Device();
   
   int get_num_devices();
@@ -187,6 +189,8 @@ private:
   class PM * pm;
 
   class MATHLIB * ml;
+
+  MPI_Comm comm;
   
   double host_compute(double *);
   void get_cores(char *);

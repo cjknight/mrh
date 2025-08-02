@@ -19,9 +19,9 @@
 
 /* ---------------------------------------------------------------------- */
 
-void * libgpu_init()
+void * libgpu_init(MPI_Comm comm_)
 {
-  Device * ptr = (Device *) libgpu_create_device();
+  Device * ptr = (Device *) libgpu_create_device(comm_);
 
   int device_id = 0;
   libgpu_set_device(ptr, device_id);
@@ -31,9 +31,9 @@ void * libgpu_init()
 
 /* ---------------------------------------------------------------------- */
 
-void * libgpu_create_device()
+void * libgpu_create_device(MPI_Comm comm_)
 {
-  Device * ptr = new Device();
+  Device * ptr = new Device(comm_);
   return (void *) ptr;
 }
 

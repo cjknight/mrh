@@ -12,8 +12,8 @@ namespace py = pybind11;
 
 extern "C"
 {
-  void * libgpu_init();
-  void * libgpu_create_device();
+  void * libgpu_init(MPI_Comm comm_ = 0);
+  void * libgpu_create_device(MPI_Comm comm_ = 0);
   void libgpu_destroy_device(void *);
   
   void libgpu_set_verbose_(void *, int);
@@ -120,8 +120,8 @@ extern "C"
 PYBIND11_MODULE(libgpu, m) {
   m.doc() = "gpu accelerator library example";
 
-  m.def("init", &libgpu_init, py::return_value_policy::reference, "simple initialization of device");
-  m.def("create_device", &libgpu_create_device, py::return_value_policy::reference, "create Device object");
+  m.def("init", &libgpu_init, py::return_value_policy::reference, py::arg("comm_") = 0, "simple initialization of device");
+  m.def("create_device", &libgpu_create_device, py::return_value_policy::reference, py::arg("comm_") = 0, "create Device object");
   m.def("destroy_device", &libgpu_destroy_device, "destroy Device object");
   
   m.def("set_verbose_", &libgpu_set_verbose_, "set verbosity level");

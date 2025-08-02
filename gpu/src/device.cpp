@@ -12,12 +12,22 @@
 
 /* ---------------------------------------------------------------------- */
 
-Device::Device()
+Device::Device(MPI_Comm comm_)
 {  
   pm = new PM();
 
   ml = new MATHLIB(pm);
 
+  comm = comm_;
+
+  printf("Device() :: comm= %i\n",comm);
+
+  int rank, num_procs;
+  MPI_Comm_rank(comm, &rank);
+  MPI_Comm_size(comm, &num_procs);
+
+  printf("Device() :: rank= %i  num_procs= %i\n",rank,num_procs);
+  
   verbose_level = 0;
   
   update_dfobj = 0;
@@ -152,7 +162,6 @@ Device::Device()
 
   // check device connectivity
 
-  int rank = 0;
   int peer_error = pm->dev_check_peer(rank, num_devices);
   if(!peer_error) pm->dev_enable_peer(rank, num_devices);
 }
