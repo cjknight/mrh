@@ -15,6 +15,7 @@ CMakeCache.txt
 CMakeFiles
 Makefile
 *.o
+libmpi_stub.a
 
 # Example file outputs
 *.molden
