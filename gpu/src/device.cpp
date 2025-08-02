@@ -22,6 +22,13 @@ Device::Device(MPI_Comm comm_)
 
   printf("Device() :: comm= %i\n",comm);
 
+#if defined(_USE_MPI)
+  if(comm == 0) {
+    printf("LIBGPU :: Error :: Device() : gpu4mrh is mpi-enabled, but not correctly initialized with MPI\n");
+    exit(1);
+  }
+#endif
+  
   int rank, num_procs;
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &num_procs);
