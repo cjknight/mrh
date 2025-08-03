@@ -191,6 +191,8 @@ private:
   class MATHLIB * ml;
 
   MPI_Comm comm;
+  int rank;
+  int num_procs;
   
   double host_compute(double *);
   void get_cores(char *);
@@ -203,6 +205,7 @@ private:
   // get_jk
 
   int update_dfobj;
+  int my_first_count; // first ERI block each MPI is assigned
 
   //  int nset;
 

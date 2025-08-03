@@ -20,7 +20,7 @@ Device::Device(MPI_Comm comm_)
 
   comm = comm_;
 
-  printf("Device() :: comm= %i\n",comm);
+  //  printf("Device() :: comm= %i\n",comm);
 
 #if defined(_USE_MPI)
   if(comm == 0) {
@@ -28,12 +28,11 @@ Device::Device(MPI_Comm comm_)
     exit(1);
   }
 #endif
-  
-  int rank, num_procs;
+
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &num_procs);
 
-  printf("Device() :: rank= %i  num_procs= %i\n",rank,num_procs);
+  //  printf("Device() :: rank= %i  num_procs= %i\n",rank,num_procs);
 
   verbose_level = 0;
 
@@ -532,7 +531,10 @@ void Device::get_dfobj_status(size_t addr_dfobj, py::array_t<int> _arg)
 void Device::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtril, int blksize, int nset, int nao, int naux, int count)
 {
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: Inside Device::init_get_jk() :: blksize= %i  nset= %i  nao= %i  naux= %i  count= %i\n",blksize,nset,nao,naux,count);
+  printf("LIBGPU (%i) :: Inside Device::init_get_jk() :: blksize= %i  nset= %i  nao= %i  naux= %i  count= %i\n",
+	 rank,blksize,nset,nao,naux,count);
+  fflush(stdout);
+  MPI_Barrier(comm);
 #endif
 
   pm->dev_profile_start("init_get_jk");
@@ -575,12 +577,15 @@ void Device::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtril,
     int _size_eri1 = naux * nao_pair;
     grow_array(dd->d_eri1, _size_eri1, dd->size_eri1, "eri1", FLERR);
   }
-  
-  int _size_buf_vj = num_devices * nset * nao_pair;
-  grow_array_host(buf_vj, _size_buf_vj, size_buf_vj, "h:buf_vj");
 
-  int _size_buf_vk = num_devices * nset * nao * nao;
-  grow_array_host(buf_vk, _size_buf_vk, size_buf_vk, "h:buf_vk");
+  {
+    int _size_buf_vj = num_devices * nset * nao_pair;
+    int _size_buf_vk = num_devices * nset * nao * nao;
+
+    int _size_buf = (_size_buf_vj > _size_buf_vk) ? _size_buf_vj : size_buf_vk; // make them same size to help as MPI temp buffers
+    grow_array_host(buf_vj, _size_buf_vj, _size_buf, "h:buf_vj");
+    grow_array_host(buf_vk, _size_buf_vk, _size_buf, "h:buf_vk");
+  }
 
   // 1-time initialization
   
@@ -595,8 +600,11 @@ void Device::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtril,
  
   // do all devices participate in calculation?
   
-  if(count == 0) 
+  if(count == 0) {
     for(int i=0; i<num_devices; ++i) device_data[i].active = 0;
+
+    my_first_count = -1;
+  }
   
   pm->dev_profile_stop();
   
@@ -605,7 +613,8 @@ void Device::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtril,
  //counts in pull_get_jk
 
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: -- Leaving Device::init_get_jk()\n");
+  printf("LIBGPU (%i) :: -- Leaving Device::init_get_jk()\n",rank);
+  fflush(stdout);
 #endif
 }
 
@@ -619,20 +628,28 @@ void Device::get_jk(int naux, int nao, int nset,
 		    int with_k, int count, size_t addr_dfobj)
 {
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: Inside Device::get_jk() w/ with_k= %i\n",with_k);
+  printf("LIBGPU (%i) :: Inside Device::get_jk() w/ with_k= %i\n",rank,with_k);
+  fflush(stdout);
+  MPI_Barrier(comm);
 #endif
-  
-  double t0 = omp_get_wtime();
 
   pm->dev_profile_start("get_jk :: init");
-
+  
+  const int assigned_rank = (count / num_devices) % num_procs; // loop over devices is fastest, loop over MPI ranks is slowest
+  
   const int device_id = count % num_devices;
+  
+  //  printf("(%i) count= %i  assigned_rank= %i  device_id= %i\n",rank, count, assigned_rank, device_id);
+
+  // update index of first ERI block assigned to MPI rank
+
+  //  printf("(%i)  evaluating get_jk() for count= %i\n",rank, count);
+  
+  double t0 = omp_get_wtime();
   
   pm->dev_set_device(device_id);
 
   my_device_data * dd = &(device_data[device_id]);
-
-  dd->active = 1;
 
   const int with_j = 1;
   
@@ -651,13 +668,15 @@ void Device::get_jk(int naux, int nao, int nset,
     pm->dev_push_async(dd->d_eri1, eri1, naux * nao_pair * sizeof(double));
     d_eri = dd->d_eri1;
   }
-
+  
   // Bcast() from master device ; make sure devices arrays allocated
   
 #if defined(_ENABLE_P2P)
   if(count == 0) {
     size_t size = nset * nao_pair * sizeof(double);
 
+    MPI_Bcast(dmtril, nset*nao_pair, MPI_DOUBLE, 0, comm); // sync so all ranks agree
+    
     std::vector<double *> dmtril_vec(num_devices); // array of device addresses 
 
     dmtril_vec[0] = dd->d_dmtril;
@@ -679,9 +698,11 @@ void Device::get_jk(int naux, int nao, int nset,
     }
     
     mgpu_bcast(dmtril_vec, dmtril, size);  // host -> gpu 0, then Bcast to all gpu
+
+    //    for(int i=0; i<10; ++i) printf("(%i)  i= %i  dmtril= %f\n",rank, i, dmtril[i]);
   }
 #else
-  if(count < num_devices) {
+  if(count < num_devices) { // only transfer first time a device is used
     int err = pm->dev_push_async(dd->d_dmtril, dmtril, nset * nao_pair * sizeof(double));
     if(err) {
       printf("LIBGPU:: dev_push_async(d_dmtril) failed on count= %i\n",count);
@@ -697,8 +718,8 @@ void Device::get_jk(int naux, int nao, int nset,
   py::buffer_info info_vj = _vj.request(); // 2D array (nset, nao_pair)
   py::buffer_info info_vk = _vk.request(); // 3D array (nset, nao, nao)
   
-  printf("LIBGPU:: device= %i  naux= %i  nao= %i  nset= %i  nao_pair= %i  count= %i\n",device_id,naux,nao,nset,nao_pair,count);
-  printf("LIBGPU::shape: dmtril= (%i,%i)  eri1= (%i,%i)  rho= (%i, %i)   vj= (%i,%i)  vk= (%i,%i,%i)\n",
+  printf("LIBGPU (%i) :: device= %i  naux= %i  nao= %i  nset= %i  nao_pair= %i  count= %i\n",rank,device_id,naux,nao,nset,nao_pair,count);
+  printf("LIBGPU (%i) ::shape: dmtril= (%i,%i)  eri1= (%i,%i)  rho= (%i, %i)   vj= (%i,%i)  vk= (%i,%i,%i)\n",rank,
   	 info_dmtril.shape[0], info_dmtril.shape[1],
   	 info_eri1.shape[0], info_eri1.shape[1],
   	 info_dmtril.shape[0], info_eri1.shape[0],
@@ -707,23 +728,35 @@ void Device::get_jk(int naux, int nao, int nset,
   
   DevArray2D da_eri1 = DevArray2D(eri1, naux, nao_pair, pm, DA_HOST);
   //  printf("LIBGPU:: eri1= %p  dfobj= %lu  count= %i  combined= %lu\n",eri1,addr_dfobj,count,addr_dfobj+count);
-  printf("LIBGPU:: dfobj= %#012x  count= %i  combined= %#012x  update_dfobj= %i\n",addr_dfobj,count,addr_dfobj+count, update_dfobj);
-  printf("LIBGPU::     0:      %f %f %f %f\n",da_eri1(0,0), da_eri1(0,1), da_eri1(0,nao_pair-2), da_eri1(0,nao_pair-1));
-  printf("LIBGPU::     1:      %f %f %f %f\n",da_eri1(1,0), da_eri1(1,1), da_eri1(1,nao_pair-2), da_eri1(1,nao_pair-1));
-  printf("LIBGPU::     naux-2: %f %f %f %f\n",da_eri1(naux-2,0), da_eri1(naux-2,1), da_eri1(naux-2,nao_pair-2), da_eri1(naux-2,nao_pair-1));
-  printf("LIBGPU::     naux-1: %f %f %f %f\n",da_eri1(naux-1,0), da_eri1(naux-1,1), da_eri1(naux-1,nao_pair-2), da_eri1(naux-1,nao_pair-1));
+  printf("LIBGPU (%i) :: dfobj= %#012x  count= %i  combined= %#012x  update_dfobj= %i\n",addr_dfobj,count,addr_dfobj+count, update_dfobj);
+  printf("LIBGPU (%i) ::     0:      %f %f %f %f\n",rank,da_eri1(0,0), da_eri1(0,1), da_eri1(0,nao_pair-2), da_eri1(0,nao_pair-1));
+  printf("LIBGPU (%i) ::     1:      %f %f %f %f\n",rank,da_eri1(1,0), da_eri1(1,1), da_eri1(1,nao_pair-2), da_eri1(1,nao_pair-1));
+  printf("LIBGPU (%i) ::     naux-2: %f %f %f %f\n",rank,da_eri1(naux-2,0), da_eri1(naux-2,1), da_eri1(naux-2,nao_pair-2), da_eri1(naux-2,nao_pair-1));
+  printf("LIBGPU (%i) ::     naux-1: %f %f %f %f\n",rank,da_eri1(naux-1,0), da_eri1(naux-1,1), da_eri1(naux-1,nao_pair-2), da_eri1(naux-1,nao_pair-1));
 #endif
   
+  //  for(int i=0; i<10; ++i) printf("(%i)  i= %i  eri1= %f\n",rank, i, eri1[i]);
+    
   if(use_eri_cache)
     d_eri = dd_fetch_eri(dd, eri1, naux, nao_pair, addr_dfobj, count);
 
   pm->dev_profile_stop();
   
+  printf("(%i) count= %i  assigned_rank= %i  device_id= %i\n",rank, count, assigned_rank, device_id);
+  
+  // if(rank != assigned_rank) return;
+  
+  // if(my_first_count == -1) my_first_count = count;
+  
+  //  printf("(%i) count= %i  my_first_count= %i\n",rank, count, my_first_count);
+  
+  dd->active = 1;
+  
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: Starting with_j calculation\n");
+  printf("LIBGPU (%i) :: Starting with_j calculation\n",rank);
 #endif
 
-  if (with_j){
+  if(with_j) {
     
     pm->dev_profile_start("get_jk :: with_j");
     
@@ -734,6 +767,7 @@ void Device::get_jk(int naux, int nao, int nset,
     // vj += numpy.einsum('ip,px->ix', rho, eri1)
    
     int init = (count < num_devices) ? 1 : 0;
+    //    int init = ((count-my_first_count) < num_devices) ? 1 : 0;
   
     getjk_vj(dd->d_vj, dd->d_rho, d_eri, nset, nao_pair, naux, init);
     
@@ -760,8 +794,8 @@ void Device::get_jk(int naux, int nao, int nset,
   getjk_unpack_buf2(dd->d_buf2, d_eri, dd->d_pumap_ptr, naux, nao, nao_pair);
 
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU ::  -- finished\n");
-  printf("LIBGPU :: Starting with_k calculation\n");
+  printf("LIBGPU (%i) ::  -- finished\n",rank);
+  printf("LIBGPU (%i) :: Starting with_k calculation\n",rank);
 #endif
     
   for(int indxK=0; indxK<nset; ++indxK) {
@@ -776,10 +810,13 @@ void Device::get_jk(int naux, int nao, int nset,
     double * d_dms = &(dd->d_dms[indxK*nao*nao]);
 
     if(count < num_devices) {
+      //    if((count-my_first_count) < num_devices) {
 #ifdef _DEBUG_DEVICE
-      printf("LIBGPU ::  -- calling dev_push_async(dms) for indxK= %i  nset= %i\n",indxK,nset);
+      printf("LIBGPU (%i) ::  -- calling dev_push_async(dms) for indxK= %i  nset= %i\n",rank,indxK,nset);
 #endif
-    
+      
+      MPI_Bcast(dms, nao*nao, MPI_DOUBLE, 0, comm); // sync so all ranks agree
+      
       int err = pm->dev_push_async(d_dms, dms, nao*nao*sizeof(double));
       if(err) {
 	printf("LIBGPU:: dev_push_async(d_dms) on indxK= %i\n",indxK);
@@ -817,6 +854,7 @@ void Device::get_jk(int naux, int nao, int nset,
     {
       const double alpha = 1.0;
       const double beta = (count < num_devices) ? 0.0 : 1.0; // first pass by each device initializes array, otherwise accumulate
+      //      const double beta = ((count-my_first_count) < num_devices) ? 0.0 : 1.0; // first pass by each device initializes array, otherwise accumulate
       
       const int m = nao; // # of rows of first matrix buf4^T
       const int n = nao; // # of cols of second matrix buf3^T
@@ -841,8 +879,9 @@ void Device::get_jk(int naux, int nao, int nset,
   // counts in pull jk
     
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU ::  -- finished\n");
-  printf("LIBGPU :: -- Leaving Device::get_jk()\n");
+  printf("LIBGPU (%i) ::  -- finished\n",rank);
+  printf("LIBGPU (%i) :: -- Leaving Device::get_jk()\n",rank);
+  fflush(stdout);
 #endif
 }
   
@@ -852,12 +891,18 @@ void Device::get_jk(int naux, int nao, int nset,
 void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int nao, int nset, int with_k)
 {
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: -- Inside Device::pull_get_jk()\n");
+  printf("LIBGPU (%i) :: -- Inside Device::pull_get_jk() w/ comm= %i  num_procs= %i\n", rank, comm, num_procs);
+  fflush(stdout);
+  MPI_Barrier(comm);
 #endif
  
+  printf("(%i) So far...  \n",rank);
+  
   double t0 = omp_get_wtime();
   
   pm->dev_profile_start("pull_get_jk");
+  
+  printf("(%i) So far, so good...  \n",rank);
   
   py::buffer_info info_vj = _vj.request(); // 2D array (nset, nao_pair)
   
@@ -866,6 +911,8 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
   int nao_pair = nao * (nao+1) / 2;
   
   int N = nset * nao_pair;
+  
+  printf("(%i) So far, so good...  num_devices= %i\n",rank, num_devices);
   
   std::vector<double *> v_vec(num_devices);
   std::vector<double *> buf_vec(num_devices);
@@ -876,14 +923,25 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
     v_vec[i] = dd->d_vj;
     buf_vec[i] = dd->d_buf3;
     active[i] = dd->active;
+
+    if(rank == 0) printf("i= %i  active= %i\n",i,active[i]);
   }
+
   
-  if(v_vec[0]) {
-    mgpu_reduce(v_vec, buf_vj, N, true, buf_vec, active);
-    
+  mgpu_reduce(v_vec, buf_vj, N, true, buf_vec, active);
+  
+  for(int i=0; i<10; ++i) printf("(%i)  i= %i  buf_vj= %f\n",rank, i, buf_vj[i]);
+  for(int i=N-10; i<N; ++i) printf("(%i)  i= %i  buf_vj= %f\n",rank, i, buf_vj[i]);    
+  
+  double * tmp = buf_vk; // temp storage to accumulate results in
+  MPI_Allreduce(buf_vj, tmp, N, MPI_DOUBLE, MPI_SUM, comm); // TODO: move this inside of mgpu_reduce() and use gpu buffers
+  
 #pragma omp parallel for
-    for(int j=0; j<N; ++j) vj[j] += buf_vj[j];
-  }
+  for(int j=0; j<N; ++j) vj[j] += 0.5 * tmp[j]; //buf_vj[j];
+  //for(int j=0; j<N; ++j) vj[j] += buf_vj[j];
+
+  // for(int i=0; i<10; ++i) printf("(%i)  i= %i  vj= %f\n",rank, i, vj[i]);
+  // for(int i=N-10; i<N; ++i) printf("(%i)  i= %i  vj= %f\n",rank, i, vj[i]);
   
   update_dfobj = 0;
   
@@ -892,6 +950,8 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
     
 #ifdef _DEBUG_DEVICE
     printf("LIBGPU :: -- Leaving Device::pull_get_jk()\n");
+    fflush(stdout);
+    MPI_Barrier(comm);
 #endif
     
     return;
@@ -908,12 +968,14 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
     v_vec[i] = dd->d_vkk;
   }
   
-  if(v_vec[0]) {
-    mgpu_reduce(v_vec, buf_vk, N, true, buf_vec, active);
+  mgpu_reduce(v_vec, buf_vk, N, true, buf_vec, active);
     
+  //  tmp = buf_vj; // temp storage to accumulate results in
+  //  MPI_Allreduce(buf_vk, tmp, N, MPI_DOUBLE, MPI_SUM, comm); // TODO: move this inside of mgpu_reduce() and use gpu buffers
+  
 #pragma omp parallel for
-    for(int j=0; j<N; ++j) vk[j] += buf_vk[j];
-  }
+  for(int j=0; j<N; ++j) vk[j] += buf_vk[j];
+  //  for(int j=0; j<N; ++j) vk[j] += 0.5 * tmp[j]; //buf_vk[j];
   
   pm->dev_profile_stop();
   
@@ -922,7 +984,9 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
   count_array[0]+=1; // just doing this addition in pull, not in init or compute
   
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: -- Leaving Device::pull_get_jk()\n");
+  printf("LIBGPU (%i) :: -- Leaving Device::pull_get_jk()\n",rank);
+  fflush(stdout);
+  MPI_Barrier(comm);
 #endif
 }
 
@@ -947,13 +1011,14 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
   int size = nset * nao_pair * sizeof(double);
 
   double * tmp;
+  double * result = buf_vk;
   
   for(int i=0; i<num_devices; ++i) {
     pm->dev_set_device(i);
     
     my_device_data * dd = &(device_data[i]);
 
-    if(i == 0) tmp = vj;
+    if(i == 0) tmp = result;
     else tmp = &(buf_vj[i * nset * nao_pair]);
     
     if(dd->active) pm->dev_pull_async(dd->d_vj, tmp, size);
@@ -970,9 +1035,11 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
       
       tmp = &(buf_vj[i * nset * nao_pair]);
 #pragma omp parallel for
-      for(int j=0; j<nset*nao_pair; ++j) vj[j] += tmp[j];
+      for(int j=0; j<nset*nao_pair; ++j) result[j] += tmp[j];
       
     }
+
+    MPI_Allreduce(result, vj, nset*nao_pair, MPI_DOUBLE, MPI_SUM, comm);
   }
   
   update_dfobj = 0;
@@ -993,12 +1060,14 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
 
   size = nset * nao * nao * sizeof(double);
 
+  result = buf_vj;
+  
   for(int i=0; i<num_devices; ++i) {
     pm->dev_set_device(i);
       
     my_device_data * dd = &(device_data[i]);
 
-    if(i == 0) tmp = vk;
+    if(i == 0) tmp = result;
     else tmp = &(buf_vk[i * nset * nao * nao]);
 
     if(dd->active) pm->dev_pull_async(dd->d_vkk, tmp, size);
@@ -1015,10 +1084,11 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
       
       tmp = &(buf_vk[i * nset * nao * nao]);
 #pragma omp parallel for
-      for(int j=0; j<nset*nao*nao; ++j) vk[j] += tmp[j];
+      for(int j=0; j<nset*nao*nao; ++j) result[j] += tmp[j];
     
     }
 
+    MPI_Allreduce(result, vk, nset*nao*nao, MPI_DOUBLE, MPI_SUM, comm);    
   }
 
   pm->dev_profile_stop();
@@ -1192,6 +1262,9 @@ double * Device::dd_fetch_eri(my_device_data * dd, double * eri1, int naux, int 
     
     if(!full_molecule && update_dfobj) {
       eri_update[id]++;
+
+      MPI_Bcast(eri1, naux*nao_pair, MPI_DOUBLE, 0, comm); // sync so all ranks agree
+      
       int err = pm->dev_push_async(d_eri, eri1, naux * nao_pair * sizeof(double));
       if(err) {
 	printf("LIBGPU:: dev_push_async(d_eri) updating eri block\n");
@@ -1220,6 +1293,8 @@ double * Device::dd_fetch_eri(my_device_data * dd, double * eri1, int naux, int 
 
     d_eri = (double *) pm->dev_malloc_async(naux * nao_pair * sizeof(double), "eri_cache", FLERR);
     d_eri_cache.push_back(d_eri);
+
+    MPI_Bcast(eri1, naux*nao_pair, MPI_DOUBLE, 0, comm); // sync so all ranks agree
     
     int err = pm->dev_push_async(d_eri, eri1, naux * nao_pair * sizeof(double));
     if(err) {
@@ -1228,7 +1303,7 @@ double * Device::dd_fetch_eri(my_device_data * dd, double * eri1, int naux, int 
     }
     
 #ifdef _DEBUG_DEVICE
-    printf("LIBGPU:: dd_fetch_eri :: addr= %p  count= %i  naux= %i  nao_pair= %i\n",(void*)(addr_dfobj+count), count, naux, nao_pair);
+    printf("LIBGPU (%i) :: dd_fetch_eri :: addr= %p  count= %i  naux= %i  nao_pair= %i\n",rank,(void*)(addr_dfobj+count), count, naux, nao_pair);
 #endif    
   }
 
@@ -1240,7 +1315,8 @@ double * Device::dd_fetch_eri(my_device_data * dd, double * eri1, int naux, int 
 double * Device::dd_fetch_eri_debug(my_device_data * dd, double * eri1, int naux, int nao_pair, size_t addr_dfobj, int count)
 {   
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: Starting eri_cache lookup for ERI %p\n",(void*)(addr_dfobj+count));
+  printf("LIBGPU (%i) :: Starting eri_cache lookup for ERI %p  eri_list.size()= %zu\n",rank,(void*)(addr_dfobj+count),eri_list.size());
+  fflush(stdout);
 #endif
 
   double * d_eri;
@@ -1253,12 +1329,16 @@ double * Device::dd_fetch_eri_debug(my_device_data * dd, double * eri1, int naux
       id = i;
       break;
     }
+
+  printf("(%i)  id= %i\n",rank,id);
+  fflush(stdout);
   
   // grab/update cached data
   
   if(id < eri_list.size()) {
 #ifdef _DEBUG_DEVICE
-    printf("LIBGPU :: -- eri block found: id= %i\n",id);
+    printf("LIBGPU (%i) :: -- eri block found: id= %i\n",rank,id);
+    fflush(stdout);
 #endif
     
     eri_count[id]++;
@@ -1276,7 +1356,9 @@ double * Device::dd_fetch_eri_debug(my_device_data * dd, double * eri1, int naux
     for(int i=0; i<naux*nao_pair; ++i) diff_eri += (eri_host[i] - eri1[i]) * (eri_host[i] - eri1[i]);
     
     if(diff_eri > 1e-10) {
-      for(int i=0; i<naux*nao_pair; ++i) eri_host[i] = eri1[i];
+      MPI_Bcast(eri1, naux*nao_pair, MPI_DOUBLE, 0, comm); // sync so all ranks agree
+      
+      for(int i=0; i<naux*nao_pair; ++i) eri_host[i] = eri1[i];      
       pm->dev_push_async(d_eri, eri1, naux * nao_pair * sizeof(double));
       eri_update[id]++;
       
@@ -1291,7 +1373,7 @@ double * Device::dd_fetch_eri_debug(my_device_data * dd, double * eri1, int naux
       
       // update_dfobj falsely updates device ; this is loss of performance
       if(update_dfobj) {
-	printf("LIBGPU :: Warning: ERI %p not updated on device w/ diff_eri= %.10e, but update_dfobj= %i\n",(void*)(addr_dfobj+count)//,diff_eri,update_dfobj);
+	printf("LIBGPU :: Warning: ERI %p not updated on device w/ diff_eri= %.10e, but update_dfobj= %i\n",(void*)(addr_dfobj+count),diff_eri,update_dfobj);
 	//count = -1;
 	//return;
 	//exit(1);
@@ -1300,9 +1382,13 @@ double * Device::dd_fetch_eri_debug(my_device_data * dd, double * eri1, int naux
 #else
     if(update_dfobj) {
 #ifdef _DEBUG_DEVICE
-      printf("LIBGPU :: -- updating eri block: id= %i\n",id);
+      printf("LIBGPU (%i) :: -- updating eri block: id= %i\n",rank,id);
+      fflush(stdout);
 #endif
       eri_update[id]++;
+
+      MPI_Bcast(eri1, naux*nao_pair, MPI_DOUBLE, 0, comm); // sync so all ranks agree
+      
       int err = pm->dev_push_async(d_eri, eri1, naux * nao_pair * sizeof(double));
       if(err) {
 	printf("LIBGPU:: dev_push_async(d_eri) updating eri block\n");
@@ -1312,6 +1398,11 @@ double * Device::dd_fetch_eri_debug(my_device_data * dd, double * eri1, int naux
 #endif
     
   } else {
+#ifdef _DEBUG_DEVICE
+    printf("LIBGPU (%i) :: -- allocating new eri block: %i\n",rank,id);
+    fflush(stdout);
+#endif
+    
     eri_list.push_back(addr_dfobj+count);
     eri_count.push_back(1);
     eri_update.push_back(0);
@@ -1324,17 +1415,16 @@ double * Device::dd_fetch_eri_debug(my_device_data * dd, double * eri1, int naux
     eri_extra.push_back(naux);
     eri_extra.push_back(nao_pair);
     
-    int id_ = d_eri_cache.size();
-#ifdef _DEBUG_DEVICE
-    printf("LIBGPU :: -- allocating new eri block: %i\n",id);
-#endif
-    
     d_eri = (double *) pm->dev_malloc_async(naux * nao_pair * sizeof(double), "eri_cache", FLERR);
     d_eri_cache.push_back(d_eri);
     
 #ifdef _DEBUG_DEVICE
-    printf("LIBGPU :: -- initializing eri block\n");
+    printf("LIBGPU (%i) :: -- initializing eri block\n",rank);
+    fflush(stdout);
 #endif
+
+    MPI_Bcast(eri1, naux*nao_pair, MPI_DOUBLE, 0, comm); // sync so all ranks agree
+      
     int err = pm->dev_push_async(d_eri, eri1, naux * nao_pair * sizeof(double));
     if(err) {
       printf("LIBGPU:: dev_push_async(d_eri) initializing new eri block\n");
@@ -1343,15 +1433,16 @@ double * Device::dd_fetch_eri_debug(my_device_data * dd, double * eri1, int naux
     
 #ifdef _DEBUG_ERI_CACHE
     d_eri_host.push_back( (double *) pm->dev_malloc_host(naux*nao_pair * sizeof(double)) );
-    double * d_eri_host_ = d_eri_host[id_];
+    double * d_eri_host_ = d_eri_host[id];
     for(int i=0; i<naux*nao_pair; ++i) d_eri_host_[i] = eri1[i];
 #endif
     
 #ifdef _DEBUG_DEVICE
-    printf("LIBGPU:: dd_fetch_eri_debug :: addr= %p  count= %i  naux= %i  nao_pair= %i\n",(void*)(addr_dfobj+count), count, naux, nao_pair);
+    printf("LIBGPU (%i) :: dd_fetch_eri_debug :: addr= %p  count= %i  naux= %i  nao_pair= %i\n",rank,(void*)(addr_dfobj+count), count, naux, nao_pair);
+    fflush(stdout);
 #endif
   }
-
+  
   return d_eri;
 }
 
@@ -2321,7 +2412,8 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   double t0 = omp_get_wtime();
 
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: Inside Device :: Starting update_h2eff_sub function\n");
+  printf("LIBGPU (%i) :: Inside Device :: Starting update_h2eff_sub function\n",rank);
+  fflush(stdout);
 #endif
 
   pm->dev_profile_start("Setup initial h2eff_sub");
@@ -2672,8 +2764,8 @@ void Device::get_h2eff_df_v1(py::array_t<double> _cderi,
   double t0 = omp_get_wtime();
 
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: Inside Device :: Starting h2eff_df_contract1 function");
-  printf("LIBGPU:: dfobj= %p count= %i combined= %lu %p update_dfobj= %i\n",(void*)(addr_dfobj), count, addr_dfobj+count, (void*)(addr_dfobj+count),update_dfobj);
+  printf("LIBGPU (%i) :: Inside Device :: Starting h2eff_df_contract1 function",rank);
+  printf("LIBGPU (%i) :: dfobj= %p count= %i combined= %lu %p update_dfobj= %i\n",rank,(void*)(addr_dfobj), count, addr_dfobj+count, (void*)(addr_dfobj+count),update_dfobj);
 #endif 
   
   pm->dev_profile_start("h2eff df setup");
@@ -2812,8 +2904,9 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   double t0 = omp_get_wtime();
 
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: Inside Device::get_h2eff_df_v2()\n");
-  printf("LIBGPU:: dfobj= %p count= %i combined= %lu %p update_dfobj= %i\n",(void*)(addr_dfobj), count, addr_dfobj+count, (void*)(addr_dfobj+count),update_dfobj);
+  printf("LIBGPU (%i) :: Inside Device::get_h2eff_df_v2()\n",rank);
+  printf("LIBGPU (%i) :: dfobj= %p count= %i combined= %lu %p update_dfobj= %i\n",rank,(void*)(addr_dfobj), count, addr_dfobj+count, (void*)(addr_dfobj+count),update_dfobj);
+  fflush(stdout);
 #endif 
   
   pm->dev_profile_start("h2eff df setup");
@@ -2866,7 +2959,7 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   if(size_vuwm > max_size_buf) max_size_buf = size_vuwm; 
   
   grow_array(dd->d_buf1, max_size_buf, dd->size_buf1, "buf1", FLERR); // holds cderi_unpacked and bumP+buvP and vuwM
-
+  
   max_size_buf = size_bumP_buvP;
   if(size_vuwm > max_size_buf) max_size_buf = size_vuwm;
   
@@ -2876,6 +2969,10 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   if(size_vuwM > max_size_buf) max_size_buf = size_vuwM;
   
   grow_array(dd->d_buf3, max_size_buf, dd->size_buf3, "buf3", FLERR); // holds eri_h2eff
+  
+  printf("(%i)  post d_buf3 success!!\n",rank);
+  fflush(stdout);
+  MPI_Barrier(comm);
   
   double * eri = static_cast<double*>(info_eri.ptr);
   double * d_mo_coeff = dd->d_mo_coeff;
@@ -2894,6 +2991,10 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
     pm->dev_push_async(d_cderi, cderi, _size_eri * sizeof(double));
   }
+
+  printf("(%i)  post dd_fetch_eri() success!!\n",rank);
+  fflush(stdout);
+  MPI_Barrier(comm);
 
   double * d_cderi_unpacked = dd->d_buf1;
 
@@ -2989,7 +3090,8 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   count_array[4] += 1; // see v1 comment
   
 #ifdef _DEBUG_DEVICE
-  printf("LIBGPU :: Leaving Device::get_h2eff_df_v2()\n");
+  printf("LIBGPU (%i) :: Leaving Device::get_h2eff_df_v2()\n",rank);
+  fflush(stdout);
 #endif  
 }
 
