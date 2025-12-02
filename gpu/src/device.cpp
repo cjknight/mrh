@@ -537,10 +537,14 @@ void Device::barrier_all()
 {
   //if(verbose_level) printf("LIBGPU: barrier on all devices\n");
 
+  pm->dev_profile_start("barrier_all");
+  
   for(int i=0; i<num_devices; ++i) {
     pm->dev_set_device(i);
     pm->dev_barrier();
   }
+  
+  pm->dev_profile_stop();
 }
 
 /* ---------------------------------------------------------------------- */
@@ -5192,10 +5196,12 @@ void Device::reorder_rdm(int norb, int count)
   int id = count % num_devices;
   pm->dev_set_device(id); 
   my_device_data * dd = &(device_data[id]);
+  pm->dev_profile_start("tdms :: reorder_rdm");
   //get buffer array
   int _size_buf = norb*norb*norb*norb;
   grow_array(dd->d_buf1, _size_buf, dd->size_buf1, "buf1", FLERR);
   reorder(dd->d_tdm1, dd->d_tdm2, dd->d_buf1, norb);
+  pm->dev_profile_stop();
   double t1 = omp_get_wtime();
   //t_array[30] += t1-t0;
   //count_array[20]++;
@@ -5402,6 +5408,7 @@ void Device::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int norb, 
   int id = count % num_devices;
   pm->dev_set_device(id); 
   my_device_data * dd = &(device_data[id]);
+  pm->dev_profile_start("tdms :: pull tdm3hab_v2_host");
   int norb1 = norb+1;
   int norb2 = norb*norb;
   int size_tdm1h = norb;
@@ -5437,14 +5444,15 @@ void Device::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int norb, 
     pm->dev_pull_async(&(dd->d_buf3[norb]), h_dm3ha_loc, norb*norb2*sizeof(double));
     pm->dev_pull_async(&(dd->d_buf3[norb+norb*norb2]), h_dm3hb_loc, norb*norb2*sizeof(double));
     }
+  
+  // if (count+1 == n_bra*n_ket){
+  //   for (int device_id =0; device_id<num_devices; ++device_id){
+  //     pm->dev_set_device(device_id); 
+  //     pm->dev_barrier();
+  //   }
+  // }
+  
   pm->dev_profile_stop();
-  if (count+1 == n_bra*n_ket){
-    for (int device_id =0; device_id<num_devices; ++device_id){
-      pm->dev_set_device(device_id); 
-      pm->dev_barrier();
-      }
-    }
-  //printf("i:%i j:%i\n",i,j);
   double t1 = omp_get_wtime();
   t_array[32] += t1-t0;
   count_array[22]++;
