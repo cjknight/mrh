@@ -59,6 +59,7 @@ def multi_gpu_loop(cre, bravecs, ketvecs,norb,nelec, spin, reorder):
     if reorder: libgpu.reorder_rdm(gpu, norb+1, count)
     libgpu.pull_tdm3hab_v2_host(gpu, j, i, n_bra, n_ket, norb, cre, spin, count)
 
+  libgpu.barrier(gpu)
   libgpu.copy_tdm1_host_to_page(gpu, tdm1h, size_tdm1h_full) 
   libgpu.copy_tdm2_host_to_page(gpu, tdm3h, size_tdm3h_full) 
   return tdm1h, tdm3h
