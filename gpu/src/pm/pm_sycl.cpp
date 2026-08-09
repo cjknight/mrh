@@ -499,8 +499,8 @@ void PM::dev_free(void * ptr, std::string name)
 
   profile_memory(0, name, PROFILE_MEM_FREE);
   
-  sycl::free(ptr, *current_queue);
   current_queue->wait();
+  sycl::free(ptr, *current_queue);
   
 #ifdef _DEBUG_PM
   printf(" -- Leaving PM::dev_free()\n");
@@ -517,8 +517,8 @@ void PM::dev_free_async(void * ptr, std::string name)
   
   profile_memory(0, name, PROFILE_MEM_FREE);
   
+  current_queue->wait();
   sycl::free(ptr, *current_queue);
-  //  current_queue->wait();
   
 #ifdef _DEBUG_PM
   printf(" -- Leaving PM::dev_free_async()\n");
@@ -535,6 +535,7 @@ void PM::dev_free_async(void * ptr, sycl::queue &q, std::string name)
   
   profile_memory(0, name, PROFILE_MEM_FREE);
   
+  q.wait();
   sycl::free(ptr, q);
   
 #ifdef _DEBUG_PM
@@ -550,8 +551,8 @@ void PM::dev_free_host(void * ptr)
   printf("Inside PM::dev_free_host()\n");
 #endif
   
-  sycl::free(ptr, *current_queue);
   current_queue->wait();
+  sycl::free(ptr, *current_queue);
   
 #ifdef _DEBUG_PM
   printf(" -- Leaving PM::dev_free_host()\n");
