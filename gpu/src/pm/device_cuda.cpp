@@ -2103,11 +2103,9 @@ void Device::transpose_021( double * in, double * out, int ax1, int ax2, int ax3
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   dim3 block_size(1,1,1);
   dim3 grid_size(_TILE(ax1, block_size.x),_TILE(ax2, block_size.y),_TILE(ax3, block_size.z));
-  #if 1
-  _transpose_021<<<grid_size, block_size, 0, s>>>(in, out, ax1, ax2, ax3);
-  #else
 
-  #endif
+  _transpose_021<<<grid_size, block_size, 0, s>>>(in, out, ax1, ax2, ax3);
+
   _CUDA_CHECK_ERRORS();
 }
 /* ---------------------------------------------------------------------- */

@@ -1555,7 +1555,7 @@ void _filter_tdm3h(double * in, double * out, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void _transpose_021(double * in, double * out, int norb)
+void _transpose_021(double * in, double * out, int ax1, int ax2, int ax3)
 {
     // abc->acb
     auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
@@ -1566,14 +1566,61 @@ void _transpose_021(double * in, double * out, int norb)
     int k = item_ct1.get_group(0) * item_ct1.get_local_range(0) +
             item_ct1.get_local_id(0);
 
-    if(i >= norb) return;
-    if(j >= norb) return;
-    if(k >= norb) return;
+    if(i >= ax1) return;
+    if(j >= ax2) return;
+    if(k >= ax3) return;
 
-    int inputIndex = i*norb*norb+k*norb+j;
-    int outputIndex = i*norb*norb  + j*norb + k;
+    int inputIndex = (i*ax3+k)*ax2+j;
+    int outputIndex = (i*ax2+j)*ax3+k;
     //printf("%i %i %i %f\n",i, j, k, in[inputIndex]);
     out[outputIndex] = in[inputIndex];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void _transpose_102(double * in, double * out, int ax1, int ax2, int ax3)
+{
+    // abc->bac
+    auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
+    int i = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
+            item_ct1.get_local_id(2);
+    int j = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
+            item_ct1.get_local_id(1);
+    int k = item_ct1.get_group(0) * item_ct1.get_local_range(0) +
+            item_ct1.get_local_id(0);
+
+    if(i >= ax1) return;
+    if(j >= ax2) return;
+    if(k >= ax3) return;
+
+    int inputIndex = (j*ax1+i)*ax3+k;
+    int outputIndex = (i*ax2+j)*ax3+k;
+    //printf("%i %i %i %f\n",i, j, k, in[inputIndex]);
+    out[outputIndex] = in[inputIndex];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void _transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
+{
+    // rs(bazl)k->(bazl)skr
+    auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
+    int idx1 = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
+               item_ct1.get_local_id(2);
+    int idx2 = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
+               item_ct1.get_local_id(1);
+    int idx3 = item_ct1.get_group(0) * item_ct1.get_local_range(0) +
+               item_ct1.get_local_id(0);
+
+    if(idx1 >= ax1) return;
+    if(idx2 >= ax2) return;
+    if(idx3 >= ax3) return;
+    int inputIndex, outputIndex;
+    for (int idx4=0;idx4<ax4;++idx4){
+      outputIndex = ((idx3*ax2 + idx2)*ax4 + idx4)*ax1 + idx1;
+      inputIndex = ((idx1*ax2 + idx2)*ax3 + idx3)*ax4 + idx4;
+      //printf("input: %i: %f output: %i\n",inputIndex, in[inputIndex], outputIndex);
+      out[outputIndex] = in[inputIndex];}
 }
 
 /* ---------------------------------------------------------------------- */
@@ -3151,15 +3198,15 @@ void Device::veccopy(const double * src, double *dest, int size)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_021( double * in, double * out, int norb)
+void Device::transpose_021( double * in, double * out, int ax1, int ax2, int ax3)
 {
   sycl::queue * s = pm->dev_get_queue();
   
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> block_size(1, 1, 1);
-  sycl::range<3> grid_size(_TILE(norb, block_size[0]), _TILE(norb, block_size[1]),
-                       _TILE(norb, block_size[2]));
-#if 1
+  sycl::range<3> grid_size(_TILE(ax3, block_size[0]), _TILE(ax2, block_size[1]),
+                       _TILE(ax1, block_size[2]));
+
   /*
   DPCT1049:40: The work-group size passed to the SYCL kernel may exceed the
   limit. To get the device limit, query info::device::max_work_group_size.
@@ -3170,12 +3217,56 @@ void Device::transpose_021( double * in, double * out, int norb)
 
     s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
                     [=](sycl::nd_item<3> item_ct1) {
-                      _transpose_021(in, out, norb);
+                      _transpose_021(in, out, ax1, ax2, ax3);
                     });
   }
-#else
 
-#endif
+  pm->dev_check_errors();
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_102( double * in, double * out, int ax1, int ax2, int ax3)
+{
+  sycl::queue * s = pm->dev_get_queue();
+  
+  //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
+  sycl::range<3> block_size(1, 1, 1);
+  sycl::range<3> grid_size(_TILE(ax3, block_size[0]), _TILE(ax2, block_size[1]),
+                       _TILE(ax1, block_size[2]));
+
+  /*
+  DPCT1049:40: The work-group size passed to the SYCL kernel may exceed the
+  limit. To get the device limit, query info::device::max_work_group_size.
+  Adjust the work-group size if needed.
+  */
+  {
+    //dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
+
+    s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
+                    [=](sycl::nd_item<3> item_ct1) {
+                      _transpose_102(in, out, ax1, ax2, ax3);
+                    });
+  }
+
+  pm->dev_check_errors();
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
+{
+  sycl::queue * s = pm->dev_get_queue();
+  
+  sycl::range<3> block_size(1, 1, 1);
+  sycl::range<3> grid_size(_TILE(ax3, block_size[0]), _TILE(ax2, block_size[1]),
+                       _TILE(ax1, block_size[2]));
+  {
+    s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
+                    [=](sycl::nd_item<3> item_ct1) {
+                      _transpose_2130(in, out, ax1, ax2, ax3, ax4);
+                    });
+  }
   pm->dev_check_errors();
 }
 
