@@ -1777,7 +1777,7 @@ void Device::transpose(double * out, double * in, int nrow, int ncol)
             
 #if 1 
   sycl::range<3> grid_size(1, _TILE(ncol, _TRANSPOSE_BLOCK_SIZE),
-			   _TILE(nrow, _TRANSPOSE_BLOCK_SIZE),);
+			   _TILE(nrow, _TRANSPOSE_BLOCK_SIZE));
   sycl::range<3> block_size(1, _TRANSPOSE_NUM_ROWS, _TRANSPOSE_BLOCK_SIZE);
 #else
   dim3 grid_size(nrow, 1, 1);
