@@ -110,6 +110,31 @@ void MATHLIB::memset(double * array, const int * num, const int * size)
 
 // ----------------------------------------------------------------
 
+void MATHLIB::memset(double * array, const int * num, const size_t * size)
+{
+#ifdef _DEBUG_ML 
+  printf("Inside MATHLIB::memset()\n");
+#endif
+//TODO: add profiling lines related things
+
+#if 1
+  hipStream_t * s = pm->dev_get_queue();
+  
+  hipMemsetAsync ( array, *num, *size, *s);
+#else
+  hipMemset ( array, *num, *size);
+#endif
+  
+  _HIP_CHECK_ERRORS();
+
+#ifdef _DEBUG_ML 
+  printf(" -- Leaving MATHLIB::memset()\n");
+#endif
+
+}
+
+// ----------------------------------------------------------------
+
 void MATHLIB::axpy(const int * n, 
                    const double * alpha, const double * x, const int * incx,
                    double * y, const int * incy)
@@ -148,13 +173,30 @@ void MATHLIB::gemv_batch(const char * transa,
   printf("Inside MATHLIB::gemv()\n");
 #endif
 
+#if defined(_PROFILE_ML)
+  std::ostringstream name_;
+  name_ << "gemv_batch " << transa << " " << " " << *m << " " << *n << " " << *lda << " " << *strideA << " " << *incx << " " <<
+    *strideX << " " << *beta << " " << *incy << " " << *strideY << " " << *batchCount;
+  std::string name = name_.str();
+
+  auto it_ = std::find(profile_name.begin(), profile_name.end(), name);
+
+  int indx = it_ - profile_name.begin();
+
+  if(indx < profile_name.size()) profile_count[indx]++;
+  else {
+    profile_name.push_back(name);
+    profile_count.push_back(1);
+  }
+#endif
+  
   hipblasHandle_t * h = current_handle;
   
   hipblasOperation_t ta;
   
-  if(strcmp(transa, "N") == 0) ta = CUBLAS_OP_N;
-  else if(strcmp(transa, "T") == 0) ta = CUBLAS_OP_T;
-  else ta = CUBLAS_OP_C;
+  if(strcmp(transa, "N") == 0) ta = HIPBLAS_OP_N;
+  else if(strcmp(transa, "T") == 0) ta = HIPBLAS_OP_T;
+  else ta = HIPBLAS_OP_C;
 
 #ifdef _SINGLE_PRECISION
   hipblasSgemvStridedBatched(*h, ta, *m, *n, 
@@ -183,11 +225,9 @@ void MATHLIB::gemv(const char * transa,
   printf("Inside MATHLIB::gemv()\n");
 #endif
 
-//#if defined(_PROFILE_ML)
-#if 0
+#if defined(_PROFILE_ML)
   std::ostringstream name_;
-  name_ << "gemv " << transa << " "  << *m << " " << *n << " "
-	<< *lda << " " << *ldb << " " << *ldc << " " << *alpha << " " << *beta;
+  name_ << "gemv " << transa << " " << " " << *m << " " << *n << " " << *lda << " " << *incx << " " << *beta << " " << *incy;
   std::string name = name_.str();
 
   auto it_ = std::find(profile_name.begin(), profile_name.end(), name);
@@ -205,9 +245,9 @@ void MATHLIB::gemv(const char * transa,
   
   hipblasOperation_t ta;
   
-  if(strcmp(transa, "N") == 0) ta = CUBLAS_OP_N;
-  else if(strcmp(transa, "T") == 0) ta = CUBLAS_OP_T;
-  else ta = CUBLAS_OP_C;
+  if(strcmp(transa, "N") == 0) ta = HIPBLAS_OP_N;
+  else if(strcmp(transa, "T") == 0) ta = HIPBLAS_OP_T;
+  else ta = HIPBLAS_OP_C;
 
 #ifdef _SINGLE_PRECISION
   hipblasSgemv(*h, ta, *m, *n, alpha, a, *lda, x, *incx, beta, y, *incy);
@@ -294,7 +334,7 @@ void MATHLIB::gemm_batch(const char * transa, const char * transb,
 #if defined(_PROFILE_ML)
   std::ostringstream name_;
   name_ << "gemm_batch " << transa << " " << transb << " " << *m << " " << *n << " " << *k << " " <<
-    << *lda << " " << *ldb << " " << *ldc << " " *alpha << " " << *beta << " " << *batchCount;
+    *lda << " " << *ldb << " " << *ldc << " " << *alpha << " " << *beta << " " << *batchCount;
   std::string name = name_.str();
 
   auto it_ = std::find(profile_name.begin(), profile_name.end(), name);

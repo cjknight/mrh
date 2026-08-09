@@ -48,6 +48,29 @@ void MATHLIB::memset(double * array, const int * num, const int * size)
 
 // ----------------------------------------------------------------
 
+void MATHLIB::memset(double * array, const int * num, const size_t * size)
+{
+#ifdef _DEBUG_ML 
+  printf("LIBGPU :: Inside MATHLIB::memset()\n");
+#endif
+
+  sycl::queue * q = pm_->dev_get_queue();
+  
+#if 1
+  q->memset(array, *num, *size);
+#else
+  q->memset(array, *num, *size).wait();
+#endif
+
+#ifdef _DEBUG_ML
+  pm_->dev_stream_wait();
+  printf("LIBGPU ::  -- Leaving MATHLIB::memset()\n");
+#endif
+
+}
+
+// ----------------------------------------------------------------
+
 void MATHLIB::axpy(const int * n, 
                    const double * alpha, const double * x, const int * incx,
                    double * y, const int * incy)
@@ -88,8 +111,8 @@ void MATHLIB::gemv_batch(const char * transa,
   
 #if defined(_PROFILE_ML)
   std::ostringstream name_;
-  name_ << "gemv_batch " << transa << " " << transb << " " << *m << " " << *n << " " << *k << " "
-	<< *lda << " " << *ldb << " " << *ldc << " " << *alpha << " " << *beta << " " << *batchCount;
+  name_ << "gemv_batch " << transa << " " << " " << *m << " " << *n << " " << *lda << " " << *strideA << " " << *incx << " " <<
+    *strideX << " " << *beta << " " << *incy << " " << *strideY << " " << *batchCount;
   std::string name = name_.str();
 
   auto it_ = std::find(profile_name.begin(), profile_name.end(), name);
@@ -139,11 +162,9 @@ void MATHLIB::gemv(const char * transa,
   printf("LIBGPU :: Inside MATHLIB::gemv()\n");
 #endif
 
-//#if defined(_PROFILE_ML)
-#if 0
+#if defined(_PROFILE_ML)
   std::ostringstream name_;
-  name_ << "gemv " << transa << " "  << *m << " " << *n << " "
-	<< *lda << " " << *ldb << " " << *ldc << " " << *alpha << " " << *beta;
+  name_ << "gemv " << transa << " " << " " << *m << " " << *n << " " << *lda << " " << *incx << " " << *beta << " " << *incy;
   std::string name = name_.str();
 
   auto it_ = std::find(profile_name.begin(), profile_name.end(), name);

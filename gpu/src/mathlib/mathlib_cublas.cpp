@@ -172,7 +172,23 @@ void MATHLIB::gemv_batch(const char * transa,
 #ifdef _DEBUG_ML
   printf("Inside MATHLIB::gemv()\n");
 #endif
+  
+#if defined(_PROFILE_ML)
+  std::ostringstream name_;
+  name_ << "gemv_batch " << transa << " " << " " << *m << " " << *n << " " << *lda << " " << *strideA << " " << *incx << " " <<
+    *strideX << " " << *beta << " " << *incy << " " << *strideY << " " << *batchCount;
+  std::string name = name_.str();
 
+  auto it_ = std::find(profile_name.begin(), profile_name.end(), name);
+
+  int indx = it_ - profile_name.begin();
+
+  if(indx < profile_name.size()) profile_count[indx]++;
+  else {
+    profile_name.push_back(name);
+    profile_count.push_back(1);
+  }
+#endif
   
   cublasHandle_t * h = current_handle;
   
@@ -209,11 +225,9 @@ void MATHLIB::gemv(const char * transa,
   printf("Inside MATHLIB::gemv()\n");
 #endif
 
-//#if defined(_PROFILE_ML)
-#if 0
+#if defined(_PROFILE_ML)
   std::ostringstream name_;
-  name_ << "gemv " << transa << " "  << *m << " " << *n << " "
-	<< *lda << " " << *ldb << " " << *ldc << " " << *alpha << " " << *beta;
+  name_ << "gemv " << transa << " " << " " << *m << " " << *n << " " << *lda << " " << *incx << " " << *beta << " " << *incy;
   std::string name = name_.str();
 
   auto it_ = std::find(profile_name.begin(), profile_name.end(), name);
@@ -226,7 +240,7 @@ void MATHLIB::gemv(const char * transa,
     profile_count.push_back(1);
   }
 #endif
-  
+ 
   cublasHandle_t * h = current_handle;
   
   cublasOperation_t ta;
