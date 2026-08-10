@@ -85,7 +85,7 @@ void MATHLIB::destroy_handle()
 
 // ----------------------------------------------------------------
 
-void MATHLIB::memset(double * array, const int * num, const int * size)
+void MATHLIB::memset(double * array, const int * val, const int * size)
 {
 #ifdef _DEBUG_ML 
   printf("Inside MATHLIB::memset()\n");
@@ -95,9 +95,9 @@ void MATHLIB::memset(double * array, const int * num, const int * size)
 #if 1
   cudaStream_t * s = pm->dev_get_queue();
 
-  cudaMemsetAsync ( array, *num, *size, *s);
+  cudaMemsetAsync ( array, *val, *size, *s);
 #else
-  cudaMemset ( array, *num, *size);
+  cudaMemset ( array, *val, *size);
 #endif
   
   _CUDA_CHECK_ERRORS();
@@ -109,7 +109,7 @@ void MATHLIB::memset(double * array, const int * num, const int * size)
 }
 // ----------------------------------------------------------------
 
-void MATHLIB::memset(double * array, const int * num, const size_t * size)
+void MATHLIB::memset(double * array, const int * val, const size_t * size)
 {
 #ifdef _DEBUG_ML 
   printf("Inside MATHLIB::memset()\n");
@@ -119,9 +119,9 @@ void MATHLIB::memset(double * array, const int * num, const size_t * size)
 #if 1
   cudaStream_t * s = pm->dev_get_queue();
 
-  cudaMemsetAsync ( array, *num, *size, *s);
+  cudaMemsetAsync ( array, *val, *size, *s);
 #else
-  cudaMemset ( array, *num, *size);
+  cudaMemset ( array, *val, *size);
 #endif
   
   _CUDA_CHECK_ERRORS();

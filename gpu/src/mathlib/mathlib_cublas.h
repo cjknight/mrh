@@ -28,8 +28,8 @@ namespace MATHLIB_NS {
     cublasHandle_t * get_handle();
     void destroy_handle();
     
-    void memset(double * array, const int * num, const int * size);
-    void memset(double * array, const int * num, const size_t * size);
+    void memset(double * array, const int * val, const int * size);
+    void memset(double * array, const int * val, const size_t * size);
     
     void axpy(const int * n,
               const double * alpha, const double * x, const int * incx, 

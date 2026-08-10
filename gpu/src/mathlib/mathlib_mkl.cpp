@@ -25,7 +25,7 @@ MATHLIB::~MATHLIB()
 
 // ----------------------------------------------------------------
 
-void MATHLIB::memset(double * array, const int * num, const int * size)
+void MATHLIB::memset(double * array, const int * val, const int * size)
 {
 #ifdef _DEBUG_ML 
   printf("LIBGPU :: Inside MATHLIB::memset()\n");
@@ -34,9 +34,9 @@ void MATHLIB::memset(double * array, const int * num, const int * size)
   sycl::queue * q = pm_->dev_get_queue();
   
 #if 1
-  q->memset(array, *num, *size);
+  q->memset(array, *val, *size);
 #else
-  q->memset(array, *num, *size).wait();
+  q->memset(array, *val, *size).wait();
 #endif
 
 #ifdef _DEBUG_ML
@@ -48,7 +48,7 @@ void MATHLIB::memset(double * array, const int * num, const int * size)
 
 // ----------------------------------------------------------------
 
-void MATHLIB::memset(double * array, const int * num, const size_t * size)
+void MATHLIB::memset(double * array, const int * val, const size_t * size)
 {
 #ifdef _DEBUG_ML 
   printf("LIBGPU :: Inside MATHLIB::memset()\n");
@@ -57,9 +57,9 @@ void MATHLIB::memset(double * array, const int * num, const size_t * size)
   sycl::queue * q = pm_->dev_get_queue();
   
 #if 1
-  q->memset(array, *num, *size);
+  q->memset(array, *val, *size);
 #else
-  q->memset(array, *num, *size).wait();
+  q->memset(array, *val, *size).wait();
 #endif
 
 #ifdef _DEBUG_ML

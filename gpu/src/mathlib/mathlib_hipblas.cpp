@@ -85,7 +85,7 @@ void MATHLIB::destroy_handle()
 
 // ----------------------------------------------------------------
 
-void MATHLIB::memset(double * array, const int * num, const int * size)
+void MATHLIB::memset(double * array, const int * val, const int * size)
 {
 #ifdef _DEBUG_ML 
   printf("Inside MATHLIB::memset()\n");
@@ -95,9 +95,9 @@ void MATHLIB::memset(double * array, const int * num, const int * size)
 #if 1
   hipStream_t * s = pm->dev_get_queue();
   
-  hipMemsetAsync ( array, *num, *size, *s);
+  hipMemsetAsync ( array, *val, *size, *s);
 #else
-  hipMemset ( array, *num, *size);
+  hipMemset ( array, *val, *size);
 #endif
   
   _HIP_CHECK_ERRORS();
@@ -110,7 +110,7 @@ void MATHLIB::memset(double * array, const int * num, const int * size)
 
 // ----------------------------------------------------------------
 
-void MATHLIB::memset(double * array, const int * num, const size_t * size)
+void MATHLIB::memset(double * array, const int * val, const size_t * size)
 {
 #ifdef _DEBUG_ML 
   printf("Inside MATHLIB::memset()\n");
@@ -120,9 +120,9 @@ void MATHLIB::memset(double * array, const int * num, const size_t * size)
 #if 1
   hipStream_t * s = pm->dev_get_queue();
   
-  hipMemsetAsync ( array, *num, *size, *s);
+  hipMemsetAsync ( array, *val, *size, *s);
 #else
-  hipMemset ( array, *num, *size);
+  hipMemset ( array, *val, *size);
 #endif
   
   _HIP_CHECK_ERRORS();
