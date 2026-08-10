@@ -2,7 +2,7 @@
 
 #if defined(_GPU_OPENMP)
 
-#include "../device.h"
+#include "../../device.h"
 
 #include <stdio.h>
 
@@ -340,7 +340,7 @@ void Device::get_jk(int naux,
   //pm->dev_pull(d_vkk, vk, nset * nao * nao * sizeof(double));
   //printf("Leaving get_jk()\n");
 }
-  
+
 /* ---------------------------------------------------------------------- */
 
 // pyscf/pyscf/lib/ao2mo/nr_ao2mo.c::AO2MOnr_e2_drv()
@@ -371,5 +371,6 @@ void Device::fdrv(double *vout, double *vin, double *mo_coeff,
     dsymm_(&SIDE_L, &UPLO_U, &nao, &nao, &D1, buf, &nao, mo_coeff, &nao, &D0, _vout, &nao);    
   }
 }
+
 
 #endif

@@ -28,7 +28,7 @@ endif
 LDFLAGS += -fPIC -shared
 
 # -- subset of src files with cuda kernels (need nvcc compiler)
-CUDA_SRC = pm/pm_cuda.cpp pm/device_cuda.cpp
+CUDA_SRC = pm/pm_cuda.cpp pm/cuda/jk.cpp pm/cuda/ao2mo.cpp pm/cuda/h2eff.cpp pm/cuda/impham.cpp pm/cuda/pdft.cpp pm/cuda/fci.cpp pm/cuda/common.cpp
 CUDA_INC = $(CUDA_SRC:.cpp=.h)
 TMP0 = $(CUDA_SRC:pm/%=%)
 CUDA_OBJ = $(TMP0:.cpp=.o)
@@ -38,8 +38,8 @@ C_SRC = $(wildcard *.cpp)
 C_INC = $(wildcard *.h)
 C_OBJ = $(C_SRC:.cpp=.o)
 
-# -- subset of src files in src/pm directory
-PM_SRC = $(filter-out $(CUDA_SRC), $(wildcard pm/*.cpp))
+# -- subset of src files in src/pm directory (and per-platform subdirs)
+PM_SRC = $(filter-out $(CUDA_SRC), $(wildcard pm/*.cpp) $(wildcard pm/sycl/*.cpp) $(wildcard pm/hip/*.cpp) $(wildcard pm/openmp/*.cpp) $(wildcard pm/host/*.cpp))
 PM_INC = $(filter-out $(CUDA_INC), $(wildcard pm/*.h))
 TMP1 = $(PM_SRC:pm/%=%)
 PM_OBJ = $(TMP1:.cpp=.o)
@@ -81,25 +81,28 @@ $(C_OBJ): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $<
 
 $(PM_OBJ): %.o: pm/%.cpp
-	$(CXX) $(CXXFLAGS) -c $<
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(ML_OBJ): %.o: mathlib/%.cpp
 	$(CXX) $(CXXFLAGS) -c $<
 
 $(CUDA_OBJ): %.o: pm/%.cpp
+	@mkdir -p $(dir $@)
 	$(CUDA_CXX) $(CUDA_CXXFLAGS) -c $< -o $@
-	#$(CUDA_CXX) -x cu $(CUDA_CXXFLAGS) -c $< -o $@
 
 #
 # -- Remove *.o and *~ from the directory
 clean:
 	rm -f *.o *~ ./$(EXE)
+	rm -f cuda/*.o sycl/*.o hip/*.o openmp/*.o host/*.o
 	rm -f $(INSTALL)/$(EXE)
 	rm -rf $(EXE).dSYM
 #
 # -- Remove *.o, *~, and executable from the directory
 realclean:
 	rm -f *.o *~ ./$(EXE)
+	rm -f cuda/*.o sycl/*.o hip/*.o openmp/*.o host/*.o
 	rm -f $(INSTALL)/$(EXE)
 	rm -rf $(EXE).dSYM
 	rm -f *.optrpt
@@ -115,12 +118,19 @@ pm_hip.o : pm/pm_hip.cpp pm/pm_hip.h pm/pm.h
 pm_openmp.o : pm/pm_openmp.cpp pm/pm_openmp.h pm/pm.h
 pm_host.o : pm/pm_host.cpp pm/pm_host.h pm/pm.h
 
-device.o : device.cpp device.h pm/device_cuda.cpp pm/device_sycl.cpp pm/device_hip.cpp pm/device_openmp.cpp pm/device_host.cpp
-device_cuda.o : pm/device_cuda.cpp device.h pm/pm_cuda.o
-device_sycl.o : pm/device_sycl.cpp device.h pm/pm_sycl.o
-device_hip.o : pm/device_hip.cpp device.h pm/pm_hip.o
-device_openmp.o : pm/device_openmp.cpp device.h pm/pm_openmp.o
-device_host.o : pm/device_host.cpp device.h pm/pm_host.o
+device.o : device.cpp device.h
+
+pm_cuda.o : pm/pm_cuda.cpp pm/pm_cuda.h pm/pm.h
+pm_sycl.o : pm/pm_sycl.cpp pm/pm_sycl.h pm/pm.h
+pm_hip.o : pm/pm_hip.cpp pm/pm_hip.h pm/pm.h
+pm_openmp.o : pm/pm_openmp.cpp pm/pm_openmp.h pm/pm.h
+pm_host.o : pm/pm_host.cpp pm/pm_host.h pm/pm.h
+
+cuda/jk.o cuda/ao2mo.o cuda/h2eff.o cuda/impham.o cuda/pdft.o cuda/fci.o cuda/common.o : device.h pm/pm_cuda.o
+sycl/jk.o sycl/ao2mo.o sycl/h2eff.o sycl/impham.o sycl/pdft.o sycl/fci.o sycl/common.o : device.h pm/pm_sycl.o
+hip/jk.o hip/ao2mo.o hip/h2eff.o hip/impham.o hip/pdft.o hip/fci.o hip/common.o : device.h pm/pm_hip.o
+openmp/jk.o : device.h pm/pm_openmp.o
+host/jk.o host/ao2mo.o host/h2eff.o host/pdft.o host/fci.o host/common.o : device.h pm/pm_host.o
 
 mathlib_cublas.o : mathlib/mathlib_cublas.cpp mathlib/mathlib_cublas.h mathlib/mathlib.h pm/pm_cuda.o
 mathlib_mkl.o : mathlib/mathlib_mkl.cpp mathlib/mathlib_mkl.h mathlib/mathlib.h pm/pm_cuda.o pm/pm_sycl.o

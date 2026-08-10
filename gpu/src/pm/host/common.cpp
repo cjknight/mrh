@@ -1,0 +1,114 @@
+/* -*- c++ -*- */
+
+#if defined(_USE_CPU)
+
+#include "../../device.h"
+
+#include <stdio.h>
+
+#define _RHO_BLOCK_SIZE 64
+#define _DOT_BLOCK_SIZE 32
+#define _CUDA_MAX_GRID_DIM_YZ 65535
+
+/* ---------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose(double * out, double * in, int nrow, int ncol)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<nrow; ++i)
+    for(int j=0; j<ncol; ++j)
+      out[j*nrow + i] = in[i*ncol + j];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::vecadd(const double * in, double * out, int N)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<N; ++i) out[i] += in[i];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::vecadd_batch(const double * in, double * out, int N, int num_batches)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<N; ++i) {
+    double val = 0.0;
+    for(int j=0; j<num_batches; ++j) val += in[j*N + i];
+    out[i] += val;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::memset_zero_batch_stride(double * inout, int stride, int offset, int N, int num_batches)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<N; ++i)
+    for(int j=0; j<num_batches; ++j) inout[j*stride + offset + i] = 0.0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::set_to_zero(double * array, int size)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<size; ++i) array[i] = 0.0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::veccopy(const double * src, double *dest, int size)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<size; ++i) dest[i] = src[i];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_021(double * in, double * out, int ax1, int ax2, int ax3)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<ax1; ++i)
+    for(int j=0; j<ax2; ++j)
+      for(int k=0; k<ax3; ++k) {
+        int inputIndex = (i*ax3+k)*ax2+j;
+        int outputIndex = (i*ax2+j)*ax3+k;
+        out[outputIndex] = in[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_102(double * in, double * out, int ax1, int ax2, int ax3)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<ax1; ++i)
+    for(int j=0; j<ax2; ++j)
+      for(int k=0; k<ax3; ++k) {
+        int inputIndex = (j*ax1+i)*ax3+k;
+        int outputIndex = (i*ax2+j)*ax3+k;
+        out[outputIndex] = in[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int idx1=0; idx1<ax1; ++idx1)
+    for(int idx2=0; idx2<ax2; ++idx2)
+      for(int idx3=0; idx3<ax3; ++idx3)
+        for(int idx4=0; idx4<ax4; ++idx4) {
+          int outputIndex = ((idx3*ax2 + idx2)*ax4 + idx4)*ax1 + idx1;
+          int inputIndex = ((idx1*ax2 + idx2)*ax3 + idx3)*ax4 + idx4;
+          out[outputIndex] = in[inputIndex];
+        }
+}
+
+
+#endif
