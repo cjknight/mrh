@@ -6,493 +6,799 @@
 
 #include <stdio.h>
 
-/* ---------------------------------------------------------------------- */
-
-void Device::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtril, int _blksize, int _nset, int _nao, int _naux, int count)
-{
-#ifdef _SIMPLE_TIMER
-  double t0 = omp_get_wtime();
-#endif
-
-  const int device_id = 0;
-  my_device_data * dd = &(device_data[device_id]);
-  
-  blksize = _blksize;
-  nset = _nset;
-  nao = _nao;
-  naux = _naux;
-
-  const int nao_pair = nao * (nao+1) / 2;
-  
-  py::buffer_info info_eri1 = _eri1.request(); // 2D array (232, 351)
-  py::buffer_info info_dmtril = _dmtril.request(); // 2D array (nset, 351)
-
-  // double * eri1 = static_cast<double*>(info_eri1.ptr);
-  // double * dmtril = static_cast<double*>(info_dmtril.ptr);
-  
-  int _size_vj = nset * nao_pair;
-  if(_size_vj > dd->size_vj) {
-    dd->size_vj = _size_vj;
-    //if(vj) pm->dev_free_host(vj);
-    //vj = (double *) pm->dev_malloc_host(size_vj * sizeof(double));
-    
-    if(count > 0) printf("WARNING:: Reallocating vj with count= %i  nset= %i  nao_pair= %i\n",count, nset, nao_pair);
-  }
-  //for(int i=0; i<_size_vj; ++i) vj[i] = 0.0;
-
-  int _size_vk = nset * nao * nao;
-  if(_size_vk > dd->size_vk) {
-    dd->size_vk = _size_vk;
-    // if(_vktmp) pm->dev_free_host(_vktmp);
-    // _vktmp = (double *) pm->dev_malloc_host(size_vk*sizeof(double));
-  }
-  //  for(int i=0; i<_size_vk; ++i) _vktmp[i] = 0.0;
-
-  int _size_buf = blksize * nao * nao;
-  if(_size_buf > dd->size_buf) {
-    dd->size_buf = _size_buf;
-    if(buf_tmp) pm->dev_free_host(buf_tmp);
-    if(buf3) pm->dev_free_host(buf3);
-    if(buf4) pm->dev_free_host(buf4);
-    
-    buf_tmp = (double*) pm->dev_malloc_host(2*_size_buf*sizeof(double));
-    buf3 = (double *) pm->dev_malloc_host(_size_buf*sizeof(double)); // (nao, blksize*nao)
-    buf4 = (double *) pm->dev_malloc_host(_size_buf*sizeof(double)); // (blksize*nao, nao)
-    
-    if(count > 0) printf("WARNING:: Reallocating bufs with count= %i  blksize= %i  nao= %i\n",count, blksize, nao);
-  }
-
-  int _size_fdrv = 4 * nao * nao * num_threads;
-  if(_size_fdrv > size_fdrv) {
-    size_fdrv = _size_fdrv;
-    if(buf_fdrv) pm->dev_free_host(buf_fdrv);
-    buf_fdrv = (double *) pm->dev_malloc_host(size_fdrv*sizeof(double));
-
-    if(count > 0) printf("WARNING:: Reallocating buf_fdrv with count= %i nao= %i  num_threads= %i\n",count, nao, num_threads);
-  }
-  
-#ifdef _SIMPLE_TIMER
-  double t1 = omp_get_wtime();
-  t_array[0] += t1 - t0;
-#endif
-}
+#define _RHO_BLOCK_SIZE 64
+#define _DOT_BLOCK_SIZE 32
+#define _CUDA_MAX_GRID_DIM_YZ 65535
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int with_k) {}
-
-/* ---------------------------------------------------------------------- */
-
-void Device::get_jk(int naux,
-		    py::array_t<double> _eri1, py::array_t<double> _dmtril, py::list & _dms_list,
-		    py::array_t<double> _vj, py::array_t<double> _vk,
-		    int with_k, int count, size_t addr_dfobj)
-{  
-#ifdef _SIMPLE_TIMER
-  double t0 = omp_get_wtime();
-#endif
-
-  const int with_j = true;
-
-  const int device_id = 0;
-  my_device_data * dd = &(device_data[device_id]);
-  
-  py::buffer_info info_eri1 = _eri1.request(); // 2D array (naux, nao_pair)
-  py::buffer_info info_dmtril = _dmtril.request(); // 2D array (nset, nao_pair)
-  py::buffer_info info_vj = _vj.request(); // 2D array (nset, nao_pair)
-  py::buffer_info info_vk = _vk.request(); // 3D array (nset, nao, nao)
-  
-  double * eri1 = static_cast<double*>(info_eri1.ptr);
-  double * dmtril = static_cast<double*>(info_dmtril.ptr);
-  double * vj = static_cast<double*>(info_vj.ptr);
-  double * vk = static_cast<double*>(info_vk.ptr);
-  
-  int _size_rho = nset * naux;
-  if(_size_rho > dd->size_rho) {
-    dd->size_rho = _size_rho;
-    if(rho) pm->dev_free_host(rho);
-    rho = (double *) pm->dev_malloc_host(dd->size_rho * sizeof(double));
-  }
-  
-  // printf("LIBGPU:: blksize= %i  naux= %i  nao= %i  nset= %i\n",blksize,naux,nao,nset);
-  // printf("LIBGPU::shape: dmtril= (%i,%i)  eri1= (%i,%i)  rho= (%i, %i)   vj= (%i,%i)  vk= (%i,%i,%i)\n",
-  //   	 info_dmtril.shape[0], info_dmtril.shape[1],
-  //   	 info_eri1.shape[0], info_eri1.shape[1],
-  //   	 info_dmtril.shape[0], info_eri1.shape[0],
-  //   	 info_dmtril.shape[0], info_eri1.shape[1],
-  //   	 info_vk.shape[0],info_vk.shape[1],info_vk.shape[2]);
-  
-  int nao_pair = nao * (nao+1) / 2;
-  
-  if(with_j) {
-    
-    DevArray2D da_rho = DevArray2D(rho, nset, naux, pm);
-    DevArray2D da_dmtril = DevArray2D(dmtril, nset, nao_pair, pm);
-    DevArray2D da_eri1 = DevArray2D(eri1, naux, nao_pair, pm);
-    
-    // rho = numpy.einsum('ix,px->ip', dmtril, eri1)
-    
-#pragma omp parallel for collapse(2)
-    for(int i=0; i<nset; ++i)
-      for(int j=0; j<naux; ++j) {
-	double val = 0.0;
-	for(int k=0; k<nao_pair; ++k) val += da_dmtril(i,k) * da_eri1(j,k);
-	da_rho(i,j) = val;
-      }
-    
-    DevArray2D da_vj = DevArray2D(vj, nset, nao_pair, pm);
-    
-    // vj += numpy.einsum('ip,px->ix', rho, eri1)
-    
-#pragma omp parallel for collapse(2)
-    for(int i=0; i<nset; ++i)
-      for(int j=0; j<nao_pair; ++j) {
-	
-	double val = 0.0;
-	for(int k=0; k<naux; ++k) val += da_rho(i,k) * da_eri1(k,j);
-	da_vj(i,j) += val;
-      }
-  }
-
-  if(!with_k) {
-
-#ifdef _SIMPLE_TIMER
-    double t1 = omp_get_wtime();
-    t_array[2] += t1 - t0;
-#endif
-  
-    return;
-  }
-  
-  double * buf1 = buf_tmp;
-  double * buf2 = &(buf_tmp[blksize * nao * nao]);
-
-  // for(int i=0; i<blksize*nao*nao; ++i) buf1[i] = 0.0;
-  // for(int i=0; i<blksize*nao*nao; ++i) buf2[i] = 0.0;
-  // for(int i=0; i<nao*naux*nao; ++i) buf3[i] = 0.0;
-  
-  DevArray2D da_buf1 = DevArray2D(buf1, naux * nao, nao, pm);
-  DevArray2D da_buf2 = DevArray2D(buf2, blksize * nao, nao, pm);
-  DevArray2D da_buf3 = DevArray2D(buf3, nao, naux * nao, pm); // python swapped 1st two dimensions?
-  
-  for(int indxK=0; indxK<nset; ++indxK) {
-
-    py::array_t<double> _dms = static_cast<py::array_t<double>>(_dms_list[indxK]); // element of 3D array (nset, nao, nao)
-    py::buffer_info info_dms = _dms.request(); // 2D
-
-    // rargs = (ctypes.c_int(nao), (ctypes.c_int*4)(0, nao, 0, nao), null, ctypes.c_int(0))
-
-    int orbs_slice[4] = {0, nao, 0, nao};
-    double * dms = static_cast<double*>(info_dms.ptr);
-    
-    //    fmmm = _ao2mo.libao2mo.AO2MOmmm_bra_nr_s2
-    //    fdrv = _ao2mo.libao2mo.AO2MOnr_e2_drv
-    //    ftrans = _ao2mo.libao2mo.AO2MOtranse2_nr_s2
-      
-    //    fdrv(ftrans, fmmm,
-    //	       buf1.ctypes.data_as(ctypes.c_void_p),
-    //	       eri1.ctypes.data_as(ctypes.c_void_p),
-    //	       dms[k].ctypes.data_as(ctypes.c_void_p),
-    //	       ctypes.c_int(naux), *rargs)
-    
-    fdrv(buf1, eri1, dms, naux, nao, orbs_slice, nullptr, 0, buf_fdrv);
-    
-    // buf2 = lib.unpack_tril(eri1, out=buf[1])
-    
-#pragma omp parallel for
-    for(int i=0; i<naux; ++i) {
-      
-      int indx = 0;
-      double * eri1_ = &(eri1[i * nao_pair]);
-
-      // unpack lower-triangle to square
-      
-      for(int j=0; j<nao; ++j)
-	for(int k=0; k<=j; ++k) {
-	  da_buf2(i*nao+j,k) = eri1_[indx];
-	  da_buf2(i*nao+k,j) = eri1_[indx];
-	  indx++;
-	}
-      
-    }
-
-    // dgemm of (nao X blksize*nao) and (blksize*nao X nao) matrices - can refactor later...
-    // vk[k] += lib.dot(buf1.reshape(-1,nao).T, buf2.reshape(-1,nao))  // vk[k] is nao x nao array
-    
-    // buf3 = buf1.reshape(-1,nao).T
-    // buf4 = buf2.reshape(-1,nao)
-    
-#pragma omp parallel for
-    for(int i=0; i<naux*nao; ++i)
-      for(int k=0; k<nao; ++k) da_buf3(k,i) = da_buf1(i,k);
-    
-    // vk[k] += lib.dot(buf3, buf4)
-    // gemm(A,B,C) : C = 1.0 * A.B + 0.0 * C
-    // A is (m, k) matrix
-    // B is (k, n) matrix
-    // C is (m, n) matrix
-    // Column-ordered: (A.B)^T = B^T.A^T
-    
-    const double alpha = 1.0;
-    const double beta = (count == 0) ? 0.0 : 1.0;
-
-    const int m = nao; // # of rows of first matrix buf4^T
-    const int n = nao; // # of cols of second matrix buf3^T
-    const int k = naux*nao; // # of cols of first matrix buf4^
-
-    const int lda = naux * nao;
-    const int ldb = nao;
-    const int ldc = nao;
-
-    const int vk_offset = indxK * nao*nao;
-    
-    double * vkk = vk + vk_offset;
-    dgemm_((char *) "N", (char *) "N", &m, &n, &k, &alpha, buf2, &ldb, buf3, &lda, &beta, vkk, &ldc);
-  }
-  
-#ifdef _SIMPLE_TIMER
-  double t1 = omp_get_wtime();
-  t_array[2] += t1 - t0;
-#endif 
-}
-
-/* ---------------------------------------------------------------------- */
-
-// pyscf/pyscf/lib/ao2mo/nr_ao2mo.c::AO2MOnr_e2_drv()
-#if 1
 void Device::fdrv(double *vout, double *vin, double *mo_coeff,
 		  int nij, int nao, int *orbs_slice, int *ao_loc, int nbas, double * _buf)
 {
-  struct Device::my_AO2MOEnvs envs;
-  envs.bra_start = orbs_slice[0];
-  envs.bra_count = orbs_slice[1] - orbs_slice[0];
-  envs.ket_start = orbs_slice[2];
-  envs.ket_count = orbs_slice[3] - orbs_slice[2];
-  envs.nao = nao;
-  envs.nbas = nbas;
-  envs.ao_loc = ao_loc;
-  envs.mo_coeff = mo_coeff;
-  
-  const int ij_pair = envs.bra_count * nao; //fmmm(NULL, NULL, buf, &envs, OUTPUTIJ);
-  const int nao2 = nao * (nao + 1) / 2; //fmmm(NULL, NULL, buf, &envs, INPUT_IJ);
-    
-#pragma omp parallel for
-  for (int i = 0; i < nij; i++) {
-    const int it = omp_get_thread_num();
-    double * buf = &(_buf[it * 4 * nao * nao]);
-
-    int _i, _j, _ij;
-    double * tril = vin + nao2*i;
-    for (_ij = 0, _i = 0; _i < nao; _i++) 
-      for (_j = 0; _j <= _i; _j++, _ij++) buf[_i*nao+_j] = tril[_ij];
-    
-#if 1
-    const double D0 = 0;
-    const double D1 = 1;
-    const char SIDE_L = 'L';
-    const char UPLO_U = 'U';
-    int i_start = envs.bra_start;
-    int i_count = envs.bra_count;
-
-    double * _vout = vout + ij_pair*i;
-    
-    dsymm_(&SIDE_L, &UPLO_U, &nao, &i_count,
-	   &D1, buf, &nao, mo_coeff+i_start*nao, &nao,
-	   &D0, _vout, &nao);
-    
-#else
-    ftrans(i, vout, vin, buf, &envs);
-#endif
-    
-  }
-  
+  // not used by the host backend
 }
-#else
-void Device::fdrv(double *vout, double *vin, double *mo_coeff,
-	  int nij, int nao, int *orbs_slice, int *ao_loc, int nbas)
-{
-  struct Device::my_AO2MOEnvs envs;
-  envs.bra_start = orbs_slice[0];
-  envs.bra_count = orbs_slice[1] - orbs_slice[0];
-  envs.ket_start = orbs_slice[2];
-  envs.ket_count = orbs_slice[3] - orbs_slice[2];
-  envs.nao = nao;
-  envs.nbas = nbas;
-  envs.ao_loc = ao_loc;
-  envs.mo_coeff = mo_coeff;
-  
-#pragma omp parallel default(none)					\
-  shared(vout, vin, nij, envs, nao, orbs_slice)
-  {
-    int i;
-    int i_count = envs.bra_count;
-    int j_count = envs.ket_count;
-    double *buf = (double *) pm->dev_malloc_host(sizeof(double) * (nao+i_count) * (nao+j_count));
-#pragma omp for schedule(dynamic)
-    for (i = 0; i < nij; i++) {
-      ftrans(i, vout, vin, buf, &envs);
-    }
-    pm->dev_free_host(buf);
-  }
-}
-#endif
 
 /* ---------------------------------------------------------------------- */
-// pyscf/pyscf/lib/np_helper/pack_tril.c
-void Device::NPdsymm_triu(int n, double *mat, int hermi)
+/* Host translations of the CUDA kernels in device_cuda.cpp
+/* ---------------------------------------------------------------------- */
+
+void Device::getjk_rho(double * rho, double * dmtril, double * eri, int nset, int naux, int nao_pair)
 {
-  size_t i, j, j0, j1;
-  
-  if (hermi == HERMITIAN || hermi == SYMMETRIC) {
-    TRIU_LOOP(i, j) {
-      mat[i*n+j] = mat[j*n+i];
-    }
-  } else {
-    TRIU_LOOP(i, j) {
-      mat[i*n+j] = -mat[j*n+i];
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<nset; ++i) {
+    for(int j=0; j<naux; ++j) {
+      double val = 0.0;
+      for(int k=0; k<nao_pair; ++k)
+        val += dmtril[i*nao_pair + k] * eri[j*nao_pair + k];
+      rho[i*naux + j] = val;
     }
   }
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::NPdunpack_tril(int n, double *tril, double *mat, int hermi)
+void Device::getjk_vj(double * vj, double * rho, double * eri, int nset, int nao_pair, int naux, int init)
 {
-  size_t i, j, ij;
-  for (ij = 0, i = 0; i < n; i++) {
-    for (j = 0; j <= i; j++, ij++) {
-      mat[i*n+j] = tril[ij];
+  const int gs_nao_pair = (nao_pair + (_DOT_BLOCK_SIZE - 1)) / _DOT_BLOCK_SIZE;
+  const int chunk_size = (gs_nao_pair <= _CUDA_MAX_GRID_DIM_YZ) ? gs_nao_pair : _CUDA_MAX_GRID_DIM_YZ;
+  const int num_chunks = (gs_nao_pair <= _CUDA_MAX_GRID_DIM_YZ) ? 1 : (gs_nao_pair / _CUDA_MAX_GRID_DIM_YZ + 1);
+  const int z_block = chunk_size * _DOT_BLOCK_SIZE;
+
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<nset; ++i) {
+    for(int j=0; j<num_chunks; ++j) {
+      for(int k=0; k<z_block; ++k) {
+        int indxK = j*chunk_size + k;
+        if(indxK >= nao_pair) continue;
+        double val = 0.0;
+        for(int l=0; l<naux; ++l) val += rho[i*naux + l] * eri[l*nao_pair + indxK];
+        if(init) vj[i*nao_pair + indxK] = val;
+        else vj[i*nao_pair + indxK] += val;
+      }
     }
   }
-  if (hermi) {
-    NPdsymm_triu(n, mat, hermi);
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-// pyscf/pyscf/lib/ao2mo/nr_ao2mo.c::AO2MOtranse2_nr_s2kl
-void Device::ftrans(int row_id,
-		    double *vout, double *vin, double *buf,
-		    struct Device::my_AO2MOEnvs *envs)
-{
-  int nao = envs->nao;
-  size_t ij_pair = fmmm(NULL, NULL, buf, envs, OUTPUTIJ);
-  size_t nao2 = fmmm(NULL, NULL, buf, envs, INPUT_IJ);
-  NPdunpack_tril(nao, vin+nao2*row_id, buf, 0);
-  fmmm(vout+ij_pair*row_id, buf, buf+nao*nao, envs, 0);
-}
-
-/* ---------------------------------------------------------------------- */
-// pyscf/pyscf/lib/ao2mo/nr_ao2mo.c::AO2MOmmm_bra_nr_s2
-int Device::fmmm(double *vout, double *vin, double *buf,
-		 struct my_AO2MOEnvs *envs, int seekdim)
-{
-  switch (seekdim) {
-  case OUTPUTIJ: return envs->bra_count * envs->nao;
-  case INPUT_IJ: return envs->nao * (envs->nao+1) / 2;
-  }
-  const double D0 = 0;
-  const double D1 = 1;
-  const char SIDE_L = 'L';
-  const char UPLO_U = 'U';
-  int nao = envs->nao;
-  int i_start = envs->bra_start;
-  int i_count = envs->bra_count;
-  double *mo_coeff = envs->mo_coeff;
-  
-  dsymm_(&SIDE_L, &UPLO_U, &nao, &i_count,
-         &D1, vin, &nao, mo_coeff+i_start*nao, &nao,
-         &D0, vout, &nao);
-  return 0;
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::df_ao2mo_pass1_fdrv (int naux, int nmo, int nao, int blksize, 
-			py::array_t<double> _bufpp, py::array_t<double> _mo_coeff, py::array_t<double> _eri1)
+void Device::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
 {
-#ifdef _SIMPLE_TIMER
-  double t0 = omp_get_wtime();
-#endif
-  int orbs_slice[4] = {0, nao, 0, nao};
-  //fmmm = _ao2mo.libao2mo.AO2MOmmm_nr_s2_iltj
-  //fdrv = _ao2mo.libao2mo.AO2MOnr_e2_drv
-  //ftrans = _ao2mo.libao2mo.AO2MOtranse2_nr_s2
-  //fdrv(ftrans, fmmm,
-  //     bufpp.ctypes.data_as(ctypes.c_void_p),
-  //     eri1.ctypes.data_as(ctypes.c_void_p),
-  //     mo.ctypes.data_as(ctypes.c_void_p),
-  //     ctypes.c_int(naux), ctypes.c_int(nao),
-  //     (ctypes.c_int*4)(0, nmo, 0, nmo),
-  //     ctypes.c_void_p(0), ctypes.c_int(0))
-  
-  py::buffer_info info_eri1 = _eri1.request(); // 2D array (blksize, nao_pair) nao_pair= nao*(nao+1)/2
-  py::buffer_info info_bufpp = _bufpp.request(); // 3D array (blksize,nmo,nmo)
-  py::buffer_info info_mo_coeff = _mo_coeff.request(); // 2D array (nmo, nmo)
-  double * eri1 = static_cast<double*>(info_eri1.ptr);
-  double * bufpp = static_cast<double*>(info_bufpp.ptr);
-  double * mo_coeff = static_cast<double*>(info_mo_coeff.ptr);
-  int bra_start = orbs_slice[0];
-  int bra_count = orbs_slice[1] - orbs_slice[0];
-  int ket_start = orbs_slice[2];
-  int ket_count = orbs_slice[3] - orbs_slice[2];
-  
-  int i_count = bra_count;
-  int j_count = ket_count;
-  double *buf = (double *) malloc(sizeof(double) * (nao+i_count) * (nao+j_count));//always (2*nao x 2*nao)?
-  for (int i = 0; i < naux; i++) {
-    //const int it = omp_get_thread_num();
-    //double * buf = &(_buf[it * 4 * nao * nao]);
-    //(*ftrans)(fmmm, i, vout, vin, buf, &envs);//vout=bufpp,vin=eri1
-    //AO2MOtranse2_nr_s2(fmmm, row_id,vout,vin,buf,envs)//row_id=i,vout=bufpp,vin=eri1
-    //AO2MOtranse2_nr_s2kl(fmmm, row_id, vout, vin, buf, envs);//row_id=i,vout=bufpp,vim=eri1
-    const int ij_pair = i_count*j_count;//(*fmmm)(NULL, NULL, buf, envs, OUTPUTIJ);//ij_pair=nmo*nmo
-    const int nao2 = nao*(nao+1)/2;//(*fmmm)(NULL, NULL, buf, envs, INPUT_IJ);//
-    //NPdunpack_tril(nao, vin+nao2*row_id, buf, 0);//vin=eri1,row_id=i
-    int _i, _j, _ij;
-    //double * vin = eri1
-    double * tril = eri1 + nao2*i;
-    for (_ij = 0, _i = 0; _i < nao; _i++) 
-      for (_j = 0; _j <= _i; _j++, _ij++) buf[_i*nao+_j] = tril[_ij];
-    //(*fmmm)(vout+ij_pair*row_id, buf, buf+nao*nao, envs, 0);//vout=bufpp,row_id=i,buf=reshaped eri row
-    double * _buf = buf + nao*nao;
-    double * _eri = buf ;
-    double * _vout = bufpp + ij_pair*i;
-    const double D0 = 0;
-    const double D1 = 1;
-    const char SIDE_L = 'L';
-    const char UPLO_U = 'U';
-    const char TRANS_T = 'T';
-    const char TRANS_N = 'N';
-    int i_start = bra_start;
-    int j_start = ket_start;
-    // C_pi (pq| = (iq|, where (pq| is in C-order
-    dsymm_(&SIDE_L, &UPLO_U, &nao, &i_count,
-	   &D1, _eri, &nao, mo_coeff+i_start*nao, &nao,
-	   &D0, _buf, &nao);
-    // C_qj (iq| = (ij|
-    dgemm_(&TRANS_T, &TRANS_N, &j_count, &i_count, &nao,
-	   &D1, mo_coeff+j_start*nao, &nao, _buf, &nao,
-	   &D0, _vout, &j_count);
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<naux; ++i) {
+    for(int j=0; j<nao; ++j) {
+      double * buf = &(buf2[i*nao*nao]);
+      double * tril = &(eri[i*nao_pair]);
+      const int indx = j*nao;
+      for(int k=0; k<nao; ++k) buf[indx+k] = tril[map[indx+k]];
+    }
   }
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
-                              py::array_t<double> _umat, py::array_t<double> _h2eff_sub)
+void Device::pack_eri(double * eri1, double * buf2, int * map, int naux, int nao, int nao_pair)
 {
-  printf("LIBGPU :: Error missing update_h2eff_sub() for host...\n");
-  exit(1);
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<naux; ++i) {
+    for(int j=0; j<nao; ++j) {
+      double * buf = &(buf2[i*nao*nao]);
+      double * tril = &(eri1[i*nao_pair]);
+      const int indx = j*nao;
+      for(int k=0; k<nao; ++k) tril[map[indx+k]] = buf[indx+k];
+    }
+  }
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_h2eff_df(py::array_t<double> _cderi, py::array_t<double> _mo_cas, py::array_t<double> _mo_coeff,
-                          bool mem_enough_int, int nao, int nmo, int ncore, int ncas, int naux, int blksize, 
-                          py::array_t<double> _bmuP1, py::array_t<double> eri1)
+void Device::transpose(double * out, double * in, int nrow, int ncol)
 {
-  printf("LIBGPU :: Error missing get_h2eff_df() for host...\n");
-  exit(1);
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<nrow; ++i)
+    for(int j=0; j<ncol; ++j)
+      out[j*nrow + i] = in[i*ncol + j];
 }
+
+/* ---------------------------------------------------------------------- */
+
+void Device::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<naux; ++i)
+    for(int j=0; j<nmo; ++j)
+      for(int k=0; k<ncas; ++k) {
+        int inputIndex = (i*nmo + j)*nmo + k+ncore;
+        int outputIndex = (i*nmo + j)*ncas + k;
+        bufpa[outputIndex] = bufpp[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, int ncore, int ncas)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<naux; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<ncas; ++k) {
+        int inputIndex = (i*nmo + (j+ncore))*nmo + k+ncore;
+        int outputIndex = (i*ncas + j)*ncas + k;
+        bufaa[outputIndex] = bufpp[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<naux; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<nao; ++k) {
+        int inputIndex = i*nao*ncas + j*nao + k;
+        int outputIndex = j*nao*naux + k*naux + i;
+        out[outputIndex] = in[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::get_bufd(const double* bufpp, double* bufd, int naux, int nmo)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<naux; ++i)
+    for(int j=0; j<nmo; ++j)
+      bufd[i*nmo + j] = bufpp[(i*nmo + j)*nmo + j];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_210(double * in, double * out, int naux, int nao, int ncas)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<naux; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<nao; ++k) {
+        int inputIndex = i*nao*ncas + j*nao + k;
+        int outputIndex = k*ncas*naux + j*naux + i;
+        out[outputIndex] = in[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::extract_submatrix(const double* big_mat, double* small_mat, int ncas, int ncore, int nmo)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<ncas; ++i)
+    for(int j=0; j<ncas; ++j)
+      small_mat[i*ncas + j] = big_mat[(i+ncore)*nmo + (j+ncore)];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<nmo*ncas; ++i)
+    for(int j=0; j<ncas*ncas; ++j) {
+      double * in_buf = &(in[i*ncas_pair]);
+      double * out_buf = &(out[i*ncas*ncas]);
+      out_buf[j] = in_buf[map[j]];
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_2310(double * in, double * out, int nmo, int ncas)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<nmo; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<ncas; ++k)
+        for(int l=0; l<ncas; ++l) {
+          int inputIndex = ((i*ncas+j)*ncas+k)*ncas+l;
+          int outputIndex = k*ncas*ncas*nmo + l*ncas*nmo + j*nmo + i;
+          out[outputIndex] = in[inputIndex];
+        }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_3210(double* in, double* out, int nmo, int ncas)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<ncas; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<ncas; ++k)
+        for(int l=0; l<nmo; ++l) {
+          int inputIndex = ((i*ncas+j)*ncas+k)*nmo+l;
+          int outputIndex = l*ncas*ncas*ncas + k*ncas*ncas + j*ncas + i;
+          out[outputIndex] = in[inputIndex];
+        }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<nmo; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<ncas_pair; ++k) {
+        double * out_buf = &(out[(i*ncas + j)*ncas_pair]);
+        double * in_buf = &(in[(i*ncas + j)*ncas*ncas]);
+        out_buf[k] = in_buf[map[k]];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<ncas; ++i)
+    for(int j=0; j<nao; ++j)
+      small_mat[i*nao + j] = big_mat[j*nao + i+ncore];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::pack_d_vuwM(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<nmo*ncas; ++i)
+    for(int j=0; j<ncas*ncas; ++j)
+      out[i*ncas_pair + map[j]] = in[j*ncas*nmo + i];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::pack_d_vuwM_add(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<nmo*ncas; ++i)
+    for(int j=0; j<ncas*ncas; ++j)
+      out[i*ncas_pair + map[j]] += in[j*ncas*nmo + i];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::vecadd(const double * in, double * out, int N)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<N; ++i) out[i] += in[i];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::vecadd_batch(const double * in, double * out, int N, int num_batches)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<N; ++i) {
+    double val = 0.0;
+    for(int j=0; j<num_batches; ++j) val += in[j*N + i];
+    out[i] += val;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::memset_zero_batch_stride(double * inout, int stride, int offset, int N, int num_batches)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<N; ++i)
+    for(int j=0; j<num_batches; ++j) inout[j*stride + offset + i] = 0.0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<ngrid; ++i) Pi[i] += rho[i]*rho[i];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::make_gridkern(double * mo_grid, double * gridkern, int ngrid, int ncas)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<ngrid; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<ncas; ++k) {
+        double * tmp_gridkern = &(gridkern[i*ncas*ncas]);
+        double * tmp_mo_grid = &(mo_grid[i*ncas]);
+        tmp_gridkern[j*ncas+k] = tmp_mo_grid[j]*tmp_mo_grid[k];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int ngrid, int ncas)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<ngrid; ++i)
+    for(int j=0; j<ncas*ncas; ++j) {
+      double * tmp_gridkern = &(gridkern[i*ncas*ncas]);
+      double * tmp_cascm2 = &(cascm2[j*ncas*ncas]);
+      double * tmp_out = &(buf[i*ncas*ncas+j]);
+      for(int k=0; k<ncas*ncas; ++k) tmp_out[0] += tmp_gridkern[k]*tmp_cascm2[k];
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::make_Pi_final(double * gridkern, double * buf, double * Pi, int ngrid, int ncas)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<ngrid; ++i) {
+    double * tmp_gridkern = &(gridkern[i*ncas*ncas]);
+    double * tmp_buf = &(buf[i*ncas*ncas]);
+    double * tmp_Pi = &(Pi[i]);
+    for(int j=0; j<ncas*ncas; ++j) tmp_Pi[0] += tmp_gridkern[j]*tmp_buf[j];
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::set_to_zero(double * array, int size)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<size; ++i) array[i] = 0.0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int str0=0; str0<na; ++str0)
+    for(int j=0; j<nlinka; ++j) {
+      int * tab = &(link_index[4*nlinka*str0 + 4*j]);
+      int a = tab[0];
+      int i = tab[1];
+      int str1 = tab[2];
+      int sign = tab[3];
+      if(sign == 0) continue;
+      double * pket = &(ciket[str0*nb]);
+      double * pbra = &(cibra[str1*nb]);
+      for(int k=0; k<nb; ++k) {
+#pragma omp atomic
+        rdm[a*norb+i] += sign*pbra[k]*pket[k];
+      }
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int str0=0; str0<na; ++str0)
+    for(int k=0; k<nb; ++k)
+      for(int j=0; j<nlinkb; ++j) {
+        double * pbra = &(cibra[str0*nb]);
+        double tmp = ciket[str0*nb + k];
+        int * tab = &(link_index[4*nlinkb*k + 4*j]);
+        int a = tab[0];
+        int i = tab[1];
+        int str1 = tab[2];
+        int sign = tab[3];
+#pragma omp atomic
+        rdm[a*norb + i] += sign*pbra[str1]*tmp;
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinka,
+                                        int ia_bra, int ja_bra, int ib_bra, int jb_bra,
+                                        int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sign_dummy,
+                                        int * link_index)
+{
+  int na_bra = ja_bra - ia_bra;
+  int na_ket = ja_ket - ia_ket;
+  int nb_bra = jb_bra - ib_bra;
+  int nb_ket = jb_ket - ib_ket;
+  int ib_max = (ib_bra > ib_ket) ? ib_bra : ib_ket;
+  int jb_min = (jb_bra < jb_ket) ? jb_bra : jb_ket;
+  int b_len = jb_min - ib_max;
+  int b_bra_offset = ib_max - ib_bra;
+  int b_ket_offset = ib_max - ib_ket;
+  if(b_len <= 0) return;
+
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int str0=0; str0<na_ket; ++str0)
+    for(int j=0; j<nlinka; ++j) {
+      int * tab = &(link_index[4*nlinka*(str0+ia_ket) + 4*j]);
+      int sign = tab[3];
+      if(sign == 0) continue;
+      sign = sign * sign_dummy;
+      int str1 = tab[2];
+      if((str1 >= ia_bra) && (str1 < ja_bra)) {
+        int a = tab[0];
+        int i = tab[1];
+        double * pket = &(ciket[str0*nb_ket]);
+        double * pbra = &(cibra[(str1-ia_bra)*nb_bra]);
+        for(int k=0; k<b_len; ++k) {
+#pragma omp atomic
+          rdm[a*norb+i] += sign*pbra[k+b_bra_offset]*pket[k+b_ket_offset];
+        }
+      }
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCItrans_rdm1b_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinkb,
+                                        int ia_bra, int ja_bra, int ib_bra, int jb_bra,
+                                        int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sign_dummy,
+                                        int * link_index)
+{
+  int na_bra = ja_bra - ia_bra;
+  int na_ket = ja_ket - ia_ket;
+  int nb_bra = jb_bra - ib_bra;
+  int nb_ket = jb_ket - ib_ket;
+  int ia_max = (ia_bra > ia_ket) ? ia_bra : ia_ket;
+  int ja_min = (ja_bra < ja_ket) ? ja_bra : ja_ket;
+  int a_len = ja_min - ia_max;
+  if(a_len <= 0) return;
+
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int str0=0; str0<a_len; ++str0)
+    for(int k=0; k<nb_ket; ++k)
+      for(int j=0; j<nlinkb; ++j) {
+        double * pbra = &(cibra[(str0+ia_max)*nb_bra]);
+        double tmp = ciket[(str0+ia_max)*nb_ket + k];
+        int * tab = &(link_index[4*nlinkb*(k+ib_ket) + 4*j]);
+        int str1 = tab[2];
+        if((str1 >= ib_bra) && (str1 < jb_bra)) {
+          int sign = tab[3];
+          if(sign == 0) continue;
+          sign = sign * sign_dummy;
+          int a = tab[0];
+          int i = tab[1];
+#pragma omp atomic
+          rdm[a*norb + i] += sign*pbra[str1-ib_bra]*tmp;
+        }
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int str0=0; str0<na; ++str0)
+    for(int j=0; j<nlinka; ++j) {
+      double * pci0 = &(ciket[str0*nb]);
+      int * tab = &(link_index[4*nlinka*str0 + 4*j]);
+      int a = tab[0];
+      int i = tab[1];
+      int str1 = tab[2];
+      int sign = tab[3];
+      double * pci1 = &(ciket[str1*nb]);
+      if(a >= i && sign != 0) {
+        for(int k=0; k<nb; ++k) {
+#pragma omp atomic
+          rdm[a*norb+i] += sign*pci0[k]*pci1[k];
+        }
+      }
+    }
+
+  for(int i=0; i<norb; ++i)
+    for(int j=0; j<i; ++j)
+      rdm[j*norb+i] = rdm[i*norb+j];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int str0=0; str0<na; ++str0)
+    for(int k=0; k<nb; ++k)
+      for(int j=0; j<nlinkb; ++j) {
+        double * pci0 = &(ciket[str0*nb]);
+        int * tab = &(link_index[4*nlinkb*k + 4*j]);
+        int a = tab[0];
+        int i = tab[1];
+        int sign = tab[3];
+        if(a >= i && sign != 0) {
+          int str1 = tab[2];
+#pragma omp atomic
+          rdm[a*norb+i] += sign*pci0[str1]*pci0[k];
+        }
+      }
+
+  for(int i=0; i<norb; ++i)
+    for(int j=0; j<i; ++j)
+      rdm[j*norb+i] = rdm[i*norb+j];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinka, int * link_index)
+{
+  int norb2 = norb*norb;
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int batch_id=0; batch_id<batches; ++batch_id)
+    for(int k=0; k<nb; ++k) {
+      int * tab_line = &(link_index[4*nlinka*(stra_id+batch_id)]);
+      double * tmp_buf = &(buf[batch_id*norb2*nb + k*norb2]);
+      for(int j=0; j<nlinka; ++j) {
+        int * tab = &(tab_line[4*j]);
+        int sign = tab[3];
+        if(sign != 0) {
+          int a = tab[0];
+          int i = tab[1];
+          int str1 = tab[2];
+          tmp_buf[i*norb + a] += sign*ci[str1*nb + k];
+        }
+      }
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinkb, int * link_index)
+{
+  int norb2 = norb*norb;
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int batch_id=0; batch_id<batches; ++batch_id)
+    for(int str0=0; str0<nb; ++str0) {
+      double * tmp_buf = &(buf[batch_id*norb2*nb + str0*norb2]);
+      int * tab_line = &(link_index[4*str0*nlinkb]);
+      double * tmp_ci = &(ci[(stra_id+batch_id)*nb]);
+      for(int j=0; j<nlinkb; ++j) {
+        int * tab = &(tab_line[4*j]);
+        int sign = tab[3];
+        if(sign != 0) {
+          int a = tab[0];
+          int i = tab[1];
+          int str1 = tab[2];
+          tmp_buf[i*norb + a] += sign*tmp_ci[str1];
+        }
+      }
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
+{
+  int norb2 = norb*norb;
+#pragma omp parallel for schedule(static)
+  for(int k=0; k<jb-ib; ++k) {
+    double * tmp_buf = &(buf[(k+ib)*norb2]);
+    int * tab_line = &(link_index[4*nlinka*stra_id]);
+    for(int j=0; j<nlinka; ++j) {
+      int * tab = &(tab_line[4*j]);
+      int sign = tab[3];
+      if(sign != 0) {
+        int str1 = tab[2];
+        if((str1 >= ia) && (str1 < ja)) {
+          int a = tab[0];
+          int i = tab[1];
+          tmp_buf[i*norb + a] += sign*ci[(str1-ia)*nb + k];
+        }
+      }
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
+{
+  int norb2 = norb*norb;
+#pragma omp parallel for schedule(static)
+  for(int str0=0; str0<nb; ++str0) {
+    double * tmp_buf = &(buf[str0*norb2]);
+    int * tab_line = &(link_index[4*str0*nlinkb]);
+    for(int j=0; j<nlinkb; ++j) {
+      int * tab = &(tab_line[4*j]);
+      int sign = tab[3];
+      if(sign != 0) {
+        int str1 = tab[2];
+        if((str1 >= ib) && (str1 < jb)) {
+          int a = tab[0];
+          int i = tab[1];
+          tmp_buf[i*norb + a] += sign*ci[(stra_id-ia)*nb_bra + str1-ib];
+        }
+      }
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_ci, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
+{
+  int norb2 = norb*norb;
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int batch_id=0; batch_id<batches; ++batch_id)
+    for(int k=0; k<jb-ib; ++k) {
+      double * tmp_buf = &(buf[batch_id*norb2*nb + (k+ib)*norb2]);
+      int * tab_line = &(link_index[4*nlinka*(stra_id+batch_id)]);
+      for(int j=0; j<nlinka; ++j) {
+        int * tab = &(tab_line[4*j]);
+        int sign = tab[3];
+        if(sign != 0) {
+          int str1 = tab[2];
+          if((str1 >= ia) && (str1 < ja)) {
+            int a = tab[0];
+            int i = tab[1];
+            tmp_buf[i*norb + a] += sign*ci[(str1-ia)*nb_ci + k];
+          }
+        }
+      }
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
+{
+  int norb2 = norb*norb;
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int batch_id=0; batch_id<batches; ++batch_id)
+    for(int str0=0; str0<nb; ++str0) {
+      double * tmp_buf = &(buf[batch_id*norb2*nb + str0*norb2]);
+      int * tab_line = &(link_index[4*str0*nlinkb]);
+      for(int j=0; j<nlinkb; ++j) {
+        int * tab = &(tab_line[4*j]);
+        int sign = tab[3];
+        if(sign != 0) {
+          int str1 = tab[2];
+          if((str1 >= ib) && (str1 < jb)) {
+            int a = tab[0];
+            int i = tab[1];
+            tmp_buf[i*norb + a] += sign*ci[(stra_id+batch_id-ia)*nb_bra + str1-ib];
+          }
+        }
+      }
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_jikl(double * tdm, double * buf, int norb)
+{
+  int norb2 = norb*norb;
+#pragma omp parallel for schedule(static)
+  for(int k=0; k<norb2; ++k) {
+    for(int i=0; i<norb; ++i)
+      for(int j=0; j<norb; ++j) {
+        const double * tmp_in = &(tdm[(i*norb+j)*norb2]);
+        double * tmp_out = &(buf[(j*norb+i)*norb2]);
+        tmp_out[k] = tmp_in[k];
+      }
+  }
+
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<norb2*norb2; ++i) tdm[i] = buf[i];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2, int num_gemm_batches)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<size_tdm2; ++i) {
+    double val = 0.0;
+    for(int j=0; j<num_gemm_batches; ++j) val += buf3[j*size_tdm2 + i];
+    dm2[i] += val;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<norb; ++i)
+    for(int j=0; j<norb; ++j)
+      for(int k=0; k<norb; ++k)
+        dm2[((i*norb+j)*norb+j)*norb + k] -= dm1[i*norb + k];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::filter_sfudm(const double * dm2, double * dm1, int norb)
+{
+  int norb_m1 = norb-1;
+  int norb1 = norb_m1 + 1;
+  int norb12 = (norb_m1+1)*(norb_m1+1);
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<norb_m1; ++i)
+    for(int j=0; j<norb_m1; ++j)
+      dm1[i*norb_m1+j] = dm2[i*norb12 + j*norb1 + norb_m1];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::filter_tdmpp(const double * dm2, double * dm1, int norb, int spin)
+{
+  int ndum = (spin!=1) ? 2:1;
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<norb-ndum; ++i)
+    for(int j=0; j<norb-ndum; ++j)
+      dm1[i*(norb-ndum)+j] = dm2[i*norb*norb*norb + (norb-1)*norb*norb + j*norb + norb-ndum];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::filter_tdm1h(const double * in, double * out, int norb)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<norb; ++i) out[i] = in[i*(norb+1)+norb];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::filter_tdm3h(double * in, double * out, int norb)
+{
+  int norb1 = norb+1;
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<norb; ++i)
+    for(int j=0; j<norb; ++j)
+      for(int k=0; k<norb; ++k)
+        out[(i*norb+j)*norb+k] = in[((i*norb1+norb)*norb1+j)*norb1+k];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::veccopy(const double * src, double *dest, int size)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<size; ++i) dest[i] = src[i];
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_021(double * in, double * out, int ax1, int ax2, int ax3)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<ax1; ++i)
+    for(int j=0; j<ax2; ++j)
+      for(int k=0; k<ax3; ++k) {
+        int inputIndex = (i*ax3+k)*ax2+j;
+        int outputIndex = (i*ax2+j)*ax3+k;
+        out[outputIndex] = in[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_102(double * in, double * out, int ax1, int ax2, int ax3)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<ax1; ++i)
+    for(int j=0; j<ax2; ++j)
+      for(int k=0; k<ax3; ++k) {
+        int inputIndex = (j*ax1+i)*ax3+k;
+        int outputIndex = (i*ax2+j)*ax3+k;
+        out[outputIndex] = in[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void Device::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int idx1=0; idx1<ax1; ++idx1)
+    for(int idx2=0; idx2<ax2; ++idx2)
+      for(int idx3=0; idx3<ax3; ++idx3)
+        for(int idx4=0; idx4<ax4; ++idx4) {
+          int outputIndex = ((idx3*ax2 + idx2)*ax4 + idx4)*ax1 + idx1;
+          int inputIndex = ((idx1*ax2 + idx2)*ax3 + idx3)*ax4 + idx4;
+          out[outputIndex] = in[inputIndex];
+        }
+}
+
+/* ---------------------------------------------------------------------- */
+
 #endif

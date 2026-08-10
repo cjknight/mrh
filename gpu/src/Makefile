@@ -22,7 +22,9 @@ include arch/$(ARCH)
 
 # couple more flags to build shared library (allows arch files to be used for general app building)
 CXXFLAGS += -fPIC
+ifneq ($(findstring _USE_CPU,$(CXXFLAGS)),_USE_CPU)
 CUDA_CXXFLAGS += -shared -Xcompiler -fPIC
+endif
 LDFLAGS += -fPIC -shared
 
 # -- subset of src files with cuda kernels (need nvcc compiler)

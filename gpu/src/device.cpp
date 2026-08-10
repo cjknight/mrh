@@ -83,9 +83,11 @@ Device::Device()
   h_old_sivecs = nullptr;
   h_ox1 = nullptr;
   h_instruction_list = nullptr;
-#if defined(_USE_GPU)
+  // The eri cache must be enabled on ALL builds (host + GPU): the _ERIS path
+  // (get_dfobj_status / df_ao2mo_v4) relies on get_jk having cached blocks via
+  // dd_fetch_eri. On host builds _USE_GPU is undefined, so leaving this inside
+  // the #if left use_eri_cache=false and the cache was never populated.
   use_eri_cache = true;
-#endif
   
   num_threads = 1;
 #pragma omp parallel
@@ -184,7 +186,6 @@ Device::Device()
     device_data[i].d_tdm1=nullptr;
     device_data[i].d_tdm2=nullptr;
     device_data[i].d_tdm2_p=nullptr;
-
 
 #if defined (_USE_GPU)
     device_data[i].handle = nullptr;
@@ -385,7 +386,6 @@ Device::~Device()
     eri_list.clear();
   }
   
-#if defined(_USE_GPU)
   for(int i=0; i<num_devices; ++i) {
   
     pm->dev_set_device(i);
@@ -448,7 +448,6 @@ Device::~Device()
     
     printf("LIBGPU :: Finished\n");
   }
-#endif
 
   delete [] device_data;
   
@@ -461,9 +460,14 @@ Device::~Device()
 
 // xthi.c from http://docs.cray.com/books/S-2496-4101/html-S-2496-4101/cnlexamples.html
 
+#if !defined(__linux__)
+#define CPU_SETSIZE 1024
+#endif
+
 // util-linux-2.13-pre7/schedutils/taskset.c
 void Device::get_cores(char *str)
 {
+#if defined(__linux__)
   cpu_set_t mask;
   sched_getaffinity(0, sizeof(cpu_set_t), &mask);
 
@@ -491,6 +495,9 @@ void Device::get_cores(char *str)
   }
   ptr -= entry_made;
   *ptr = 0;
+#else
+  str[0] = 0;
+#endif
 }
 
 /* ---------------------------------------------------------------------- */
