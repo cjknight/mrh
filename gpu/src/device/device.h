@@ -123,8 +123,6 @@ public :
   //UPDATE H2EFF
   void update_h2eff_sub(int, int, int, int,
                         py::array_t<double>,py::array_t<double>);
-  void transpose_3210(double *, double *, int, int);
-  
   void transpose_210(double *, double *, int, int, int);
   
   //LAS_AO2MO
@@ -236,7 +234,6 @@ public :
 
   //inner functions
   void extract_mo_cas(int, int, int);//TODO: fix the difference - changed slightly
-  void get_mo_cas(const double *, double *, int, int, int);
 
   void push_mo_coeff(py::array_t<double>, int);
 

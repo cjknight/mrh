@@ -1535,7 +1535,7 @@ void DeviceFci::transpose_tdm2(int norb, int count)
   my_device_data * dd = &(ctx.device_data[id]);
   //get buffer array
   int size_tdm2 = norb*norb*norb*norb;
-  ctx.owner->transpose_3210(dd->fci.d_tdm2, dd->jk.d_buf2, norb, norb);
+  ctx.utils->transpose_3210(dd->fci.d_tdm2, dd->jk.d_buf2, norb, norb);
   ctx.utils->veccopy(dd->jk.d_buf2, dd->fci.d_tdm2, size_tdm2);
   
   double t1 = omp_get_wtime();
@@ -1691,7 +1691,7 @@ void DeviceFci::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> 
   int norb2 = norb*norb;
   if (spin)
     { 
-      ctx.owner->transpose_3210(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb+1, norb+1);//using a function from before
+      ctx.utils->transpose_3210(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb+1, norb+1);//using a function from before
       filter_tdm3h(dd->jk.d_buf2, &(dd->jk.d_buf3[norb+norb*norb2]), norb);
     }
   else
@@ -1746,7 +1746,7 @@ void DeviceFci::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int nor
   filter_tdm3h(dd->fci.d_tdm2, &(dd->jk.d_buf3[norb]), norb);
   if (spin)
     { 
-      ctx.owner->transpose_3210(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb+1, norb+1);//using a function from before, it was for transpose of ncas,ncas,ncas,nmo shaped
+      ctx.utils->transpose_3210(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb+1, norb+1);//using a function from before, it was for transpose of ncas,ncas,ncas,nmo shaped
       filter_tdm3h(dd->jk.d_buf2, &(dd->jk.d_buf3[norb+norb*norb2]), norb);
     }
   else

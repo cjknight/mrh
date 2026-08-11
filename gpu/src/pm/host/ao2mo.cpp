@@ -56,6 +56,16 @@ void DeviceAo2mo::transpose_120(double * in, double * out, int naux, int nao, in
 
 /* ---------------------------------------------------------------------- */
 
+void DeviceAo2mo::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<ncas; ++i)
+    for(int j=0; j<nao; ++j)
+      small_mat[i*nao + j] = big_mat[j*nao + i+ncore];
+}
+
+/* ---------------------------------------------------------------------- */
+
 void DeviceAo2mo::get_bufd(const double* bufpp, double* bufd, int naux, int nmo)
 {
 #pragma omp parallel for collapse(2) schedule(static)

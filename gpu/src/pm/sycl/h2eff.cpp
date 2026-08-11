@@ -28,22 +28,6 @@
 
 /* ---------------------------------------------------------------------- */
 
-/* ---------------------------------------------------------------------- */
-
-void _get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
-{
-    auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
-    const int j = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
-                  item_ct1.get_local_id(1);
-    const int i = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
-                  item_ct1.get_local_id(2);
-    if (i < ncas && j < nao) {
-        small_mat[i * nao + j] = big_mat[j*nao + i+ncore];
-    }
-}
-
-/* ---------------------------------------------------------------------- */
-
 void _extract_submatrix(const double* big_mat, double* small_mat, int ncas, int ncore, int nmo)
 {
   auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
@@ -79,30 +63,6 @@ void _transpose_2310(double * in, double * out, int nmo, int ncas)
       int inputIndex = ((i*ncas+j)*ncas+k)*ncas+l;
       int outputIndex = k*ncas*ncas*nmo + l*ncas*nmo + j*nmo + i;
       out[outputIndex] = in[inputIndex];
-    }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void _transpose_3210(double* in, double* out, int nmo, int ncas)
-{
-    //a.transpose(3,2,1,0)-ncas,ncas,ncas,nmo
-    auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
-    int i = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
-            item_ct1.get_local_id(2);
-    int j = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
-            item_ct1.get_local_id(1);
-    int k = item_ct1.get_group(0) * item_ct1.get_local_range(0) +
-            item_ct1.get_local_id(0);
-
-    if(i >= ncas) return;
-    if(j >= ncas) return;
-    if(k >= ncas) return;
-    
-    for(int l=0;l<nmo;++l){
-      int inputIndex = ((i*ncas+j)*ncas+k)*nmo+l;
-      int outputIndex = l*ncas*ncas*ncas+k*ncas*ncas+j*ncas+i;
-      out[outputIndex]=in[inputIndex];
     }
 }
 
@@ -276,38 +236,6 @@ void DeviceH2eff::transpose_2310(double * in, double * out, int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void DeviceH2eff::transpose_3210(double* in, double* out, int nmo, int ncas)
-{
-  sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
-  sycl::range<3> grid_size(_TILE(ncas, block_size[0]),
-			   _TILE(ncas, block_size[1]),
-			   _TILE(ncas, block_size[2]));
-  
-  sycl::queue * s = ctx.pm->dev_get_queue();
-
-  /*
-  DPCT1049:8: The work-group size passed to the SYCL kernel may exceed the
-  limit. To get the device limit, query info::device::max_work_group_size.
-  Adjust the work-group size if needed.
-  */
-  {
-    //    dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
-
-    s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
-                    [=](sycl::nd_item<3> item_ct1) {
-                      _transpose_3210(in, out, nmo, ncas);
-                    });
-  }
-
-#ifdef _DEBUG_DEVICE
-  printf("LIBGPU ::  -- update_h2eff_sub::transpose_3210 :: ncas= %i  _DEFAULT_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
-	 ncas, _DEFAULT_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  ctx.pm->dev_check_errors();
-#endif
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DeviceH2eff::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   sycl::range<3> block_size(_UNPACK_BLOCK_SIZE, 1, 1);
@@ -327,36 +255,6 @@ void DeviceH2eff::pack_h2eff_2d(double * in, double * out, int * map, int nmo, i
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- update_h2eff_sub::_pack_h2eff_2d :: nmo= %i  ncas= %i  _UNPACK_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 nmo, ncas, _UNPACK_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  ctx.pm->dev_check_errors();
-#endif
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DeviceH2eff::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
-{
-  sycl::range<3> block_size(1, 1, 1);
-  sycl::range<3> grid_size(1, _TILE(nao, block_size[1]), _TILE(ncas, block_size[2]));
-  
-  sycl::queue * s = ctx.pm->dev_get_queue();
-
-  /*
-  DPCT1049:9: The work-group size passed to the SYCL kernel may exceed the
-  limit. To get the device limit, query info::device::max_work_group_size.
-  Adjust the work-group size if needed.
-  */
-  {
-    //    dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
-
-    s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
-                    [=](sycl::nd_item<3> item_ct1) {
-                      _get_mo_cas(big_mat, small_mat, ncas, ncore, nao);
-                    });
-  }
-
-#ifdef _DEBUG_DEVICE
-  printf("LIBGPU ::  -- get_h2eff_df::_get_mo_cas :: ncas= %i  nao= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
-	 ncas, nao, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
   ctx.pm->dev_check_errors();
 #endif
 }

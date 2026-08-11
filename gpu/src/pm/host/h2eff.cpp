@@ -52,21 +52,6 @@ void DeviceH2eff::transpose_2310(double * in, double * out, int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void DeviceH2eff::transpose_3210(double* in, double* out, int nmo, int ncas)
-{
-#pragma omp parallel for collapse(3) schedule(static)
-  for(int i=0; i<ncas; ++i)
-    for(int j=0; j<ncas; ++j)
-      for(int k=0; k<ncas; ++k)
-        for(int l=0; l<nmo; ++l) {
-          int inputIndex = ((i*ncas+j)*ncas+k)*nmo+l;
-          int outputIndex = l*ncas*ncas*ncas + k*ncas*ncas + j*ncas + i;
-          out[outputIndex] = in[inputIndex];
-        }
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DeviceH2eff::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
 #pragma omp parallel for collapse(3) schedule(static)
@@ -77,16 +62,6 @@ void DeviceH2eff::pack_h2eff_2d(double * in, double * out, int * map, int nmo, i
         double * in_buf = &(in[(i*ncas + j)*ncas*ncas]);
         out_buf[k] = in_buf[map[k]];
       }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DeviceH2eff::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
-{
-#pragma omp parallel for collapse(2) schedule(static)
-  for(int i=0; i<ncas; ++i)
-    for(int j=0; j<nao; ++j)
-      small_mat[i*nao + j] = big_mat[j*nao + i+ncore];
 }
 
 /* ---------------------------------------------------------------------- */

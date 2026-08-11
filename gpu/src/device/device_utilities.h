@@ -18,8 +18,8 @@ using namespace MATHLIB_NS;
 // owned subdomain reachable via ctx.utils->vecadd/...
 //
 // These are the last remaining generic kernels; the domain-specific kernels
-// (getjk_unpack_buf2, pack_eri, transpose_120/210/3210, get_mo_cas) stay on
-// their owning domains as transitional Device shims.
+// (getjk_unpack_buf2, pack_eri, transpose_120/210) stay on their owning
+// domains as transitional Device shims.
 class DeviceUtils {
 
 public:
@@ -36,6 +36,7 @@ public:
   void transpose_021(double *, double *, int, int, int);
   void transpose_102(double *, double *, int, int, int);
   void transpose_2130(const double *, double *, int, int, int, int);
+  void transpose_3210(double *, double *, int, int);
 
 private:
 

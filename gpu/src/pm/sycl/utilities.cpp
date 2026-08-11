@@ -230,6 +230,30 @@ void _transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3,
 
 /* ---------------------------------------------------------------------- */
 
+void _transpose_3210(double* in, double* out, int nmo, int ncas)
+{
+    //a.transpose(3,2,1,0)-ncas,ncas,ncas,nmo
+    auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
+    int i = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
+            item_ct1.get_local_id(2);
+    int j = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
+            item_ct1.get_local_id(1);
+    int k = item_ct1.get_group(0) * item_ct1.get_local_range(0) +
+            item_ct1.get_local_id(0);
+
+    if(i >= ncas) return;
+    if(j >= ncas) return;
+    if(k >= ncas) return;
+    
+    for(int l=0;l<nmo;++l){
+      int inputIndex = ((i*ncas+j)*ncas+k)*nmo+l;
+      int outputIndex = l*ncas*ncas*ncas+k*ncas*ncas+j*ncas+i;
+      out[outputIndex]=in[inputIndex];
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
 void DeviceUtils::transpose(double * out, double * in, int nrow, int ncol)
 {
 #ifdef _DEBUG_DEVICE
@@ -495,6 +519,38 @@ void DeviceUtils::transpose_2130(const double * in, double * out, int ax1, int a
                     });
   }
   ctx.pm->dev_check_errors();
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::transpose_3210(double* in, double* out, int nmo, int ncas)
+{
+  sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
+  sycl::range<3> grid_size(_TILE(ncas, block_size[0]),
+			   _TILE(ncas, block_size[1]),
+			   _TILE(ncas, block_size[2]));
+  
+  sycl::queue * s = ctx.pm->dev_get_queue();
+
+  /*
+  DPCT1049:8: The work-group size passed to the SYCL kernel may exceed the
+  limit. To get the device limit, query info::device::max_work_group_size.
+  Adjust the work-group size if needed.
+  */
+  {
+    //    dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
+
+    s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
+                    [=](sycl::nd_item<3> item_ct1) {
+                      _transpose_3210(in, out, nmo, ncas);
+                    });
+  }
+
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- update_h2eff_sub::transpose_3210 :: ncas= %i  _DEFAULT_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
+	 ncas, _DEFAULT_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
+  ctx.pm->dev_check_errors();
+#endif
 }
 
 

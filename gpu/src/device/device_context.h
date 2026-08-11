@@ -135,9 +135,9 @@ struct my_device_data {
 struct DeviceContext {
   Device * owner;        // Device facade. Temporary back-reference for the
                          // remaining domain-owned shims still reached through it
-                         // (getjk_unpack_buf2, pack_eri, get_mo_cas,
-                         // transpose_120/210/3210); the shared generic kernels
-                         // now live in DeviceUtils (ctx.utils).
+                         // (getjk_unpack_buf2, pack_eri, transpose_120/210);
+                         // the shared generic kernels now live in DeviceUtils
+                         // (ctx.utils) and get_mo_cas is on DeviceAo2mo directly.
   PM_NS::PM * pm;
   MATHLIB_NS::MATHLIB * ml;
   DeviceComm * comm;     // multi-GPU bcast/reduce (owned by the Device facade)

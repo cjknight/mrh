@@ -46,9 +46,7 @@ public:
   void extract_submatrix(const double *, double *, int, int, int);
   void unpack_h2eff_2d(double *, double *, int *, int, int, int);
   void transpose_2310(double *, double *, int, int);
-  void transpose_3210(double *, double *, int, int);
   void pack_h2eff_2d(double *, double *, int *, int, int, int);
-  void get_mo_cas(const double *, double *, int, int, int);
   void pack_d_vuwM(const double *, double *, int *, int, int, int);
   void pack_d_vuwM_add(const double *, double *, int *, int, int, int);
 

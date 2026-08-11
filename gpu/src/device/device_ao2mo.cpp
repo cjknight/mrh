@@ -118,7 +118,7 @@ void DeviceAo2mo::extract_mo_cas(int ncas, int ncore, int nao)
     dim3 grid_size(_TILE(ncas, block_size.x), _TILE(nao, block_size.y));
     get_mo_cas<<<grid_size, block_size, 0, dd->stream>>>(dd->d_mo_coeff, dd->d_mo_cas, ncas, ncore, nao);
 #else
-    ctx.owner->get_mo_cas(dd->d_mo_coeff,dd->d_mo_cas, ncas, ncore, nao);
+    get_mo_cas(dd->d_mo_coeff,dd->d_mo_cas, ncas, ncore, nao);
 #endif
   }
   

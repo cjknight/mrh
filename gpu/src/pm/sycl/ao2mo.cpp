@@ -43,6 +43,21 @@ void _get_bufd( const double* bufpp, double* bufd, int naux, int nmo)
 
 /* ---------------------------------------------------------------------- */
 
+void _get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+{
+    auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
+    const int j = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
+                  item_ct1.get_local_id(1);
+    const int i = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
+                  item_ct1.get_local_id(2);
+    if (i < ncas && j < nao) {
+        small_mat[i * nao + j] = big_mat[j*nao + i+ncore];
+    }
+}
+
+
+/* ---------------------------------------------------------------------- */
+
 void _get_bufpa (const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas)
 {
   auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
@@ -205,6 +220,36 @@ void DeviceAo2mo::transpose_120(double * in, double * out, int naux, int nao, in
                       _transpose_120(in, out, naux, nao, ncas);
                     });
   }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceAo2mo::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+{
+  sycl::range<3> block_size(1, 1, 1);
+  sycl::range<3> grid_size(1, _TILE(nao, block_size[1]), _TILE(ncas, block_size[2]));
+  
+  sycl::queue * s = ctx.pm->dev_get_queue();
+
+  /*
+  DPCT1049:9: The work-group size passed to the SYCL kernel may exceed the
+  limit. To get the device limit, query info::device::max_work_group_size.
+  Adjust the work-group size if needed.
+  */
+  {
+    //    dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
+
+    s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
+                    [=](sycl::nd_item<3> item_ct1) {
+                      _get_mo_cas(big_mat, small_mat, ncas, ncore, nao);
+                    });
+  }
+
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- get_h2eff_df::_get_mo_cas :: ncas= %i  nao= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
+	 ncas, nao, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
+  ctx.pm->dev_check_errors();
+#endif
 }
 
 /* ---------------------------------------------------------------------- */

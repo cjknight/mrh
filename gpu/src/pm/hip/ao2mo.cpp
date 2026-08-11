@@ -33,6 +33,17 @@ __global__ void _get_bufd( const double* bufpp, double* bufd, int naux, int nmo)
 
 /* ---------------------------------------------------------------------- */
 
+__global__ void _get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao) {
+    const int j = blockIdx.y * blockDim.y + threadIdx.y;
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < ncas && j < nao) {
+        small_mat[i * nao + j] = big_mat[j*nao + i+ncore];
+    }
+}
+
+
+/* ---------------------------------------------------------------------- */
+
 __global__ void _get_bufpa (const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas){
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
   const int j = blockIdx.y * blockDim.y + threadIdx.y;
@@ -139,6 +150,24 @@ void DeviceAo2mo::transpose_120(double * in, double * out, int naux, int nao, in
   dim3 grid_size (_TILE(naux, block_size.x), na, nb); // originally nmo, nmo
   
   _transpose_120<<<grid_size, block_size, 0, s>>>(in, out, naux, nao, ncas);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceAo2mo::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+{
+  dim3 block_size(1,1,1);
+  dim3 grid_size(_TILE(ncas, block_size.x), _TILE(nao, block_size.y));
+  
+  hipStream_t s = *(ctx.pm->dev_get_queue());
+  
+  _get_mo_cas<<<grid_size, block_size, 0, s>>>(big_mat, small_mat, ncas, ncore, nao);
+  
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- get_h2eff_df::_get_mo_cas :: ncas= %i  nao= %i  grid_size= %i %i %i  block_size= %i %i %i\n",
+	 ncas, nao, grid_size.x,grid_size.y,grid_size.z,block_size.x,block_size.y,block_size.z);
+  _HIP_CHECK_ERRORS();
+#endif
 }
 
 /* ---------------------------------------------------------------------- */

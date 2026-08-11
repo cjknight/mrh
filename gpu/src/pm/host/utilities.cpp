@@ -110,5 +110,20 @@ void DeviceUtils::transpose_2130(const double * in, double * out, int ax1, int a
         }
 }
 
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::transpose_3210(double* in, double* out, int nmo, int ncas)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<ncas; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<ncas; ++k)
+        for(int l=0; l<nmo; ++l) {
+          int inputIndex = ((i*ncas+j)*ncas+k)*nmo+l;
+          int outputIndex = l*ncas*ncas*ncas + k*ncas*ncas + j*ncas + i;
+          out[outputIndex] = in[inputIndex];
+        }
+}
+
 
 #endif

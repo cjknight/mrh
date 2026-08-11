@@ -219,7 +219,7 @@ void DeviceH2eff::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   
   //h2eff_tranposed=(JKIP->PIJK) 3201
 
-  transpose_3210(d_h2eff_step4, d_h2eff_transpose2, nmo, ncas);
+  ctx.utils->transpose_3210(d_h2eff_step4, d_h2eff_transpose2, nmo, ncas);
   
 #ifdef _DEBUG_H2EFF
   printf("LIBGPU :: Inside Device :: -- finished transposing back\n");
@@ -571,11 +571,3 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
 void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
 { _h2eff->pull_eri_h2eff(_eri, nmo, ncas); }
-
-// transitional shim: transpose_3210 / get_mo_cas are still called by
-// DeviceFci (transpose_tdm2) and DeviceAo2mo (extract_mo_cas)
-void Device::transpose_3210(double * in, double * out, int nmo, int ncas)
-{ _h2eff->transpose_3210(in, out, nmo, ncas); }
-
-void Device::get_mo_cas(const double * big_mat, double * small_mat, int ncas, int ncore, int nao)
-{ _h2eff->get_mo_cas(big_mat, small_mat, ncas, ncore, nao); }

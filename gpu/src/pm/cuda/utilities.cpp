@@ -190,6 +190,25 @@ __global__ void _transpose_2130(const double * in, double * out, int ax1, int ax
 
 /* ---------------------------------------------------------------------- */
 
+__global__ void _transpose_3210(double* in, double* out, int nmo, int ncas) {
+    //a.transpose(3,2,1,0)-ncas,ncas,ncas,nmo
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    int k = blockIdx.z * blockDim.z + threadIdx.z;
+
+    if(i >= ncas) return;
+    if(j >= ncas) return;
+    if(k >= ncas) return;
+    
+    for(int l=0;l<nmo;++l){
+      int inputIndex = ((i*ncas+j)*ncas+k)*nmo+l;
+      int outputIndex = l*ncas*ncas*ncas+k*ncas*ncas+j*ncas+i;
+      out[outputIndex]=in[inputIndex];
+    }
+}
+
+/* ---------------------------------------------------------------------- */
+
 void DeviceUtils::transpose(double * out, double * in, int nrow, int ncol)
 {
 #ifdef _DEBUG_DEVICE
@@ -334,6 +353,23 @@ void DeviceUtils::transpose_2130(const double * in, double * out, int ax1, int a
   dim3 grid_size(_TILE(ax1, block_size.x),_TILE(ax2, block_size.y),_TILE(ax3,block_size.z));
   _transpose_2130<<<grid_size, block_size, 0, s>>>(in, out, ax1, ax2, ax3, ax4);
   _CUDA_CHECK_ERRORS();
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::transpose_3210(double* in, double* out, int nmo, int ncas)
+{
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
+  dim3 block_size(1,1,_DEFAULT_BLOCK_SIZE);
+  dim3 grid_size(_TILE(ncas,block_size.x),_TILE(ncas,block_size.y),_TILE(ncas,block_size.z));
+  
+  _transpose_3210<<<grid_size, block_size, 0, s>>>(in, out, nmo, ncas);
+  
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- update_h2eff_sub::transpose_3210 :: ncas= %i  _DEFAULT_BLOCK_SIZE= %i  grid_size= %i %i %i  block_size= %i %i %i\n",
+	 ncas, _DEFAULT_BLOCK_SIZE, grid_size.x,grid_size.y,grid_size.z,block_size.x,block_size.y,block_size.z);
+  _CUDA_CHECK_ERRORS();
+#endif
 }
 
 
