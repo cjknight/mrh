@@ -102,7 +102,7 @@ void DeviceAo2mo::get_bufpa(const double* bufpp, double* bufpa, int naux, int nm
   dim3 block_size(_UNPACK_BLOCK_SIZE,_UNPACK_BLOCK_SIZE,1);
   dim3 grid_size (_TILE(naux, block_size.x), _TILE(nmo, block_size.y), ncas);
   
-  cudaStream_t s = *(pm->dev_get_queue());
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
   
   _get_bufpa<<<grid_size, block_size, 0, s>>>(bufpp, bufpa, naux, nmo, ncore, ncas);
 }
@@ -114,7 +114,7 @@ void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nm
   dim3 block_size(_UNPACK_BLOCK_SIZE,1,1);
   dim3 grid_size (_TILE(naux, block_size.x), ncas, ncas);
   
-  cudaStream_t s = *(pm->dev_get_queue());
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
   
   _get_bufaa<<<grid_size, block_size, 0, s>>>(bufpp, bufaa, naux, nmo, ncore, ncas);
 }
@@ -123,7 +123,7 @@ void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nm
 
 void DeviceAo2mo::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
 {
-  cudaStream_t s = *(pm->dev_get_queue());
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
 
   int na = nao;
   int nb = ncas;
@@ -146,7 +146,7 @@ void DeviceAo2mo::get_bufd( const double* bufpp, double* bufd, int naux, int nmo
   dim3 block_size (_UNPACK_BLOCK_SIZE,_UNPACK_BLOCK_SIZE,1);
   dim3 grid_size (_TILE(naux, block_size.x),_TILE(nmo, block_size.y),1);
   
-  cudaStream_t s = *(pm->dev_get_queue());
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
   
   _get_bufd<<<grid_size, block_size, 0, s>>>(bufpp, bufd, naux, nmo);
 }

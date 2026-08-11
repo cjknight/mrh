@@ -134,7 +134,7 @@ void DeviceAo2mo::get_bufpa(const double* bufpp, double* bufpa, int naux, int nm
   sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(ncas, _TILE(nmo, block_size[1]), _TILE(naux, block_size[2]));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:1: The work-group size passed to the SYCL kernel may exceed the
@@ -158,7 +158,7 @@ void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nm
   sycl::range<3> block_size(1, 1, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(ncas, ncas, _TILE(naux, block_size[2]));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:2: The work-group size passed to the SYCL kernel may exceed the
@@ -179,7 +179,7 @@ void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nm
 
 void DeviceAo2mo::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   int na = nao;
   int nb = ncas;
@@ -214,7 +214,7 @@ void DeviceAo2mo::get_bufd( const double* bufpp, double* bufd, int naux, int nmo
   sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(1, _TILE(nmo, block_size[1]), _TILE(naux, block_size[2]));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:3: The work-group size passed to the SYCL kernel may exceed the
