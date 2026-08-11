@@ -2,7 +2,7 @@
 
 #if defined(_GPU_CUDA)
 
-#include "../../device.h"
+#include "../../device/device.h"
 
 #include <stdio.h>
 

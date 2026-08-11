@@ -3,7 +3,7 @@
 #ifndef LIBGPU_H
 #define LIBGPU_H
 
-#include "device.h"
+#include "device/device.h"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>

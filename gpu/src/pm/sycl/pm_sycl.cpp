@@ -7,7 +7,7 @@
 #include <vector>
 #include <tuple>
 
-#include "pm.h"
+#include "../pm.h"
 
 //#define _DEBUG_PM
 #define _ENABLE_INTEL_CCS

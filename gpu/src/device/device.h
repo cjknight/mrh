@@ -11,9 +11,9 @@
 
 namespace py = pybind11;
 
-#include "pm/pm.h"
-#include "mathlib/mathlib.h"
-#include "pm/dev_array.h"
+#include "../pm/pm.h"
+#include "../mathlib/mathlib.h"
+#include "../pm/dev_array.h"
 #include "device_context.h"
 #include "device_comm.h"
 #include "device_cache.h"

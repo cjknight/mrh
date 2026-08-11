@@ -8,8 +8,8 @@
 
 namespace py = pybind11;
 
-#include "pm/pm.h"
-#include "mathlib/mathlib.h"
+#include "../pm/pm.h"
+#include "../mathlib/mathlib.h"
 #include "device_context.h"
 
 using namespace PM_NS;

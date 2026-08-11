@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "pm/pm.h"
-#include "mathlib/mathlib.h"
+#include "../pm/pm.h"
+#include "../mathlib/mathlib.h"
 
 class Device; // forward decl for DeviceContext::owner (facade back-reference)
 class DeviceComm; // forward decl for DeviceContext::comm (owned multi-GPU comm subdomain)
