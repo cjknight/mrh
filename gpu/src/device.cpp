@@ -31,6 +31,7 @@ Device::Device()
 
   _pdft = nullptr;
   _jk = nullptr;
+  _impham = nullptr;
 
   buf_fdrv = nullptr;
 
@@ -51,12 +52,6 @@ Device::Device()
   // h2eff_df
   size_buf_eri_h2eff = 0;
   buf_eri_h2eff = nullptr;
-
-  // eri_impham
-
-  size_eri_impham = 0;
-  pin_eri_impham = nullptr;
-  
 
   // tdms
   size_bravecs = 0;
@@ -215,6 +210,7 @@ Device::Device()
 
   _pdft = new DevicePdft(dev_ctx);
   _jk = new DeviceJk(dev_ctx);
+  _impham = new DeviceImpham(dev_ctx);
 
   // check device connectivity
 
@@ -228,6 +224,9 @@ Device::Device()
 Device::~Device()
 {
   if(verbose_level) printf("LIBGPU: destroying device\n");
+
+  delete _impham;
+  _impham = nullptr;
 
   delete _jk;
   _jk = nullptr;

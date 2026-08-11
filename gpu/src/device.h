@@ -17,6 +17,7 @@ namespace py = pybind11;
 #include "device_context.h"
 #include "device_pdft.h"
 #include "device_jk.h"
+#include "device_impham.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -133,12 +134,12 @@ public :
                          py::array_t<double>, int, size_t);//VA: new function
   void pull_eri_h2eff(py::array_t<double>, int, int);// VA: new function
   
-  //ERI for IMPURINTY HAMILTONIAN
+  //ERI for IMPURINTY HAMILTONIAN (forwarders -> DeviceImpham)
   void init_eri_impham(int, int, int);
   void compute_eri_impham(int, int, int, int, int, size_t, int);
   void pull_eri_impham( py::array_t<double>, int, int, int);
   void compute_eri_impham_v2(int, int, int, int, int, size_t, size_t);
-  void pack_eri(double *, double *, int *, int, int, int); 
+  void pack_eri(double *, double *, int *, int, int, int); // shared: impham build + device_impham (DeviceImpham)
   
   //PDFT
   void init_mo_grid(int, int);
@@ -302,6 +303,7 @@ public :
 private:
 
   friend class DeviceJk; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
+  friend class DeviceImpham; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
 
   class PM * pm;
 
@@ -351,10 +353,6 @@ private:
   int size_eri_h2eff;
   int size_buf_eri_h2eff;
   double * buf_eri_h2eff;
-
-  // eri_impham
-  int size_eri_impham;
-  double * pin_eri_impham;
   
   //tdms
   int size_bravecs;
@@ -454,6 +452,7 @@ private:
   DeviceContext dev_ctx;
   DevicePdft * _pdft;
   DeviceJk * _jk;
+  DeviceImpham * _impham;
 };
 
 #endif
