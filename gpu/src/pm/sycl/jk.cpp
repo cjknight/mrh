@@ -28,6 +28,8 @@
 
 /* ---------------------------------------------------------------------- */
 
+// DEPRECATED: legacy integral engine (fdrv helper) -- commented out. See refactor_plan.md.
+#if 0
 void Device::fdrv(double *vout, double *vin, double *mo_coeff,
 		  int nij, int nao, int *orbs_slice, int *ao_loc, int nbas, double * _buf) // this needs to be removed when host+sycl backends ready
 {
@@ -62,6 +64,7 @@ void Device::fdrv(double *vout, double *vin, double *mo_coeff,
 //   }
   
 }
+#endif // end DEPRECATED Device::fdrv
 
 /* ---------------------------------------------------------------------- */
 

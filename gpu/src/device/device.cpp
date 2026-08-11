@@ -37,7 +37,8 @@ Device::Device()
   _comm = nullptr;
   _cache = nullptr;
 
-  buf_fdrv = nullptr;
+  // DEPRECATED: legacy integral engine state (orbital_response/fdrv)
+  //buf_fdrv = nullptr;
 
   //ao2mo (dead members, kept until ao2mo_v3 removal)
   size_fxpp = 0;//remove when ao2mo_v3 is running
@@ -229,7 +230,8 @@ Device::~Device()
   //pm->dev_free_host(vj);
   pm->dev_free_host(_vktmp);
 
-  pm->dev_free_host(buf_fdrv);
+  // DEPRECATED: legacy integral engine state (orbital_response/fdrv)
+  //pm->dev_free_host(buf_fdrv);
   
   pm->dev_free_host(pin_fxpp);//remove 
   pm->dev_free_host(pin_bufpa);//remove when ao2mo_v3 is running
@@ -248,8 +250,9 @@ Device::~Device()
     printf("\nLIBGPU :: SIMPLE_TIMER :: hessop\n");
     printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= hessop_get_veff()        time= %f s\n",3,t_array[3]);
     
-    printf("\nLIBGPU :: SIMPLE_TIMER :: orbital_response\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= orbital_response()       time= %f s\n",4,t_array[4]);
+    // DEPRECATED: legacy integral engine -- orbital_response commented out.
+    //printf("\nLIBGPU :: SIMPLE_TIMER :: orbital_response\n");
+    //printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= orbital_response()       time= %f s\n",4,t_array[4]);
     
     
     printf("\nLIBGPU :: SIMPLE_TIMER :: _update_h2eff\n");
@@ -312,8 +315,9 @@ Device::~Device()
     printf("\nLIBGPU :: SIMPLE_COUNTER :: hessop\n");
     printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= hessop_get_veff()    counts= %i \n",1,count_array[1]);
     
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: orbital_response\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= orbital_response()   counts= %i \n",2,count_array[2]);
+    // DEPRECATED: legacy integral engine -- orbital_response commented out.
+    //printf("\nLIBGPU :: SIMPLE_COUNTER :: orbital_response\n");
+    //printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= orbital_response()   counts= %i \n",2,count_array[2]);
     
     printf("\nLIBGPU :: SIMPLE_COUNTER :: update_h2eff_sub\n");
     printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= update_h2eff_sub()   counts= %i \n",3,count_array[3]);
@@ -599,6 +603,16 @@ void Device::push_mo_coeff(py::array_t<double> _mo_coeff, int _size_mo_coeff)
 
 /* ---------------------------------------------------------------------- */
 
+// ============================================================================
+// DEPRECATED: legacy integral engine -- Device::orbital_response().
+// Commented out for the time being (removed from the build + Python export).
+// Kept intact for possible revival; see refactor_plan.md. Was exported to
+// Python as libgpu.orbital_response (used by mcscf/lasscf_sync_o0.py).
+// If revived, also restore: device.h decl, libgpu.h/cpp binding, fdrv helper
+// (device.h + pm/<backend>/jk.cpp), size_fdrv/buf_fdrv state, and the
+// SIMPLE_TIMER/COUNTER printfs in the dtor.
+// ============================================================================
+#if 0
 // Is both _ocm2 in/out as it get over-written and resized?
 
 void Device::orbital_response(py::array_t<double> _f1_prime,
@@ -963,5 +977,6 @@ void Device::orbital_response(py::array_t<double> _f1_prime,
   pm->dev_free_host(f1_prime);
 
 }
+#endif // end DEPRECATED legacy integral engine orbital_response
 
 /* ---------------------------------------------------------------------- */

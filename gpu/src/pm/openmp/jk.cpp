@@ -73,12 +73,13 @@ void Device::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtril,
     profile_stop();
   }
 
-  int _size_fdrv = nao * nao * num_threads;
-  if(_size_fdrv > size_fdrv) {
-    size_fdrv = _size_fdrv;
-    if(buf_fdrv) pm->dev_free_host(buf_fdrv);
-    buf_fdrv = (double *) pm->dev_malloc_host(size_fdrv*sizeof(double));
-  }
+  // DEPRECATED: legacy integral engine (fdrv helper) -- commented out.
+  //int _size_fdrv = nao * nao * num_threads;
+  //if(_size_fdrv > size_fdrv) {
+  //  size_fdrv = _size_fdrv;
+  //  if(buf_fdrv) pm->dev_free_host(buf_fdrv);
+  //  buf_fdrv = (double *) pm->dev_malloc_host(size_fdrv*sizeof(double));
+  //}
 
   // Create cuda stream
 
@@ -261,7 +262,8 @@ void Device::get_jk(int naux,
     //	       dms[k].ctypes.data_as(ctypes.c_void_p),
     //	       ctypes.c_int(naux), *rargs)
     
-    fdrv(buf1, eri1, dms, naux, nao, nullptr, nullptr, 0, buf_fdrv);
+    // DEPRECATED: legacy integral engine (fdrv helper) -- commented out.
+    //fdrv(buf1, eri1, dms, naux, nao, nullptr, nullptr, 0, buf_fdrv);
     
     // dgemm of (nao X blksize*nao) and (blksize*nao X nao) matrices - can refactor later...
     // vk[k] += lib.dot(buf1.reshape(-1,nao).T, buf2.reshape(-1,nao))  // vk[k] is nao x nao array
@@ -343,8 +345,9 @@ void Device::get_jk(int naux,
 
 /* ---------------------------------------------------------------------- */
 
+// DEPRECATED: legacy integral engine (fdrv helper) -- commented out. See refactor_plan.md.
 // pyscf/pyscf/lib/ao2mo/nr_ao2mo.c::AO2MOnr_e2_drv()
-
+#if 0
 void Device::fdrv(double *vout, double *vin, double *mo_coeff,
 		  int nij, int nao, int *orbs_slice, int *ao_loc, int nbas, double * _buf)
 {
@@ -371,6 +374,7 @@ void Device::fdrv(double *vout, double *vin, double *mo_coeff,
     dsymm_(&SIDE_L, &UPLO_U, &nao, &nao, &D1, buf, &nao, mo_coeff, &nao, &D0, _vout, &nao);    
   }
 }
+#endif // end DEPRECATED Device::fdrv
 
 
 #endif

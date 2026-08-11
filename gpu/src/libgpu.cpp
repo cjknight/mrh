@@ -192,6 +192,12 @@ void libgpu_pull_ppaa_papa_ao2mo_v4(void * ptr,
   dev->pull_ppaa_papa_ao2mo_v4(ppaa, papa, nmo, ncas);
 }
 
+// ============================================================================
+// DEPRECATED: legacy integral engine (orbital_response) -- commented out.
+// See refactor_plan.md. Restore together with Device::orbital_response and the
+// libgpu.h decl + m.def if revived.
+// ============================================================================
+#if 0
 /* ---------------------------------------------------------------------- */
 void libgpu_orbital_response(void * ptr,
 			     py::array_t<double> f1_prime,
@@ -205,6 +211,7 @@ void libgpu_orbital_response(void * ptr,
 			ocm2, tcm2, gorb,
 			ncore, nocc, nmo);
 }
+#endif // end DEPRECATED legacy integral engine orbital_response
 
 /* ---------------------------------------------------------------------- */
 

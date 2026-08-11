@@ -57,12 +57,13 @@ extern "C"
                             py::array_t<double>, py::array_t<double>,int, int);
   void libgpu_pull_ppaa_papa_ao2mo_v4(void *, 
 			      py::array_t<double>,py::array_t<double>, int, int);
+  // DEPRECATED: legacy integral engine (orbital_response) -- commented out.
   //ORBITAL RESPONSE
-  void libgpu_orbital_response(void *,
-			       py::array_t<double>,
-			       py::array_t<double>, py::array_t<double>, py::array_t<double>,
-			       py::array_t<double>, py::array_t<double>, py::array_t<double>,
-			       int, int, int); 
+  //void libgpu_orbital_response(void *,
+  //			       py::array_t<double>,
+  //			       py::array_t<double>, py::array_t<double>, py::array_t<double>,
+  //			       py::array_t<double>, py::array_t<double>, py::array_t<double>,
+  //			       int, int, int); 
   //UPDATE H2EFF
   void libgpu_update_h2eff_sub(void *, 
                                int, int, int, int, 
@@ -271,7 +272,8 @@ PYBIND11_MODULE(libgpu, m) {
   m.def("compute_rho_to_Pi", &libgpu_compute_rho_to_Pi, "pyscf/mcpdft/otfnal.py::energy_ot part 0.3");
   m.def("compute_Pi", &libgpu_compute_Pi, "pyscf/mcpdft/otfnal.py::energy_ot part 0.4");
   m.def("pull_Pi", &libgpu_pull_Pi, "pyscf/mcpdft/otfnal.py::energy_ot part final");
-  m.def("orbital_response", &libgpu_orbital_response, "mrh/lasscf_sync_o0.py::orbital_response");
+  // DEPRECATED: legacy integral engine (orbital_response) -- commented out.
+  //m.def("orbital_response", &libgpu_orbital_response, "mrh/lasscf_sync_o0.py::orbital_response");
   // RDM can be used from previously made JKs
   m.def("init_tdm1",&libgpu_init_tdm1, "pyscf/fci/rdm.py::allocate rdm1 space");
   m.def("init_tdm2",&libgpu_init_tdm2, "pyscf/fci/rdm.py::allocate rdm2 space");

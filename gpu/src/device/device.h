@@ -111,11 +111,14 @@ public :
   void pull_jk_ao2mo_v4 (py::array_t<double>,py::array_t<double>,int, int);
   void pull_ppaa_papa_ao2mo_v4 (py::array_t<double>,py::array_t<double>, int, int);
   
+  // DEPRECATED: legacy integral engine (orbital_response) -- commented out for the
+  // time being. See refactor_plan.md. If revived, restore this decl, the impl in
+  // device.cpp, the binding in libgpu.h/cpp, and the fdrv helper below.
   //ORBITAL RESPONSE
-  void orbital_response(py::array_t<double>,
-			py::array_t<double>, py::array_t<double>, py::array_t<double>,
-			py::array_t<double>, py::array_t<double>, py::array_t<double>,
-			int, int, int);
+  //void orbital_response(py::array_t<double>,
+  //			py::array_t<double>, py::array_t<double>, py::array_t<double>,
+  //			py::array_t<double>, py::array_t<double>, py::array_t<double>,
+  //			int, int, int);
 
   //UPDATE H2EFF
   void update_h2eff_sub(int, int, int, int,
@@ -260,7 +263,8 @@ private:
   
   size_t grid_size, block_size;
   
-  int size_fdrv;
+  // DEPRECATED: legacy integral engine state (only used by orbital_response/fdrv).
+  //int size_fdrv;
   
   // get_jk
   
@@ -268,7 +272,8 @@ private:
   //double * vj;
   double * _vktmp;
  
-  double * buf_fdrv;
+  // DEPRECATED: legacy integral engine state (only used by orbital_response/fdrv).
+  //double * buf_fdrv;
   // ao2mo
   int size_fxpp; // remove when ao2mo_v3 is running
   int size_bufpa;
@@ -282,25 +287,27 @@ private:
   DeviceAo2mo * _ao2mo; // ao2mo domain; owns buf_j_pc/buf_k_pc/buf_ppaa/buf_papa staging
   DeviceFci * _fci;     // fci domain; owns h_bravecs/h_ketvecs/h_dm1_full/h_dm2_full/h_dm2_p_full staging
 
-  struct my_AO2MOEnvs {
-    int natm;
-    int nbas;
-    int *atm;
-    int *bas;
-    double *env;
-    int nao;
-    int klsh_start;
-    int klsh_count;
-    int bra_start;
-    int bra_count;
-    int ket_start;
-    int ket_count;
-    int ncomp;
-    int *ao_loc;
-    double *mo_coeff;
-    //        CINTOpt *cintopt;
-    //        CVHFOpt *vhfopt;
-  };
+  // DEPRECATED: legacy integral engine helpers (fdrv/ftrans/fmmm/my_AO2MOEnvs/
+  // NPdsymm_triu/NPdunpack_tril) -- commented out for the time being.
+  //struct my_AO2MOEnvs {
+  //  int natm;
+  //  int nbas;
+  //  int *atm;
+  //  int *bas;
+  //  double *env;
+  //  int nao;
+  //  int klsh_start;
+  //  int klsh_count;
+  //  int bra_start;
+  //  int bra_count;
+  //  int ket_start;
+  //  int ket_count;
+  //  int ncomp;
+  //  int *ao_loc;
+  //  double *mo_coeff;
+  //  //        CINTOpt *cintopt;
+  //  //        CVHFOpt *vhfopt;
+  //};
   my_device_data * device_data;
   
   template<class T>
@@ -315,18 +322,19 @@ private:
     ::grow_array_host(pm, ptr, current_size, max_size, name);
   }
   
-  void fdrv(double *, double *, double *,
-	    int, int, int *, int *, int, double *);
-  
-  void ftrans(int,
-	      double *, double *, double *,
-	      struct my_AO2MOEnvs *);
-
-  int fmmm(double *, double *, double *,
-	   struct my_AO2MOEnvs *, int);
-  
-  void NPdsymm_triu(int, double *, int);
-  void NPdunpack_tril(int, double *, double *, int);
+  // DEPRECATED: legacy integral engine helpers (see my_AO2MOEnvs above).
+  //void fdrv(double *, double *, double *,
+  //	    int, int, int *, int *, int, double *);
+  //
+  //void ftrans(int,
+  //	      double *, double *, double *,
+  //	      struct my_AO2MOEnvs *);
+  //
+  //int fmmm(double *, double *, double *,
+  //	   struct my_AO2MOEnvs *, int);
+  //
+  //void NPdsymm_triu(int, double *, int);
+  //void NPdunpack_tril(int, double *, double *, int);
 /*--------------------------------------------*/
   double * t_array;
   int * count_array;
