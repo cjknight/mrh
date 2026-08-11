@@ -1392,33 +1392,8 @@ void DeviceFci::transpose_jikl(double * tdm, double * buf, int norb)
 #endif  
   }
   
-  {
-    sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
-    sycl::range<3> grid_size(1, 1, _TILE(norb2 * norb2, block_size[2]));
-    /*
-      DPCT1049:33: The work-group size passed to the SYCL kernel may exceed the
-      limit. To get the device limit, query info::device::max_work_group_size.
-      Adjust the work-group size if needed.
-    */
-    {
-      //dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
-      
-      s->submit([&](sycl::handler &cgh) {
-        auto norb2_norb2_ct2 = norb2 * norb2;
-	
-        cgh.parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
-                         [=](sycl::nd_item<3> item_ct1) {
-                           _veccopy(buf, tdm, norb2_norb2_ct2);
-                         });
-      });
-    }
-#ifdef _DEBUG_DEVICE
-    ctx.pm->dev_stream_wait();
-    printf("LIBGPU ::  -- general::copy_tdm; :: Norb= %i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
-	   norb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-    ctx.pm->dev_check_errors();
-#endif  
-  }
+  ctx.owner->veccopy(buf, tdm, norb2 * norb2);
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */

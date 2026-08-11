@@ -989,16 +989,8 @@ void DeviceFci::transpose_jikl(double * tdm, double * buf, int norb)
   _HIP_CHECK_ERRORS();
 #endif  
   }
-  {
-  dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
-  dim3 grid_size(_TILE(norb2*norb2, block_size.x), 1, 1);
-  _veccopy<<<grid_size, block_size, 0,s>>>(buf, tdm, norb2*norb2); 
-#ifdef _DEBUG_DEVICE 
-  printf("LIBGPU ::  -- general::copy_tdm; :: Norb= %i grid_size= %i %i %i  block_size= %i %i %i\n",
-	 norb, grid_size.x,grid_size.y,grid_size.z,block_size.x,block_size.y,block_size.z);
+  ctx.owner->veccopy(buf, tdm, norb2*norb2);
   _HIP_CHECK_ERRORS();
-#endif  
-  }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1013,39 +1005,13 @@ void DeviceFci::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_t
 
 void DeviceFci::reorder(double * dm1, double * dm2, double * buf, int norb)
 {
-  int norb2 = norb*norb;
   hipStream_t s = *(ctx.pm->dev_get_queue());
-  printf("Inside reorder\n");
   //for k in range (norb): rdm2[:,k,k,:] -= rdm1.T //remember, rdm1 is returned as rdm1.T, so double transpose, hence just rdm1
-  {
-    dim3 block_size (1,1,1);
-    dim3 grid_size (_TILE(norb, block_size.x), _TILE(norb, block_size.y), _TILE(norb, block_size.z));
-    _add_rdm1_to_2<<<grid_size, block_size, 0, s>>> (dm1, dm2, norb);
-    _HIP_CHECK_ERRORS();
-  }
-  //rdm2 = (rdm2+rdm2.transpose(2,3,0,1))/2
-  #if 0
-  //this is for reducing numerical error ... we can implement it later
-  {
-    dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
-    dim3 grid_size(_TILE(norb2*norb2, block_size.x), 1, 1);
-    _veccopy<<<grid_size, block_size, 0,s>>>(dm2, buf, norb2*norb2); 
-    _HIP_CHECK_ERRORS();
-  }
-  { 
-    dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, 1);
-    dim3 grid_size (_TILE(norb2, block_size.x), _TILE(norb2, block_size.y),1);
-    _add_rdm_transpose<<<grid_size, block_size, 0, s>>>(buf, dm2, norb); 
-    _HIP_CHECK_ERRORS();
-  }
-  {
-    dim3 block_size(_DEFAULT_BLOCK_SIZE, 1,1); 
-    dim3 grid_size(_TILE(norb2*norb2, block_size.x), 1,1);
-    _build_rdm<<<grid_size, block_size, 0>>>(buf, dm2, norb2*norb2);
-    _HIP_CHECK_ERRORS();
-  }
-  #endif
-  //axpy pending from buf2 to rdm2 
+  
+  dim3 block_size (1,1,1);
+  dim3 grid_size (_TILE(norb, block_size.x), _TILE(norb, block_size.y), _TILE(norb, block_size.z));
+  _add_rdm1_to_2<<<grid_size, block_size, 0, s>>> (dm1, dm2, norb);
+  _HIP_CHECK_ERRORS();
 }
 
 /* ---------------------------------------------------------------------- */
