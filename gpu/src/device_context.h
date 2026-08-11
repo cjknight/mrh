@@ -11,6 +11,7 @@
 
 class Device; // forward decl for DeviceContext::owner (facade back-reference)
 class DeviceComm; // forward decl for DeviceContext::comm (owned multi-GPU comm subdomain)
+class DeviceCache; // forward decl for DeviceContext::cache (owned ERI cache subdomain)
 
 // Buffer growth helpers shared by all subdomains. These used to be private
 // Device templates; promoting them to free functions lets DeviceJk/DevicePdft/
@@ -41,9 +42,9 @@ T* grow_array_host(PM_NS::PM * pm, T * &ptr, int current_size, int & max_size,
 
 struct DeviceJkData {
   int size_rho, size_vj, size_vk, size_buf1, size_buf2, size_buf3;
-  int size_dms, size_dmtril, size_eri1;
+  int size_dms, size_dmtril;
   double *d_rho, *d_vj, *d_buf1, *d_buf2, *d_buf3, *d_vkk;
-  double *d_dms, *d_dmtril, *d_eri1;
+  double *d_dms, *d_dmtril;
 };
 
 struct DeviceAo2moData {
@@ -132,11 +133,12 @@ struct my_device_data {
 // copies of the pointers.
 struct DeviceContext {
   Device * owner;        // Device facade. Temporary back-reference for the shared
-                         // ERI-cache/utility services (dd_fetch_eri, vecadd, ...)
-                         // until those are extracted as DeviceEriCache/DeviceUtils.
+                         // utility services (vecadd, getjk_unpack_buf2, ...)
+                         // until those are extracted as DeviceUtils.
   PM_NS::PM * pm;
   MATHLIB_NS::MATHLIB * ml;
   DeviceComm * comm;     // multi-GPU bcast/reduce (owned by the Device facade)
+  DeviceCache * cache;   // ERI-block + pumap cache (owned by the Device facade)
   int num_devices;
   int verbose_level;
   int grid_size, block_size;

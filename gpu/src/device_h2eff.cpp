@@ -133,7 +133,7 @@ void DeviceH2eff::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
 
   ctx.pm->dev_profile_next("map creation and pushed");
   
-  int * d_my_unpack_map_ptr = ctx.owner->dd_fetch_pumap(dd, ncas, _PUMAP_H2EFF_UNPACK);
+  int * d_my_unpack_map_ptr = ctx.cache->dd_fetch_pumap(dd, ncas, _PUMAP_H2EFF_UNPACK);
 
   ctx.pm->dev_profile_next("unpacking");
 
@@ -232,7 +232,7 @@ void DeviceH2eff::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
 
   ctx.pm->dev_profile_next("second map and packing");
   
-  int * d_my_pack_map_ptr = ctx.owner->dd_fetch_pumap(dd, ncas, _PUMAP_H2EFF_PACK);
+  int * d_my_pack_map_ptr = ctx.cache->dd_fetch_pumap(dd, ncas, _PUMAP_H2EFF_PACK);
 
   pack_h2eff_2d(d_h2eff_transpose2, d_h2eff_sub, d_my_pack_map_ptr, nmo, ncas, ncas_pair);
   
@@ -269,7 +269,7 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
 
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Inside Device::get_h2eff_df_v2()\n");
-  printf("LIBGPU:: dfobj= %p count= %i combined= %lu %p ctx.owner->update_dfobj= %i\n",(void*)(addr_dfobj), count, addr_dfobj+count, (void*)(addr_dfobj+count),ctx.owner->update_dfobj);
+  printf("LIBGPU:: dfobj= %p count= %i combined= %lu %p ctx.cache->update_dfobj= %i\n",(void*)(addr_dfobj), count, addr_dfobj+count, (void*)(addr_dfobj+count),ctx.cache->update_dfobj);
 #endif 
   ctx.pm->dev_profile_start("h2eff df setup");
   
@@ -288,7 +288,6 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
   const int nao_pair = nao * (nao+1)/2;
   const int ncas_pair = ncas * (ncas+1)/2;
   const int _size_eri_h2eff = nmo*ncas*ncas_pair;
-  const int _size_eri = naux*nao_pair;
   const int _size_mo_cas = nao*ncas;
 
   const int _size_eri_unpacked = naux * nao * nao;
@@ -354,20 +353,11 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
   py::buffer_info info_cderi = _cderi.request(); // 2D array blksize * nao_pair
   double * cderi = static_cast<double*>(info_cderi.ptr);
 
-  double * d_cderi = nullptr;
-  
-  if(ctx.owner->use_eri_cache) {
-    d_cderi = ctx.owner->dd_fetch_eri(dd, cderi, naux, nao_pair, addr_dfobj, count);
-  } else {
-    ::grow_array(ctx.pm, dd->jk.d_eri1, _size_eri, dd->jk.size_eri1, "eri1", FLERR);
-    d_cderi = dd->jk.d_eri1;
-
-    ctx.pm->dev_push_async(d_cderi, cderi, _size_eri * sizeof(double));
-  }
+  double * d_cderi = ctx.cache->dd_fetch_eri(dd, cderi, naux, nao_pair, addr_dfobj, count);
 
   double * d_cderi_unpacked = dd->jk.d_buf1;
 
-  int * d_my_unpack_map_ptr = ctx.owner->dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
+  int * d_my_unpack_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
 
   // CHRIS :: Start chunking w/r naux
   
@@ -442,7 +432,7 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
   ctx.ml->gemm_batch((char *) "T", (char *) "T", &ncas, &nao, &nao,
 		 &alpha, d_vuwm, &nao, &ncas_nao, d_mo_coeff, &nao, &zero, &beta, d_vuwM, &ncas, &ncas_nao, &ncas2);
 
-  int * my_d_tril_map_ptr = ctx.owner->dd_fetch_pumap(dd, ncas, _PUMAP_2D_UNPACK);
+  int * my_d_tril_map_ptr = ctx.cache->dd_fetch_pumap(dd, ncas, _PUMAP_2D_UNPACK);
   
   if (count < ctx.num_devices) {
     pack_d_vuwM(d_vuwM, dd->h2eff.d_eri_h2eff, my_d_tril_map_ptr, nmo, ncas, ncas_pair);

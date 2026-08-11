@@ -23,8 +23,6 @@ Device::Device()
 
   verbose_level = 0;
   
-  update_dfobj = 0;
-  
   rho = nullptr;
   //vj = nullptr;
   _vktmp = nullptr;
@@ -37,6 +35,7 @@ Device::Device()
   _ao2mo = nullptr;
   _fci = nullptr;
   _comm = nullptr;
+  _cache = nullptr;
 
   buf_fdrv = nullptr;
 
@@ -47,12 +46,6 @@ Device::Device()
   pin_fxpp = nullptr;//remove when ao2mo_v3 is running
   pin_bufpa = nullptr;//remove when ao2mo_v4 is running
 
-  // The eri cache must be enabled on ALL builds (host + GPU): the _ERIS path
-  // (get_dfobj_status / df_ao2mo_v4) relies on get_jk having cached blocks via
-  // dd_fetch_eri. On host builds _USE_GPU is undefined, so leaving this inside
-  // the #if left use_eri_cache=false and the cache was never populated.
-  use_eri_cache = true;
-  
   num_threads = 1;
 #pragma omp parallel
   num_threads = omp_get_num_threads();
@@ -78,7 +71,6 @@ Device::Device()
     device_data[i].jk.size_buf3 = 0;
     device_data[i].jk.size_dms = 0;
     device_data[i].jk.size_dmtril = 0;
-    device_data[i].jk.size_eri1 = 0;
     device_data[i].size_ucas = 0;
     device_data[i].size_umat = 0;
     device_data[i].size_h2eff = 0;
@@ -123,7 +115,6 @@ Device::Device()
     device_data[i].d_mo_coeff=nullptr;
     device_data[i].d_mo_cas=nullptr;
     device_data[i].jk.d_dmtril = nullptr;
-    device_data[i].jk.d_eri1 = nullptr; // when not using eri cache
     device_data[i].d_ucas = nullptr;
     device_data[i].d_umat = nullptr;
     device_data[i].d_h2eff = nullptr;
@@ -183,6 +174,9 @@ Device::Device()
   _comm = new DeviceComm(dev_ctx);
   dev_ctx.comm = _comm;
 
+  _cache = new DeviceCache(dev_ctx);
+  dev_ctx.cache = _cache;
+
   _pdft = new DevicePdft(dev_ctx);
   _jk = new DeviceJk(dev_ctx);
   _impham = new DeviceImpham(dev_ctx);
@@ -227,6 +221,9 @@ Device::~Device()
 
   delete _comm;
   _comm = nullptr;
+
+  delete _cache;
+  _cache = nullptr;
 
   pm->dev_free_host(rho);
   //pm->dev_free_host(vj);
@@ -363,29 +360,6 @@ Device::~Device()
     free(count_array);
   }
 
-  // print summary of cached eri blocks
-
-  if(use_eri_cache) {
-    if(verbose_level) {
-      printf("\nLIBGPU :: eri cache statistics :: count= %zu\n",eri_list.size());
-      for(int i=0; i<eri_list.size(); ++i)
-	printf("LIBGPU :: %i : eri= %p  Mbytes= %f  count= %i  update= %i device= %i\n", i, (void*) eri_list[i],
-	       eri_size[i]*sizeof(double)/1024./1024., eri_count[i], eri_update[i], eri_device[i]);
-    }
-    
-    eri_count.clear();
-    eri_size.clear();
-#ifdef _DEBUG_ERI_CACHE
-    for(int i=0; i<d_eri_host.size(); ++i) pm->dev_free_host( d_eri_host[i] );
-#endif
-    for(int i=0; i<d_eri_cache.size(); ++i) {
-      int id = eri_device[i];
-      pm->dev_set_device(id);
-      pm->dev_free(d_eri_cache[i], "eri_cache");
-    }
-    eri_list.clear();
-  }
-  
   for(int i=0; i<num_devices; ++i) {
   
     pm->dev_set_device(i);
@@ -402,7 +376,6 @@ Device::~Device()
     pm->dev_free(dd->d_mo_coeff, "mo_coeff");
     pm->dev_free(dd->d_mo_cas, "mo_cas");
     pm->dev_free(dd->jk.d_dmtril, "dmtril");
-    pm->dev_free(dd->jk.d_eri1, "eri1");
     pm->dev_free(dd->d_ucas, "ucas");
     pm->dev_free(dd->d_umat, "umat");
     pm->dev_free(dd->d_h2eff, "h2eff");
@@ -554,16 +527,7 @@ void Device::barrier_all()
     
 void Device::set_update_dfobj_(int _val)
 {
-  update_dfobj = _val; // this is reset to zero in Device::pull_get_jk
-}
-
-/* ---------------------------------------------------------------------- */
-    
-void Device::disable_eri_cache_()
-{
-  use_eri_cache = false;
-  printf("LIBGPU :: Error : Not able to disable eri caching as additional support needs to be added to track eri_extra array.");
-  exit(1);
+  _cache->set_update_dfobj_(_val);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -575,85 +539,11 @@ void Device::set_verbose_(int _verbose)
 
 /* ---------------------------------------------------------------------- */
 
-// return stored values for Python side to make decisions
-// update_dfobj == true :: nothing useful to return if need to update eri blocks on device
-// count_ == -1 :: return # of blocks cached for dfobj
-// count_ >= 0 :: return extra data for cached block
+// forwarder -> DeviceCache::get_dfobj_status
 
 void Device::get_dfobj_status(size_t addr_dfobj, py::array_t<int> _arg)
 {
-  py::buffer_info info_arg = _arg.request();
-  int * arg = static_cast<int*>(info_arg.ptr);
-  
-  int naux_ = arg[0];
-  int nao_pair_ = arg[1];
-  int count_ = arg[2];
-  int update_dfobj_ = arg[3];
-  
-  // printf("Inside get_dfobj_status(): addr_dfobj= %#012x  naux_= %i  nao_pair_= %i  count_= %i  update_dfobj_= %i\n",
-  // 	 addr_dfobj, naux_, nao_pair_, count_, update_dfobj_);
-  
-  update_dfobj_ = update_dfobj;
-
-  // nothing useful to return if need to update eri blocks on device
-  
-  if(update_dfobj) { 
-    // printf("Leaving get_dfobj_status(): addr_dfobj= %#012x  update_dfobj_= %i\n", addr_dfobj, update_dfobj_);
-    
-    arg[3] = update_dfobj_;
-    return;
-  }
-  
-  // return # of blocks cached for dfobj
-
-  if(count_ == -1) {
-    int id = eri_list.size();
-    for(int i=0; i<eri_list.size(); ++i)
-      if(eri_list[i] == addr_dfobj) {
-	id = i;
-	break;
-      }
-
-    if(id < eri_list.size()) count_ = eri_num_blocks[id];
-    
-    // printf("Leaving get_dfobj_status(): addr_dfobj= %#012x  count_= %i  update_dfobj_= %i\n", addr_dfobj, count_, update_dfobj_);
-
-    arg[2] = count_;
-    arg[3] = update_dfobj_;
-    return;
-  }
-
-  // return extra data for cached block
-  
-  int id = eri_list.size();
-  for(int i=0; i<eri_list.size(); ++i)
-    if(eri_list[i] == addr_dfobj+count_) {
-      id = i;
-      break;
-    }
-
-  // printf("eri_list.size()= %i  id= %i\n",eri_list.size(), id);
-  
-  naux_ = -1;
-  nao_pair_ = -1;
-  
-  if(id < eri_list.size()) {
-  
-    naux_     = eri_extra[id * _ERI_CACHE_EXTRA    ];
-    nao_pair_ = eri_extra[id * _ERI_CACHE_EXTRA + 1];
-
-  }
-
-  arg[0] = naux_;
-  arg[1] = nao_pair_;
-  arg[2] = count_;
-  arg[3] = update_dfobj_;
-  
-  // printf("Leaving get_dfobj_status(): addr_dfobj= %#012x  id= %i  naux_= %i  nao_pair_= %i  count_= %i  update_dfobj_= %i\n",
-  // 	 addr_dfobj, id, naux_, nao_pair_, count_, update_dfobj_);
-  
-  // printf("Leaving get_dfobj_status(): addr_dfobj= %#012x  id= %i  arg= %i %i %i %i\n",
-  // 	 addr_dfobj, id, arg[0], arg[1], arg[2], arg[3]);
+  _cache->get_dfobj_status(addr_dfobj, _arg);
 }
 
 /* ---------------------------------------------------------------------- */

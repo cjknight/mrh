@@ -21,8 +21,9 @@ using namespace MATHLIB_NS;
 // DeviceContext provided by the Device facade. The pinned host buffer
 // pin_eri_impham used for the multi-device pull lives here. All scratch
 // buffers (d_buf1/d_buf2/d_buf3) are borrowed from my_device_data::jk;
-// the shared ERI-cache/pumap services, mgpu_reduce, getjk_unpack_buf2 and
-// pack_eri are reached through the Device facade.
+// the shared ERI-cache/pumap services (ctx.cache->dd_fetch_eri/dd_fetch_pumap),
+// mgpu_reduce, getjk_unpack_buf2 and pack_eri are reached through the Device
+// facade.
 class DeviceImpham {
 
 public:

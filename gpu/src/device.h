@@ -16,6 +16,7 @@ namespace py = pybind11;
 #include "pm/dev_array.h"
 #include "device_context.h"
 #include "device_comm.h"
+#include "device_cache.h"
 #include "device_pdft.h"
 #include "device_jk.h"
 #include "device_impham.h"
@@ -30,7 +31,6 @@ using namespace MATHLIB_NS;
 #define _SIZE_GRID 32
 #define _SIZE_BLOCK 256
 
-#define _USE_ERI_CACHE
 #define _ERI_CACHE_EXTRA 2
 
 #define _ENABLE_P2P
@@ -84,7 +84,6 @@ public :
   void get_dev_properties(int);
   void set_device(int);
   void barrier_all();
-  void disable_eri_cache_();
   void set_verbose_(int);
 
   //JK
@@ -98,8 +97,8 @@ public :
   void getjk_unpack_buf2(double *, double *, int *, int, int, int); // transitional shim -> DeviceJk
   void transpose(double*, double*, int, int);
   
-  void set_update_dfobj_(int);
-  void get_dfobj_status(size_t, py::array_t<int>);
+  void set_update_dfobj_(int); // forwarder -> DeviceCache
+  void get_dfobj_status(size_t, py::array_t<int>); // forwarder -> DeviceCache
  
   //AO2MO
   void init_jk_ao2mo (int, int);
@@ -250,11 +249,6 @@ public :
 
 private:
 
-  friend class DeviceJk; // shared eri-cache services until DeviceEriCache
-  friend class DeviceImpham; // shared eri-cache services until DeviceEriCache
-  friend class DeviceH2eff; // eri-cache (dd_fetch_eri) / pumap (dd_fetch_pumap) services
-  friend class DeviceAo2mo; // eri-cache (dd_fetch_eri) / pumap (dd_fetch_pumap) services
-
   class PM * pm;
 
   class MATHLIB * ml;
@@ -266,12 +260,6 @@ private:
   
   size_t grid_size, block_size;
   
-  // get_jk
-
-  int update_dfobj;
-
-  //  int nset;
-
   int size_fdrv;
   
   // get_jk
@@ -294,23 +282,6 @@ private:
   DeviceAo2mo * _ao2mo; // ao2mo domain; owns buf_j_pc/buf_k_pc/buf_ppaa/buf_papa staging
   DeviceFci * _fci;     // fci domain; owns h_bravecs/h_ketvecs/h_dm1_full/h_dm2_full/h_dm2_p_full staging
 
- 
-  // eri caching on device
-  bool use_eri_cache;
-  
-  std::vector<size_t> eri_list; // addr of dfobj+eri1 for key-value pair
-  
-  std::vector<int> eri_count; // # times particular cache used
-  std::vector<int> eri_update; // # times particular cache updated
-  std::vector<int> eri_size; // # size of particular cache
-
-  std::vector<int> eri_num_blocks; // # of eri blocks for each dfobj (i.e. trip-count from `for eri1 in dfobj.loop(blksize)`)
-  std::vector<int> eri_extra; // per-block data: {naux, nao_pair}
-  std::vector<int> eri_device; // device id holding cache
-
-  std::vector<double *> d_eri_cache; // pointers for device caches
-  std::vector<double *> d_eri_host; // values on host for checking if update
-  
   struct my_AO2MOEnvs {
     int natm;
     int nbas;
@@ -332,10 +303,6 @@ private:
   };
   my_device_data * device_data;
   
-  int * dd_fetch_pumap(my_device_data *, int, int);
-  double * dd_fetch_eri(my_device_data *, double *, int, int, size_t, int);
-  double * dd_fetch_eri_debug(my_device_data *, double *, int, int, size_t, int); // we'll trash this after some time
-
   template<class T>
   void grow_array(T * &ptr, int current_size, int & max_size, std::string name, const char * file, int line)
   {
@@ -369,6 +336,7 @@ private:
 
   DeviceContext dev_ctx;
   DeviceComm * _comm;
+  DeviceCache * _cache;
   DevicePdft * _pdft;
   DeviceJk * _jk;
   DeviceImpham * _impham;

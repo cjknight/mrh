@@ -23,8 +23,8 @@ using namespace MATHLIB_NS;
 // buf_j_pc/buf_k_pc/buf_ppaa/buf_papa for the multi-device pull/reduce live
 // here and are freed in the destructor. The kernel launchers declared here
 // are implemented per platform in pm/<platform>/ao2mo.cpp. The ERI cache /
-// pumap services, mgpu_reduce, getjk_unpack_buf2 and get_mo_cas are reached
-// through the Device facade (ctx.owner).
+// pumap services (ctx.cache->dd_fetch_eri/dd_fetch_pumap), mgpu_reduce,
+// getjk_unpack_buf2 and get_mo_cas are reached through the Device facade.
 class DeviceAo2mo {
 
 public:

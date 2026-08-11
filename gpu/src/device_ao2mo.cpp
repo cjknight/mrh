@@ -418,7 +418,6 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
   const int nao_pair = nao*(nao+1)/2;
   //  double * eri = static_cast<double*>(info_eri1.ptr);
   
-  int _size_eri = naux * nao_pair;
   int _size_eri_unpacked = naux * nao * nao; 
   int _size_ppaa = nmo * nmo * ncas * ncas;
 
@@ -443,17 +442,10 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
   double * d_buf = dd->jk.d_buf1; 
   double * d_eri_unpacked = dd->jk.d_buf2; 
   
-  double * d_eri = nullptr;
+  //    d_eri = ctx.cache->dd_fetch_eri(dd, eri, naux, nao_pair, addr_dfobj, count);
+  double * d_eri = ctx.cache->dd_fetch_eri(dd, nullptr, naux, nao_pair, addr_dfobj, count);
   
-  if(ctx.owner->use_eri_cache) {
-    //    d_eri = ctx.owner->dd_fetch_eri(dd, eri, naux, nao_pair, addr_dfobj, count);
-    d_eri = ctx.owner->dd_fetch_eri(dd, nullptr, naux, nao_pair, addr_dfobj, count);
-  } else {
-    ::grow_array(ctx.pm, dd->jk.d_eri1, _size_eri, dd->jk.size_eri1, "eri1", FLERR);
-    d_eri = dd->jk.d_eri1;
-  }
-  
-  int * my_d_tril_map_ptr = ctx.owner->dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
+  int * my_d_tril_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
 
   ctx.owner->getjk_unpack_buf2(d_eri_unpacked, d_eri, my_d_tril_map_ptr, naux, nao, nao_pair);
   

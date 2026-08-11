@@ -96,11 +96,11 @@ void DeviceImpham::compute_eri_impham(int nao_s, int nao_f, int blksize, int nau
 
   int nao_s_pair = nao_s * (nao_s + 1)/2;
 
-  double * d_cderi = ctx.owner->dd_fetch_eri(dd, nullptr, naux, nao_s_pair, addr_dfobj, count);
+  double * d_cderi = ctx.cache->dd_fetch_eri(dd, nullptr, naux, nao_s_pair, addr_dfobj, count);
 
   double * d_cderi_unpacked = dd->jk.d_buf1;
 
-  int * d_my_unpack_map_ptr = ctx.owner->dd_fetch_pumap(dd, nao_s, _PUMAP_2D_UNPACK);
+  int * d_my_unpack_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao_s, _PUMAP_2D_UNPACK);
 
   ctx.owner->getjk_unpack_buf2(d_cderi_unpacked, d_cderi, d_my_unpack_map_ptr, naux, nao_s, nao_s_pair);
 
@@ -141,7 +141,7 @@ void DeviceImpham::compute_eri_impham(int nao_s, int nao_f, int blksize, int nau
 
   //do packing
  
-  d_my_unpack_map_ptr = ctx.owner->dd_fetch_pumap(dd, nao_f, _PUMAP_2D_UNPACK);
+  d_my_unpack_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao_f, _PUMAP_2D_UNPACK);
 
   double * d_eri_unpacked = dd->jk.d_buf2;
 
@@ -203,11 +203,11 @@ void DeviceImpham::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int 
   double * d_cderi = nullptr;
   // using fetch_eri, assume it's already there
   int nao_s_pair = nao_s * (nao_s + 1)/2;
-  d_cderi = ctx.owner->dd_fetch_eri(dd, nullptr, naux, nao_s_pair, addr_dfobj_in, count);
+  d_cderi = ctx.cache->dd_fetch_eri(dd, nullptr, naux, nao_s_pair, addr_dfobj_in, count);
   
   double * d_cderi_unpacked = dd->jk.d_buf1;
 
-  int * d_my_unpack_map_ptr = ctx.owner->dd_fetch_pumap(dd, nao_s, _PUMAP_2D_UNPACK);
+  int * d_my_unpack_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao_s, _PUMAP_2D_UNPACK);
 
   ctx.owner->getjk_unpack_buf2(d_cderi_unpacked,d_cderi,d_my_unpack_map_ptr,naux, nao_s, nao_s_pair);
 
@@ -248,9 +248,9 @@ void DeviceImpham::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int 
 
   //do packing
   
-  d_my_unpack_map_ptr = ctx.owner->dd_fetch_pumap(dd, nao_f, _PUMAP_2D_UNPACK);
+  d_my_unpack_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao_f, _PUMAP_2D_UNPACK);
   // new (transfer to exisiting smaller cholesky vector)
-  double * d_cderi_out = ctx.owner->dd_fetch_eri(dd, nullptr, naux, nao_f_pair, addr_dfobj_out, count);
+  double * d_cderi_out = ctx.cache->dd_fetch_eri(dd, nullptr, naux, nao_f_pair, addr_dfobj_out, count);
   //TODO: add growing logic 
   //ctx.ml->gemm((char *) "T", (char *) "N", &nao_f_pair, &nao_f_pair, &naux, &alpha, dd->jk.d_buf2, &ldb, dd->jk.d_buf3, &lda, &beta, (dd->jk.d_vkk)+vk_offset, &ldc);
 

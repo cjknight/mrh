@@ -67,11 +67,6 @@ void DeviceJk::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtri
   int _size_dmtril = nset * nao_pair;
   grow_array(ctx.pm, dd->jk.d_dmtril, _size_dmtril, dd->jk.size_dmtril, "dmtril", FLERR);
 
-  if(!ctx.owner->use_eri_cache) {
-    int _size_eri1 = naux * nao_pair;
-    grow_array(ctx.pm, dd->jk.d_eri1, _size_eri1, dd->jk.size_eri1, "eri1", FLERR);
-  }
-  
   int _size_buf_vj = ctx.num_devices * nset * nao_pair;
   grow_array_host(ctx.pm, buf_vj, _size_buf_vj, size_buf_vj, "h:buf_vj");
 
@@ -80,7 +75,7 @@ void DeviceJk::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtri
 
   // 1-time initialization
   
-  ctx.owner->dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
+  ctx.cache->dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
   
   // Create blas handle
 
@@ -140,14 +135,6 @@ void DeviceJk::get_jk(int naux, int nao, int nset,
   
   int nao_pair = nao * (nao+1) / 2;
 
-  double * d_eri;
-  if(!ctx.owner->use_eri_cache) {
-    // if not caching, then eri block always transferred
-    
-    ctx.pm->dev_push_async(dd->jk.d_eri1, eri1, naux * nao_pair * sizeof(double));
-    d_eri = dd->jk.d_eri1;
-  }
-
   // Bcast() from master device ; make sure devices arrays allocated
   
 #if defined(_ENABLE_P2P)
@@ -203,15 +190,14 @@ void DeviceJk::get_jk(int naux, int nao, int nset,
   
   DevArray2D da_eri1 = DevArray2D(eri1, naux, nao_pair, ctx.pm, DA_HOST);
   //  printf("LIBGPU:: eri1= %p  dfobj= %lu  count= %i  combined= %lu\n",eri1,addr_dfobj,count,addr_dfobj+count);
-  printf("LIBGPU:: dfobj= %#012x  count= %i  combined= %#012x  update_dfobj= %i\n",addr_dfobj,count,addr_dfobj+count, ctx.owner->update_dfobj);
+  printf("LIBGPU:: dfobj= %#012x  count= %i  combined= %#012x  update_dfobj= %i\n",addr_dfobj,count,addr_dfobj+count, ctx.cache->update_dfobj);
   printf("LIBGPU::     0:      %f %f %f %f\n",da_eri1(0,0), da_eri1(0,1), da_eri1(0,nao_pair-2), da_eri1(0,nao_pair-1));
   printf("LIBGPU::     1:      %f %f %f %f\n",da_eri1(1,0), da_eri1(1,1), da_eri1(1,nao_pair-2), da_eri1(1,nao_pair-1));
   printf("LIBGPU::     naux-2: %f %f %f %f\n",da_eri1(naux-2,0), da_eri1(naux-2,1), da_eri1(naux-2,nao_pair-2), da_eri1(naux-2,nao_pair-1));
   printf("LIBGPU::     naux-1: %f %f %f %f\n",da_eri1(naux-1,0), da_eri1(naux-1,1), da_eri1(naux-1,nao_pair-2), da_eri1(naux-1,nao_pair-1));
 #endif
   
-  if(ctx.owner->use_eri_cache)
-    d_eri = ctx.owner->dd_fetch_eri(dd, eri1, naux, nao_pair, addr_dfobj, count);
+  double * d_eri = ctx.cache->dd_fetch_eri(dd, eri1, naux, nao_pair, addr_dfobj, count);
 
   ctx.pm->dev_profile_stop();
   
@@ -381,7 +367,7 @@ void DeviceJk::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int
     for(int j=0; j<N; ++j) vj[j] += buf_vj[j];
   }
   
-  ctx.owner->update_dfobj = 0;
+  ctx.cache->update_dfobj = 0;
   
   if(!with_k) {
     ctx.pm->dev_profile_stop();
@@ -471,7 +457,7 @@ void DeviceJk::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int
     }
   }
   
-  ctx.owner->update_dfobj = 0;
+  ctx.cache->update_dfobj = 0;
   
   if(!with_k) {
     ctx.pm->dev_profile_stop();
