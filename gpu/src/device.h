@@ -15,6 +15,7 @@ namespace py = pybind11;
 #include "mathlib/mathlib.h"
 #include "pm/dev_array.h"
 #include "device_context.h"
+#include "device_pdft.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -255,10 +256,6 @@ public :
   void vecadd(const double *, double *, int); // replace with ml->daxpy()
   void vecadd_batch(const double *, double *, int, int);
   void memset_zero_batch_stride(double *, int, int, int, int);
-  void get_rho_to_Pi(double *, double * ,int); // replace with gemm or element wise multiplication
-  void make_gridkern(double *, double *, int, int); //replace with ml->gemm()
-  void make_buf_pdft(double *, double *, double *, int, int); //replace with ml->gemm()
-  void make_Pi_final(double *, double *,double *, int, int); // replace with ml->gemm()
   //FCI
   //void FCIcompress_link (my_LinkT *, int, int, int, int); 
   void set_to_zero(double *, int);
@@ -430,21 +427,13 @@ private:
   template<class T>
   void grow_array(T * &ptr, int current_size, int & max_size, std::string name, const char * file, int line)
   {
-    if(current_size > max_size) {
-      max_size = current_size;
-      if(ptr) pm->dev_free_async(ptr, name);
-      ptr = (T *) pm->dev_malloc_async(current_size * sizeof(T), name, file, line);
-    }
+    ::grow_array(pm, ptr, current_size, max_size, name, file, line);
   }
   
   template<class T>
   void grow_array_host(T * &ptr, int current_size, int & max_size, std::string name)
   {
-    if(current_size > max_size) {
-      max_size = current_size;
-      if(ptr) pm->dev_free_host(ptr);
-      ptr = (T *) pm->dev_malloc_host(current_size * sizeof(T));
-    }
+    ::grow_array_host(pm, ptr, current_size, max_size, name);
   }
   
   void fdrv(double *, double *, double *,
@@ -465,6 +454,9 @@ private:
 
   int num_threads;
   int num_devices;
+
+  DeviceContext dev_ctx;
+  DevicePdft * _pdft;
 };
 
 #endif

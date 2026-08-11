@@ -2,7 +2,7 @@
 
 #if defined(_GPU_HIP)
 
-#include "../../device.h"
+#include "../../device_pdft.h"
 
 #include <stdio.h>
 
@@ -85,12 +85,12 @@ __global__ void _make_Pi_final(double * gridkern, double * buf, double * Pi, int
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
+void DevicePdft::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
 {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   dim3 grid_size(_TILE(ngrid, block_size.x),1,1);
 
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
 
   _get_rho_to_Pi<<<grid_size, block_size,0, s>>>(rho, Pi, ngrid);
 #ifdef _DEBUG_DEVICE
@@ -102,12 +102,12 @@ void Device::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_gridkern(double * d_mo_grid, double * d_gridkern, int ngrid, int ncas)
+void DevicePdft::make_gridkern(double * d_mo_grid, double * d_gridkern, int ngrid, int ncas)
 {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   dim3 grid_size(_TILE(ngrid, block_size.x),_TILE(ncas,block_size.y),_TILE(ncas,block_size.z));
 
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
 
   _make_gridkern<<<grid_size, block_size,0,s>>>(d_mo_grid, d_gridkern, ngrid, ncas);
 
@@ -120,12 +120,12 @@ void Device::make_gridkern(double * d_mo_grid, double * d_gridkern, int ngrid, i
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int ngrid, int ncas)
+void DevicePdft::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int ngrid, int ncas)
 {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   dim3 grid_size(_TILE(ngrid, block_size.x),_TILE(ncas*ncas,block_size.y),_TILE(ncas*ncas,block_size.z));
 
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
 
   // buf = aij, klij ->akl, gridkern, cascm2
   _make_buf_pdft<<<grid_size, block_size,0,s>>>(gridkern, cascm2, buf, ngrid, ncas);
@@ -140,12 +140,12 @@ void Device::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_Pi_final(double * gridkern, double * buf, double * Pi, int ngrid, int ncas)
+void DevicePdft::make_Pi_final(double * gridkern, double * buf, double * Pi, int ngrid, int ncas)
 {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, 1);
   dim3 grid_size(_TILE(ngrid, block_size.x),_TILE(ncas*ncas,block_size.y),1);
 
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
 
   _make_Pi_final<<<grid_size, block_size,0,s>>>(gridkern, buf, Pi, ngrid, ncas);
 #ifdef _DEBUG_DEVICE

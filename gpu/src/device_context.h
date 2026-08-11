@@ -3,10 +3,38 @@
 #ifndef DEVICE_CONTEXT_H
 #define DEVICE_CONTEXT_H
 
+#include <string>
 #include <vector>
 
 #include "pm/pm.h"
 #include "mathlib/mathlib.h"
+
+// Buffer growth helpers shared by all subdomains. These used to be private
+// Device templates; promoting them to free functions lets DeviceJk/DevicePdft/
+// ... grow their own buffers without reaching back into the Device class.
+template<class T>
+T* grow_array(PM_NS::PM * pm, T * &ptr, int current_size, int & max_size,
+              std::string name, const char * file, int line)
+{
+  if(current_size > max_size) {
+    max_size = current_size;
+    if(ptr) pm->dev_free_async(ptr, name);
+    ptr = (T *) pm->dev_malloc_async(current_size * sizeof(T), name, file, line);
+  }
+  return ptr;
+}
+
+template<class T>
+T* grow_array_host(PM_NS::PM * pm, T * &ptr, int current_size, int & max_size,
+                   std::string name)
+{
+  if(current_size > max_size) {
+    max_size = current_size;
+    if(ptr) pm->dev_free_host(ptr);
+    ptr = (T *) pm->dev_malloc_host(current_size * sizeof(T));
+  }
+  return ptr;
+}
 
 struct DeviceJkData {
   int size_rho, size_vj, size_vk, size_buf1, size_buf2, size_buf3;
@@ -94,6 +122,20 @@ struct my_device_data {
   int * handle;
   int * stream;
 #endif
+};
+
+// Shared resources borrowed by every subdomain (owned by the Device facade).
+// Subdomains access PM/MATHLIB/per-device state through this instead of owning
+// copies of the pointers.
+struct DeviceContext {
+  PM_NS::PM * pm;
+  MATHLIB_NS::MATHLIB * ml;
+  int num_devices;
+  int verbose_level;
+  int grid_size, block_size;
+  double * t_array;   // shared simple-timer slots (indexed per method)
+  int * count_array;  // shared simple-counter slots (indexed per method)
+  my_device_data * device_data;
 };
 
 #endif

@@ -2,7 +2,7 @@
 
 #if defined(_GPU_SYCL) || defined(_GPU_SYCL_CUDA)
 
-#include "../../device.h"
+#include "../../device_pdft.h"
 
 #include <stdio.h>
 
@@ -104,12 +104,12 @@ void _make_Pi_final(double * gridkern, double * buf, double * Pi, int ngrid, int
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
+void DevicePdft::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
 {
   sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, 1, _TILE(ngrid, block_size[2]));
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:16: The work-group size passed to the SYCL kernel may exceed the
@@ -127,13 +127,13 @@ void Device::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- general::get_rho_to_Pi :: N= %i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 ngrid, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_gridkern(double * d_mo_grid, double * d_gridkern, int ngrid, int ncas)
+void DevicePdft::make_gridkern(double * d_mo_grid, double * d_gridkern, int ngrid, int ncas)
 {
   sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE,
               _DEFAULT_BLOCK_SIZE);
@@ -141,7 +141,7 @@ void Device::make_gridkern(double * d_mo_grid, double * d_gridkern, int ngrid, i
 			   _TILE(ncas, block_size[1]),
 			   _TILE(ngrid, block_size[2]));
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   /*
   DPCT1049:17: The work-group size passed to the SYCL kernel may exceed the
@@ -160,13 +160,13 @@ void Device::make_gridkern(double * d_mo_grid, double * d_gridkern, int ngrid, i
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- general::make_gridkern :: N= %i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 ncas, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int ngrid, int ncas)
+void DevicePdft::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int ngrid, int ncas)
 {
   sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE,
                         _DEFAULT_BLOCK_SIZE);
@@ -174,7 +174,7 @@ void Device::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int
 			   _TILE(ncas * ncas, block_size[1]),
 			   _TILE(ngrid, block_size[2]));
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   // buf = aij, klij ->akl, gridkern, cascm2
   /*
@@ -194,20 +194,20 @@ void Device::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- general::make_gridkern :: N= %i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 ncas, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_Pi_final(double * gridkern, double * buf, double * Pi, int ngrid, int ncas)
+void DevicePdft::make_Pi_final(double * gridkern, double * buf, double * Pi, int ngrid, int ncas)
 {
   sycl::range<3> block_size(1, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, _TILE(ncas * ncas, block_size[1]),
 			   _TILE(ngrid, block_size[2]));
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   /*
   DPCT1049:19: The work-group size passed to the SYCL kernel may exceed the
@@ -225,7 +225,7 @@ void Device::make_Pi_final(double * gridkern, double * buf, double * Pi, int ngr
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- general::make_Pi_final; :: Ngrid= %i Ncas =%i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 ngrid, ncas, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 

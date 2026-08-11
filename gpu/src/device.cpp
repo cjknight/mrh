@@ -29,6 +29,8 @@ Device::Device()
   //vj = nullptr;
   _vktmp = nullptr;
 
+  _pdft = nullptr;
+
   buf_fdrv = nullptr;
 
   size_buf_vj = 0;
@@ -92,6 +94,9 @@ Device::Device()
   num_threads = 1;
 #pragma omp parallel
   num_threads = omp_get_num_threads();
+
+  grid_size = _SIZE_GRID;
+  block_size = _SIZE_BLOCK;
 
   num_devices = pm->dev_num_devices();
   
@@ -201,6 +206,19 @@ Device::Device()
   count_array = (int* ) malloc(_NUM_SIMPLE_COUNTER * sizeof(int));
   for(int i=0; i<_NUM_SIMPLE_COUNTER; ++i) count_array[i] = 0;
 
+  // subdomains borrow shared infrastructure through the DeviceContext
+  dev_ctx.pm = pm;
+  dev_ctx.ml = ml;
+  dev_ctx.num_devices = num_devices;
+  dev_ctx.verbose_level = verbose_level;
+  dev_ctx.grid_size = grid_size;
+  dev_ctx.block_size = block_size;
+  dev_ctx.t_array = t_array;
+  dev_ctx.count_array = count_array;
+  dev_ctx.device_data = device_data;
+
+  _pdft = new DevicePdft(dev_ctx);
+
   // check device connectivity
 
   int rank = 0;
@@ -213,6 +231,9 @@ Device::Device()
 Device::~Device()
 {
   if(verbose_level) printf("LIBGPU: destroying device\n");
+
+  delete _pdft;
+  _pdft = nullptr;
 
   pm->dev_free_host(rho);
   //pm->dev_free_host(vj);

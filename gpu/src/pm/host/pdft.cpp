@@ -2,7 +2,7 @@
 
 #if defined(_USE_CPU)
 
-#include "../../device.h"
+#include "../../device_pdft.h"
 
 #include <stdio.h>
 
@@ -14,7 +14,7 @@
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
+void DevicePdft::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<ngrid; ++i) Pi[i] += rho[i]*rho[i];
@@ -22,7 +22,7 @@ void Device::get_rho_to_Pi(double * rho, double * Pi, int ngrid)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_gridkern(double * mo_grid, double * gridkern, int ngrid, int ncas)
+void DevicePdft::make_gridkern(double * mo_grid, double * gridkern, int ngrid, int ncas)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<ngrid; ++i)
@@ -36,7 +36,7 @@ void Device::make_gridkern(double * mo_grid, double * gridkern, int ngrid, int n
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int ngrid, int ncas)
+void DevicePdft::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int ngrid, int ncas)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<ngrid; ++i)
@@ -50,7 +50,7 @@ void Device::make_buf_pdft(double * gridkern, double * buf, double * cascm2, int
 
 /* ---------------------------------------------------------------------- */
 
-void Device::make_Pi_final(double * gridkern, double * buf, double * Pi, int ngrid, int ncas)
+void DevicePdft::make_Pi_final(double * gridkern, double * buf, double * Pi, int ngrid, int ncas)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<ngrid; ++i) {

@@ -118,9 +118,9 @@ pm_hip.o : pm/pm_hip.cpp pm/pm_hip.h pm/pm.h
 pm_openmp.o : pm/pm_openmp.cpp pm/pm_openmp.h pm/pm.h
 pm_host.o : pm/pm_host.cpp pm/pm_host.h pm/pm.h
 
-device.o : device.cpp device.h device_context.h
+device.o : device.cpp device.h device_context.h device_pdft.h
 
-device_jk.o device_ao2mo.o device_h2eff.o device_impham.o device_pdft.o device_fci.o device_lassi.o device_comm.o device_cache.o : device.h device_context.h
+device_jk.o device_ao2mo.o device_h2eff.o device_impham.o device_pdft.o device_fci.o device_lassi.o device_comm.o device_cache.o : device.h device_context.h device_pdft.h
 
 pm_cuda.o : pm/pm_cuda.cpp pm/pm_cuda.h pm/pm.h
 pm_sycl.o : pm/pm_sycl.cpp pm/pm_sycl.h pm/pm.h
@@ -128,11 +128,11 @@ pm_hip.o : pm/pm_hip.cpp pm/pm_hip.h pm/pm.h
 pm_openmp.o : pm/pm_openmp.cpp pm/pm_openmp.h pm/pm.h
 pm_host.o : pm/pm_host.cpp pm/pm_host.h pm/pm.h
 
-cuda/jk.o cuda/ao2mo.o cuda/h2eff.o cuda/impham.o cuda/pdft.o cuda/fci.o cuda/common.o : device.h pm/pm_cuda.o
-sycl/jk.o sycl/ao2mo.o sycl/h2eff.o sycl/impham.o sycl/pdft.o sycl/fci.o sycl/common.o : device.h pm/pm_sycl.o
-hip/jk.o hip/ao2mo.o hip/h2eff.o hip/impham.o hip/pdft.o hip/fci.o hip/common.o : device.h pm/pm_hip.o
-openmp/jk.o : device.h pm/pm_openmp.o
-host/jk.o host/ao2mo.o host/h2eff.o host/pdft.o host/fci.o host/common.o : device.h pm/pm_host.o
+cuda/jk.o cuda/ao2mo.o cuda/h2eff.o cuda/impham.o cuda/pdft.o cuda/fci.o cuda/common.o : device.h device_pdft.h pm/pm_cuda.o
+sycl/jk.o sycl/ao2mo.o sycl/h2eff.o sycl/impham.o sycl/pdft.o sycl/fci.o sycl/common.o : device.h device_pdft.h pm/pm_sycl.o
+hip/jk.o hip/ao2mo.o hip/h2eff.o hip/impham.o hip/pdft.o hip/fci.o hip/common.o : device.h device_pdft.h pm/pm_hip.o
+openmp/jk.o : device.h device_pdft.h pm/pm_openmp.o
+host/jk.o host/ao2mo.o host/h2eff.o host/pdft.o host/fci.o host/common.o : device.h device_pdft.h pm/pm_host.o
 
 mathlib_cublas.o : mathlib/mathlib_cublas.cpp mathlib/mathlib_cublas.h mathlib/mathlib.h pm/pm_cuda.o
 mathlib_mkl.o : mathlib/mathlib_mkl.cpp mathlib/mathlib_mkl.h mathlib/mathlib.h pm/pm_cuda.o pm/pm_sycl.o
