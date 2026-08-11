@@ -181,12 +181,12 @@ void _pack_d_vuwM_add(const double * in, double * out, int * map, int nmo, int n
 
 /* ---------------------------------------------------------------------- */
 
-void Device::extract_submatrix(const double* big_mat, double* small_mat, int ncas, int ncore, int nmo)
+void DeviceH2eff::extract_submatrix(const double* big_mat, double* small_mat, int ncas, int ncore, int nmo)
 {
   sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(1, _TILE(ncas, block_size[1]), _TILE(ncas, block_size[2]));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:5: The work-group size passed to the SYCL kernel may exceed the
@@ -205,20 +205,20 @@ void Device::extract_submatrix(const double* big_mat, double* small_mat, int nca
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- extract_submatrix :: ncas= %i  _UNPACK_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 ncas, _UNPACK_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(1,
 			   _TILE(ncas * ncas, _UNPACK_BLOCK_SIZE),
 			   _TILE(nmo * ncas, _UNPACK_BLOCK_SIZE));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:6: The work-group size passed to the SYCL kernel may exceed the
@@ -238,20 +238,20 @@ void Device::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int 
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- _unpack_h2eff_2d :: nmo*ncas= %i  ncas*ncas= %i  _UNPACK_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 nmo*ncas, ncas*ncas, _UNPACK_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_2310(double * in, double * out, int nmo, int ncas)
+void DeviceH2eff::transpose_2310(double * in, double * out, int nmo, int ncas)
 {
   sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   sycl::range<3> grid_size(_TILE(ncas, block_size[0]),
 			   _TILE(ncas, block_size[1]),
 			   _TILE(nmo, block_size[2]));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:7: The work-group size passed to the SYCL kernel may exceed the
@@ -270,20 +270,20 @@ void Device::transpose_2310(double * in, double * out, int nmo, int ncas)
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- update_h2eff_sub::transpose_2310 :: nmo= %i  ncas= %i  _DEFAULT_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 nmo, ncas, _DEFAULT_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_3210(double* in, double* out, int nmo, int ncas)
+void DeviceH2eff::transpose_3210(double* in, double* out, int nmo, int ncas)
 {
   sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   sycl::range<3> grid_size(_TILE(ncas, block_size[0]),
 			   _TILE(ncas, block_size[1]),
 			   _TILE(ncas, block_size[2]));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:8: The work-group size passed to the SYCL kernel may exceed the
@@ -302,18 +302,18 @@ void Device::transpose_3210(double* in, double* out, int nmo, int ncas)
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- update_h2eff_sub::transpose_3210 :: ncas= %i  _DEFAULT_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 ncas, _DEFAULT_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   sycl::range<3> block_size(_UNPACK_BLOCK_SIZE, 1, 1);
   sycl::range<3> grid_size(_TILE(ncas_pair, _DEFAULT_BLOCK_SIZE), ncas, nmo);
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   {
     //    dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
@@ -327,18 +327,18 @@ void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int nc
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- update_h2eff_sub::_pack_h2eff_2d :: nmo= %i  ncas= %i  _UNPACK_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 nmo, ncas, _UNPACK_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+void DeviceH2eff::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
 {
   sycl::range<3> block_size(1, 1, 1);
   sycl::range<3> grid_size(1, _TILE(nao, block_size[1]), _TILE(ncas, block_size[2]));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:9: The work-group size passed to the SYCL kernel may exceed the
@@ -357,25 +357,25 @@ void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int 
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- get_h2eff_df::_get_mo_cas :: ncas= %i  nao= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 ncas, nao, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_d_vuwM(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_d_vuwM(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(1,
 			   _TILE(ncas * ncas, block_size[1]),
 			   _TILE(nmo * ncas, block_size[2]));
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- get_h2eff_df::pack_d_vumM :: nmo*ncas= %i  ncas*ncas= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 nmo*ncas, ncas*ncas, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
   
   /*
@@ -393,21 +393,21 @@ void Device::pack_d_vuwM(const double * in, double * out, int * map, int nmo, in
   }
 
 #ifdef _DEBUG_DEVICE
-  pm->dev_stream_wait();
+  ctx.pm->dev_stream_wait();
   printf("LIBGPU ::  -- get_h2eff_df::pack_d_vuwM :: finished\n");
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_d_vuwM_add(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_d_vuwM_add(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(1, _TILE(ncas * ncas, block_size[1]),
 			   _TILE(nmo * ncas, block_size[2]));
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:11: The work-group size passed to the SYCL kernel may exceed the
@@ -426,7 +426,7 @@ void Device::pack_d_vuwM_add(const double * in, double * out, int * map, int nmo
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- get_h2eff_df::pack_d_vumM_add :: nmo*ncas= %i  ncas*ncas= %i  grid_size= %zu %zu %zu block_size= %zu %zu %zu\n",
 	 nmo*ncas, ncas*ncas, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 

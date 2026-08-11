@@ -15,7 +15,54 @@
 
 /* ---------------------------------------------------------------------- */
 
-void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
+/* ---------------------------------------------------------------------- */
+
+DeviceH2eff::DeviceH2eff(DeviceContext & ctx) : ctx(ctx)
+{
+  buf_eri_h2eff = nullptr;
+  size_buf_eri_h2eff = 0;
+}
+
+DeviceH2eff::~DeviceH2eff()
+{
+  if(buf_eri_h2eff) ctx.pm->dev_free_host(buf_eri_h2eff);
+  buf_eri_h2eff = nullptr;
+  size_buf_eri_h2eff = 0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceH2eff::init_eri_h2eff(int nmo, int ncas)
+{
+  double t0 = omp_get_wtime();
+
+  // host initializes on each device 
+
+  int ncas_pair = ncas*(ncas+1)/2;
+  int size_eri_h2eff = nmo*ncas*ncas_pair;
+
+  for(int id=0; id<ctx.num_devices; ++id) {
+    ctx.pm->dev_set_device(id);
+
+    my_device_data * dd = &(ctx.device_data[id]);
+
+    dd->active = 0;
+
+    ::grow_array(ctx.pm, dd->h2eff.d_eri_h2eff, size_eri_h2eff, dd->h2eff.size_eri_h2eff, "eri_h2eff", FLERR);
+  }
+
+  int _size_buf_eri_h2eff = ctx.num_devices * size_eri_h2eff;
+
+  ::grow_array_host(ctx.pm, buf_eri_h2eff, _size_buf_eri_h2eff, size_buf_eri_h2eff, "h:buf_eri_h2eff");
+
+  double t1 = omp_get_wtime();
+  ctx.t_array[8] += t1 - t0;
+  // counts in pull ppaa
+}
+
+
+
+void DeviceH2eff::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
                               py::array_t<double> _umat, py::array_t<double> _h2eff_sub)
 {
   double t0 = omp_get_wtime();
@@ -24,16 +71,16 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   printf("LIBGPU :: Inside Device :: Starting update_h2eff_sub function\n");
 #endif
 
-  pm->dev_profile_start("Setup initial h2eff_sub");
+  ctx.pm->dev_profile_start("Setup initial h2eff_sub");
   
   py::buffer_info info_umat = _umat.request(); // 2d array nmo*nmo
   py::buffer_info info_h2eff_sub = _h2eff_sub.request();// 2d array (nmo * ncas) x (ncas*(ncas+1)/2)
 
-  const int device_id = 0; //count % num_devices;
+  const int device_id = 0; //count % ctx.num_devices;
 
-  pm->dev_set_device(device_id);
+  ctx.pm->dev_set_device(device_id);
 
-  my_device_data * dd = &(device_data[device_id]);
+  my_device_data * dd = &(ctx.device_data[device_id]);
 
   const int ncas_pair = ncas * (ncas+1)/2;
   
@@ -52,23 +99,23 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   int _size_h2eff_unpacked = nmo*ncas*ncas*ncas;
   int _size_h2eff_packed = nmo*ncas*ncas_pair;
 
-  grow_array(dd->jk.d_buf1, _size_h2eff_unpacked, dd->jk.size_buf1, "buf1", FLERR);
-  //  grow_array(dd->jk.d_buf2, _size_h2eff_unpacked, dd->jk.size_buf2, "buf2", FLERR);
-  //  grow_array(dd->jk.d_buf3, _size_h2eff_unpacked, dd->jk.size_buf3, "buf3", FLERR);
+  ::grow_array(ctx.pm, dd->jk.d_buf1, _size_h2eff_unpacked, dd->jk.size_buf1, "buf1", FLERR);
+  //  ::grow_array(ctx.pm, dd->jk.d_buf2, _size_h2eff_unpacked, dd->jk.size_buf2, "buf2", FLERR);
+  //  ::grow_array(ctx.pm, dd->jk.d_buf3, _size_h2eff_unpacked, dd->jk.size_buf3, "buf3", FLERR);
   
   double * d_h2eff_unpacked = dd->jk.d_buf1;
 
-  grow_array(dd->d_ucas, ncas*ncas, dd->size_ucas, "ucas", FLERR);
+  ::grow_array(ctx.pm, dd->d_ucas, ncas*ncas, dd->size_ucas, "ucas", FLERR);
 
-  grow_array(dd->d_umat, nmo*nmo, dd->size_umat, "umat", FLERR);
+  ::grow_array(ctx.pm, dd->d_umat, nmo*nmo, dd->size_umat, "umat", FLERR);
   
-  pm->dev_push_async(dd->d_umat, umat, nmo*nmo*sizeof(double));
+  ctx.pm->dev_push_async(dd->d_umat, umat, nmo*nmo*sizeof(double));
 
 #ifdef _DEBUG_H2EFF
   printf("LIBGPU :: Inside Device :: -- Setup update function\n");
 #endif
   
-  pm->dev_profile_next("extraction");
+  ctx.pm->dev_profile_next("extraction");
   
   //ucas = umat[ncore:nocc, ncore:nocc]
 
@@ -78,17 +125,17 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   //h2eff_sub = lib.numpy_helper.unpack_tril (h2eff_sub)
   //h2eff_sub = h2eff_sub.reshape (nmo, ncas, ncas, ncas)
 
-  grow_array(dd->d_h2eff, _size_h2eff_packed, dd->size_h2eff, "h2eff", FLERR);
+  ::grow_array(ctx.pm, dd->d_h2eff, _size_h2eff_packed, dd->size_h2eff, "h2eff", FLERR);
   
   double * d_h2eff_sub = dd->d_h2eff;
   
-  pm->dev_push_async(d_h2eff_sub, h2eff_sub, _size_h2eff_packed * sizeof(double));
+  ctx.pm->dev_push_async(d_h2eff_sub, h2eff_sub, _size_h2eff_packed * sizeof(double));
 
-  pm->dev_profile_next("map creation and pushed");
+  ctx.pm->dev_profile_next("map creation and pushed");
   
-  int * d_my_unpack_map_ptr = dd_fetch_pumap(dd, ncas, _PUMAP_H2EFF_UNPACK);
+  int * d_my_unpack_map_ptr = ctx.owner->dd_fetch_pumap(dd, ncas, _PUMAP_H2EFF_UNPACK);
 
-  pm->dev_profile_next("unpacking");
+  ctx.pm->dev_profile_next("unpacking");
 
 #ifdef _DEBUG_H2EFF
   printf("LIBGPU :: Inside Device :: -- created and pushed unpacking map\n");
@@ -96,7 +143,7 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
 
   unpack_h2eff_2d(d_h2eff_sub, d_h2eff_unpacked, d_my_unpack_map_ptr, nmo, ncas, ncas_pair);
   
-  pm->dev_profile_next("2 dgemms");
+  ctx.pm->dev_profile_next("2 dgemms");
   
 #ifdef _DEBUG_H2EFF
   printf("LIBGPU :: Inside Device :: -- unpacked h2eff_sub \n");
@@ -119,18 +166,18 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   int ncas2 = ncas * ncas;
   int ncas_nmo = ncas * nmo;
   
-  ml->set_handle();
-  ml->gemm_batch((char *) "N", (char *) "N", &ncas, &ncas, &ncas,
+  ctx.ml->set_handle();
+  ctx.ml->gemm_batch((char *) "N", (char *) "N", &ncas, &ncas, &ncas,
 		 &alpha, dd->d_ucas, &ncas, &zero, d_h2eff_unpacked, &ncas, &ncas2, &beta, d_h2eff_step1, &ncas, &ncas2, &ncas_nmo);
   
   //h2eff_step2=([pi]kJ,kK->[pi]JK
   
   double * d_h2eff_step2 = dd->jk.d_buf1;
 
-  ml->gemm_batch((char *) "N", (char *) "T", &ncas, &ncas, &ncas,
+  ctx.ml->gemm_batch((char *) "N", (char *) "T", &ncas, &ncas, &ncas,
 		 &alpha, d_h2eff_step1, &ncas, &ncas2, dd->d_ucas, &ncas, &zero, &beta, d_h2eff_step2, &ncas, &ncas2, &ncas_nmo);
   
-  pm->dev_profile_next("transpose");
+  ctx.pm->dev_profile_next("transpose");
   
 #ifdef _DEBUG_H2EFF
   printf("LIBGPU :: Inside Device :: -- Finished first 2 cublasDgemmStridedBatched Functions \n");
@@ -142,7 +189,7 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
 
   transpose_2310(d_h2eff_step2, d_h2eff_transposed, nmo, ncas);
   
-  pm->dev_profile_next("last 2 dgemm");
+  ctx.pm->dev_profile_next("last 2 dgemm");
   
 #ifdef _DEBUG_H2EFF
   printf("LIBGPU :: Inside Device :: -- Finished transposing\n");
@@ -152,17 +199,17 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
 
   //h2eff_sub=np.einsum('iI,JKip->JKIp',ucas,h2eff_sub) h2eff=ncas,ncas,ncas,nmo; ucas=ncas,ncas
 
-  ml->gemm_batch((char *) "N", (char *) "T", &nmo, &ncas, &ncas,
+  ctx.ml->gemm_batch((char *) "N", (char *) "T", &nmo, &ncas, &ncas,
 		 &alpha, d_h2eff_transposed, &nmo, &ncas_nmo, dd->d_ucas, &ncas, &zero, &beta, d_h2eff_step3, &nmo, &ncas_nmo, &ncas2);
   
   //h2eff_step4=([JK]Ip,pP->[JK]IP)
 
   double * d_h2eff_step4 = dd->jk.d_buf2;
 
-  ml->gemm_batch((char *) "N", (char *) "N", &nmo, &ncas, &nmo,
+  ctx.ml->gemm_batch((char *) "N", (char *) "N", &nmo, &ncas, &nmo,
 		 &alpha, dd->d_umat, &nmo, &zero, d_h2eff_step3, &nmo, &ncas_nmo, &beta, d_h2eff_step4, &nmo, &ncas_nmo, &ncas2);
   
-  pm->dev_profile_next("2nd transpose");
+  ctx.pm->dev_profile_next("2nd transpose");
 
 #ifdef _DEBUG_H2EFF
   printf("LIBGPU :: Inside Device :: -- Finished last 2 cublasDgemmStridedBatched Functions \n");
@@ -183,9 +230,9 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   //h2eff_sub = h2eff_sub[:,:,(ix_i*ncas)+ix_j]
   //h2eff_sub = h2eff_sub.reshape (nmo, -1)
 
-  pm->dev_profile_next("second map and packing");
+  ctx.pm->dev_profile_next("second map and packing");
   
-  int * d_my_pack_map_ptr = dd_fetch_pumap(dd, ncas, _PUMAP_H2EFF_PACK);
+  int * d_my_pack_map_ptr = ctx.owner->dd_fetch_pumap(dd, ncas, _PUMAP_H2EFF_PACK);
 
   pack_h2eff_2d(d_h2eff_transpose2, d_h2eff_sub, d_my_pack_map_ptr, nmo, ncas, ncas_pair);
   
@@ -193,11 +240,11 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   printf("LIBGPU :: Inside Device :: -- Freed map\n");
 #endif
   
-  pm->dev_pull_async(d_h2eff_sub, h2eff_sub, _size_h2eff_packed*sizeof(double));
+  ctx.pm->dev_pull_async(d_h2eff_sub, h2eff_sub, _size_h2eff_packed*sizeof(double));
 
-  pm->dev_stream_wait(); // is this required or can we delay waiting?
+  ctx.pm->dev_stream_wait(); // is this required or can we delay waiting?
   
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Inside Device :: Leaving update function\n");
@@ -209,12 +256,12 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
 #endif
   
   double t1 = omp_get_wtime();
-  t_array[5] += t1 - t0;
-  count_array[3] += 1;
+  ctx.t_array[5] += t1 - t0;
+  ctx.count_array[3] += 1;
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::get_h2eff_df_v2(py::array_t<double> _cderi, 
+void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi, 
                                 int nao, int nmo, int ncas, int naux, int ncore, 
                                 py::array_t<double> _eri, int count, size_t addr_dfobj) 
 {
@@ -222,17 +269,17 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Inside Device::get_h2eff_df_v2()\n");
-  printf("LIBGPU:: dfobj= %p count= %i combined= %lu %p update_dfobj= %i\n",(void*)(addr_dfobj), count, addr_dfobj+count, (void*)(addr_dfobj+count),update_dfobj);
+  printf("LIBGPU:: dfobj= %p count= %i combined= %lu %p ctx.owner->update_dfobj= %i\n",(void*)(addr_dfobj), count, addr_dfobj+count, (void*)(addr_dfobj+count),ctx.owner->update_dfobj);
 #endif 
-  pm->dev_profile_start("h2eff df setup");
+  ctx.pm->dev_profile_start("h2eff df setup");
   
   py::buffer_info info_eri = _eri.request(); //2D array nao * ncas * ncas_pair
   
-  const int device_id = count % num_devices;
+  const int device_id = count % ctx.num_devices;
   
-  pm->dev_set_device(device_id);
+  ctx.pm->dev_set_device(device_id);
   
-  my_device_data * dd = &(device_data[device_id]);
+  my_device_data * dd = &(ctx.device_data[device_id]);
 
   dd->active = 1;
   //printf("nao: %i, nmo: %i, ncas: %i, naux: %i count %i\n",nao, nmo, ncas, naux, count);
@@ -276,31 +323,31 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   if(size_vuwm > max_size_buf) max_size_buf = size_vuwm; 
   //printf("cderi_up: %i bump_buvP: %i vuWM:%i vuwm:%i size_buf%i\n",size_cderi_unpacked,size_bumP_buvP, size_vuwM, size_vuwm, max_size_buf);
   
-  grow_array(dd->jk.d_buf1, max_size_buf, dd->jk.size_buf1, "buf1", FLERR); // holds cderi_unpacked and bumP+buvP and vuwM
+  ::grow_array(ctx.pm, dd->jk.d_buf1, max_size_buf, dd->jk.size_buf1, "buf1", FLERR); // holds cderi_unpacked and bumP+buvP and vuwM
 
   max_size_buf = size_bumP_buvP;
   if(size_vuwm > max_size_buf) max_size_buf = size_vuwm;
   
-  grow_array(dd->jk.d_buf2, max_size_buf, dd->jk.size_buf2, "buf2", FLERR); // holds bPmu+bPvu and vuwm
+  ::grow_array(ctx.pm, dd->jk.d_buf2, max_size_buf, dd->jk.size_buf2, "buf2", FLERR); // holds bPmu+bPvu and vuwm
 
   max_size_buf = _size_eri_h2eff;
   if(size_vuwM > max_size_buf) max_size_buf = size_vuwM;
   
-  grow_array(dd->jk.d_buf3, max_size_buf, dd->jk.size_buf3, "buf3", FLERR); // holds eri_h2eff
+  ::grow_array(ctx.pm, dd->jk.d_buf3, max_size_buf, dd->jk.size_buf3, "buf3", FLERR); // holds eri_h2eff
   
   double * eri = static_cast<double*>(info_eri.ptr);
   double * d_mo_coeff = dd->d_mo_coeff;
   double * d_mo_cas = dd->d_mo_cas; 
  
   #if 0
-    double * h_result = (double *)pm->dev_malloc_host(nao*ncas*sizeof(double)); 
-    pm->dev_pull_async(d_mo_cas, h_result, nao*ncas*sizeof(double));
-    pm->dev_barrier();
+    double * h_result = (double *)ctx.pm->dev_malloc_host(nao*ncas*sizeof(double)); 
+    ctx.pm->dev_pull_async(d_mo_cas, h_result, nao*ncas*sizeof(double));
+    ctx.pm->dev_barrier();
     printf("printing from mo_cas");
     for (int i=0; i<3; ++i){
       for (int j=0; j<3; ++j){
          printf("%f\t",h_result[i*nao + j]*1e7);}printf("\n");}printf("\n");
-    pm->dev_free_host(h_result);
+    ctx.pm->dev_free_host(h_result);
 
   #endif
   
@@ -309,33 +356,33 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
   double * d_cderi = nullptr;
   
-  if(use_eri_cache) {
-    d_cderi = dd_fetch_eri(dd, cderi, naux, nao_pair, addr_dfobj, count);
+  if(ctx.owner->use_eri_cache) {
+    d_cderi = ctx.owner->dd_fetch_eri(dd, cderi, naux, nao_pair, addr_dfobj, count);
   } else {
-    grow_array(dd->jk.d_eri1, _size_eri, dd->jk.size_eri1, "eri1", FLERR);
+    ::grow_array(ctx.pm, dd->jk.d_eri1, _size_eri, dd->jk.size_eri1, "eri1", FLERR);
     d_cderi = dd->jk.d_eri1;
 
-    pm->dev_push_async(d_cderi, cderi, _size_eri * sizeof(double));
+    ctx.pm->dev_push_async(d_cderi, cderi, _size_eri * sizeof(double));
   }
 
   double * d_cderi_unpacked = dd->jk.d_buf1;
 
-  int * d_my_unpack_map_ptr = dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
+  int * d_my_unpack_map_ptr = ctx.owner->dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
 
   // CHRIS :: Start chunking w/r naux
   
-  getjk_unpack_buf2(d_cderi_unpacked, d_cderi, d_my_unpack_map_ptr, naux, nao, nao_pair);
+  ctx.owner->getjk_unpack_buf2(d_cderi_unpacked, d_cderi, d_my_unpack_map_ptr, naux, nao, nao_pair);
   
   #if 0 
-    double * h_result = (double *)pm->dev_malloc_host(size_cderi_unpacked*sizeof(double)); 
-    pm->dev_pull_async(d_cderi_unpacked, h_result, size_cderi_unpacked*sizeof(double));
-    pm->dev_barrier();
+    double * h_result = (double *)ctx.pm->dev_malloc_host(size_cderi_unpacked*sizeof(double)); 
+    ctx.pm->dev_pull_async(d_cderi_unpacked, h_result, size_cderi_unpacked*sizeof(double));
+    ctx.pm->dev_barrier();
     printf("printing from cderi unpacked results");
     for (int i=0; i<3; ++i){
       for (int j=0; j<3; ++j){
         for (int k=0; k<3; ++k){
          printf("%f\t",h_result[i*nao*nao + j*nao + k]*1e7);}printf("\n");}printf("\n");};
-    pm->dev_free_host(h_result);
+    ctx.pm->dev_free_host(h_result);
   #endif 
 
 
@@ -350,16 +397,16 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
   double * d_bPmu = dd->jk.d_buf2;
   
-  ml->set_handle();
-  ml->gemm_batch((char *) "N", (char *) "N", &nao, &ncas, &nao,
+  ctx.ml->set_handle();
+  ctx.ml->gemm_batch((char *) "N", (char *) "N", &nao, &ncas, &nao,
 		 &alpha, d_cderi_unpacked, &nao, &nao2, d_mo_cas, &nao, &zero, &beta, d_bPmu, &nao, &ncas_nao, &naux);
   
   //bPvu = np.einsum('mv,Pmu->Pvu',mo_cas.conjugate(),bPmu)
 
   double * d_bPvu= dd->jk.d_buf2 + naux*ncas*nao;
 
-  ml->set_handle();
-  ml->gemm_batch((char *) "T", (char *) "N", &ncas, &ncas, &nao,
+  ctx.ml->set_handle();
+  ctx.ml->gemm_batch((char *) "T", (char *) "N", &ncas, &ncas, &nao,
 		 &alpha, d_mo_cas, &nao, &zero, d_bPmu, &nao, &ncas_nao, &beta, d_bPvu, &ncas, &ncas2, &naux);
   
   //eri = np.einsum('Pmw,Pvu->mwvu', bPmu, bPvu)
@@ -368,7 +415,7 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
   double * d_bumP = dd->jk.d_buf1;
 
-  transpose_120(d_bPmu, d_bumP, naux, ncas, nao, 1); // this call distributes work items differently 
+  ctx.owner->transpose_120(d_bPmu, d_bumP, naux, ncas, nao, 1); // this call distributes work items differently 
 
   double * d_buvP = dd->jk.d_buf1 + naux*ncas*nao;
 
@@ -377,52 +424,52 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   
   //transpose bPvu
 
-  transpose_210(d_bPvu, d_buvP, naux, ncas, ncas);
+  ctx.owner->transpose_210(d_bPvu, d_buvP, naux, ncas, ncas);
 
   // printf("size_buf2= %i  _size_mwvu= %i\n",dd->size_buf, size_vuwm);
   
   double * d_vuwm = dd->jk.d_buf2; 
 
-  ml->set_handle();
-  ml->gemm((char *) "T", (char *) "N", &ncas_nao, &ncas2, &naux,
+  ctx.ml->set_handle();
+  ctx.ml->gemm((char *) "T", (char *) "N", &ncas_nao, &ncas2, &naux,
 	   &alpha, d_bumP, &naux, d_buvP, &naux, &beta, d_vuwm, &ncas_nao);
 
   // CHRIS :: Stop chunking w/r naux
   
   double * d_vuwM = dd->jk.d_buf1;
 
-  ml->set_handle();
-  ml->gemm_batch((char *) "T", (char *) "T", &ncas, &nao, &nao,
+  ctx.ml->set_handle();
+  ctx.ml->gemm_batch((char *) "T", (char *) "T", &ncas, &nao, &nao,
 		 &alpha, d_vuwm, &nao, &ncas_nao, d_mo_coeff, &nao, &zero, &beta, d_vuwM, &ncas, &ncas_nao, &ncas2);
 
-  int * my_d_tril_map_ptr = dd_fetch_pumap(dd, ncas, _PUMAP_2D_UNPACK);
+  int * my_d_tril_map_ptr = ctx.owner->dd_fetch_pumap(dd, ncas, _PUMAP_2D_UNPACK);
   
-  if (count < num_devices) {
+  if (count < ctx.num_devices) {
     pack_d_vuwM(d_vuwM, dd->h2eff.d_eri_h2eff, my_d_tril_map_ptr, nmo, ncas, ncas_pair);
   } else {
     pack_d_vuwM(d_vuwM, dd->jk.d_buf3, my_d_tril_map_ptr, nmo, ncas, ncas_pair);
-    vecadd(dd->jk.d_buf3, dd->h2eff.d_eri_h2eff, _size_eri_h2eff);
+    ctx.owner->vecadd(dd->jk.d_buf3, dd->h2eff.d_eri_h2eff, _size_eri_h2eff);
   }
 
   #if 0
-    double * h_result = (double *)pm->dev_malloc_host(size_vuwM*sizeof(double)); 
-    if (count < num_devices) {
-       pm->dev_pull_async(dd->h2eff.d_eri_h2eff, h_result, size_vuwM*sizeof(double));}
+    double * h_result = (double *)ctx.pm->dev_malloc_host(size_vuwM*sizeof(double)); 
+    if (count < ctx.num_devices) {
+       ctx.pm->dev_pull_async(dd->h2eff.d_eri_h2eff, h_result, size_vuwM*sizeof(double));}
     else{
-       pm->dev_pull_async(dd->jk.d_buf3, h_result, size_vuwM*sizeof(double));}
-    pm->dev_barrier();
+       ctx.pm->dev_pull_async(dd->jk.d_buf3, h_result, size_vuwM*sizeof(double));}
+    ctx.pm->dev_barrier();
     printf("printing from h2eff results");
     for (int i=0; i<3; ++i){
       for (int j=0; j<3; ++j){
          printf("%f\t",h_result[i*ncas*ncas_pair + j]*1e5);}printf("\n");}printf("\n");
-    pm->dev_free_host(h_result);
+    ctx.pm->dev_free_host(h_result);
   #endif 
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  t_array[6] += t1 - t0;//TODO: add the array size
-  count_array[4] += 1; // see v1 comment
+  ctx.t_array[6] += t1 - t0;//TODO: add the array size
+  ctx.count_array[4] += 1; // see v1 comment
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::get_h2eff_df_v2()\n");
@@ -432,7 +479,7 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 /* ---------------------------------------------------------------------- */
 
 #if defined(_ENABLE_P2P)
-void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
+void DeviceH2eff::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
 {
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: -- Inside Device::pull_eri_h2eff()\n");
@@ -445,18 +492,18 @@ void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
   
   const int N = nmo*ncas * ncas_pair;
 
-  std::vector<double *> e_vec(num_devices);
-  std::vector<double *> buf_vec(num_devices);
-  std::vector<int> active(num_devices);
+  std::vector<double *> e_vec(ctx.num_devices);
+  std::vector<double *> buf_vec(ctx.num_devices);
+  std::vector<int> active(ctx.num_devices);
   
-  for(int i=0; i<num_devices; ++i) {
-    my_device_data * dd = &(device_data[i]);
+  for(int i=0; i<ctx.num_devices; ++i) {
+    my_device_data * dd = &(ctx.device_data[i]);
     e_vec[i] = dd->h2eff.d_eri_h2eff;
     buf_vec[i] = dd->jk.d_buf3;
     active[i] = dd->active;
   }
 
-  mgpu_reduce(e_vec, buf_eri_h2eff, N, true, buf_vec, active);
+  ctx.owner->mgpu_reduce(e_vec, buf_eri_h2eff, N, true, buf_vec, active);
 
 #pragma omp parallel for
   for(int i=0; i<N; ++i) eri[i] = buf_eri_h2eff[i];
@@ -466,7 +513,7 @@ void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
 #endif
 }
 #else
-void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
+void DeviceH2eff::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
 {
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: -- Inside Device::pull_eri_h2eff()\n");
@@ -481,24 +528,24 @@ void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
   
   // Pulling eri from all devices
   
-  for (int i=0; i<num_devices; ++i){
-    pm->dev_set_device(i);
+  for (int i=0; i<ctx.num_devices; ++i){
+    ctx.pm->dev_set_device(i);
 
-    my_device_data * dd = &(device_data[i]);
+    my_device_data * dd = &(ctx.device_data[i]);
 
     tmp = &(buf_eri_h2eff[i*size_eri_h2eff]);
     
-    if(dd->active) pm->dev_pull_async(dd->h2eff.d_eri_h2eff, tmp, size_eri_h2eff*sizeof(double));
+    if(dd->active) ctx.pm->dev_pull_async(dd->h2eff.d_eri_h2eff, tmp, size_eri_h2eff*sizeof(double));
   }
   
   // Adding eri from all devices
   
-  for(int i=0; i<num_devices; ++i) {
-    pm->dev_set_device(i);
+  for(int i=0; i<ctx.num_devices; ++i) {
+    ctx.pm->dev_set_device(i);
 
-    my_device_data * dd = &(device_data[i]);
+    my_device_data * dd = &(ctx.device_data[i]);
 
-    pm->dev_stream_wait();
+    ctx.pm->dev_stream_wait();
 
     if(i > 0 && dd->active) {
 
@@ -515,3 +562,30 @@ void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
 #endif
 }
 #endif
+
+/* ---------------------------------------------------------------------- */
+/* Device facade forwarders (Phase 5 Option A: keep the flat Python API)    */
+/* ---------------------------------------------------------------------- */
+
+void Device::init_eri_h2eff(int nmo, int ncas)
+{ _h2eff->init_eri_h2eff(nmo, ncas); }
+
+void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
+                              py::array_t<double> _umat, py::array_t<double> _h2eff_sub)
+{ _h2eff->update_h2eff_sub(ncore, ncas, nocc, nmo, _umat, _h2eff_sub); }
+
+void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
+                             int nao, int nmo, int ncas, int naux, int ncore,
+                             py::array_t<double> _eri, int count, size_t addr_dfobj)
+{ _h2eff->get_h2eff_df_v2(_cderi, nao, nmo, ncas, naux, ncore, _eri, count, addr_dfobj); }
+
+void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
+{ _h2eff->pull_eri_h2eff(_eri, nmo, ncas); }
+
+// transitional shim: transpose_3210 / get_mo_cas are still called by
+// DeviceFci (transpose_tdm2) and DeviceAo2mo (extract_mo_cas)
+void Device::transpose_3210(double * in, double * out, int nmo, int ncas)
+{ _h2eff->transpose_3210(in, out, nmo, ncas); }
+
+void Device::get_mo_cas(const double * big_mat, double * small_mat, int ncas, int ncore, int nao)
+{ _h2eff->get_mo_cas(big_mat, small_mat, ncas, ncore, nao); }

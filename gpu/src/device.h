@@ -19,6 +19,7 @@ namespace py = pybind11;
 #include "device_jk.h"
 #include "device_impham.h"
 #include "device_lassi.h"
+#include "device_h2eff.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -120,11 +121,7 @@ public :
   //UPDATE H2EFF
   void update_h2eff_sub(int, int, int, int,
                         py::array_t<double>,py::array_t<double>);
-  void extract_submatrix(const double *, double *, int, int, int);
-  void unpack_h2eff_2d(double *, double *, int *, int, int, int);
-  void transpose_2310(double *, double *, int, int);
   void transpose_3210(double *, double *, int, int);
-  void pack_h2eff_2d(double *, double *, int *, int, int, int);
   
   void transpose_210(double *, double *, int, int, int);
   
@@ -249,8 +246,6 @@ public :
   //inner functions
   void extract_mo_cas(int, int, int);//TODO: fix the difference - changed slightly
   void get_mo_cas(const double *, double *, int, int, int);
-  void pack_d_vuwM(const double *, double *, int *, int, int, int);
-  void pack_d_vuwM_add(const double *, double *, int *, int, int, int);
 
   void push_mo_coeff(py::array_t<double>, int);
 
@@ -305,6 +300,7 @@ private:
 
   friend class DeviceJk; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
   friend class DeviceImpham; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
+  friend class DeviceH2eff; // eri-cache (dd_fetch_eri) / pumap (dd_fetch_pumap) services
 
   class PM * pm;
 
@@ -350,11 +346,6 @@ private:
   double * buf_ppaa;
   double * buf_papa;
 
-  // h2eff_df
-  int size_eri_h2eff;
-  int size_buf_eri_h2eff;
-  double * buf_eri_h2eff;
-  
   //tdms
   int size_bravecs;
   int size_ketvecs;
@@ -444,6 +435,7 @@ private:
   DeviceJk * _jk;
   DeviceImpham * _impham;
   DeviceLassi * _lassi;
+  DeviceH2eff * _h2eff;
 };
 
 #endif

@@ -147,12 +147,12 @@ __global__ void _pack_d_vuwM_add(const double * in, double * out, int * map, int
 
 /* ---------------------------------------------------------------------- */
 
-void Device::extract_submatrix(const double* big_mat, double* small_mat, int ncas, int ncore, int nmo)
+void DeviceH2eff::extract_submatrix(const double* big_mat, double* small_mat, int ncas, int ncore, int nmo)
 {
   dim3 block_size(_UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   dim3 grid_size(_TILE(ncas,block_size.x), _TILE(ncas,block_size.y));
     
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _extract_submatrix<<<grid_size, block_size, 0, s>>>(big_mat, small_mat, ncas, ncore, nmo);
   
@@ -165,12 +165,12 @@ void Device::extract_submatrix(const double* big_mat, double* small_mat, int nca
 
 /* ---------------------------------------------------------------------- */
 
-void Device::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   dim3 block_size(_UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE, 1);
   dim3 grid_size(_TILE(nmo*ncas,_UNPACK_BLOCK_SIZE), _TILE(ncas*ncas,_UNPACK_BLOCK_SIZE), 1);
 
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _unpack_h2eff_2d<<<grid_size, block_size, 0>>>(in, out, map, nmo, ncas, ncas_pair);
   
@@ -183,12 +183,12 @@ void Device::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_2310(double * in, double * out, int nmo, int ncas)
+void DeviceH2eff::transpose_2310(double * in, double * out, int nmo, int ncas)
 {
   dim3 block_size(1,1,_DEFAULT_BLOCK_SIZE);
   dim3 grid_size(_TILE(nmo,block_size.x),_TILE(ncas,block_size.y),_TILE(ncas,block_size.z));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _transpose_2310<<<grid_size, block_size, 0, s>>>(in, out, nmo, ncas);
   
@@ -201,12 +201,12 @@ void Device::transpose_2310(double * in, double * out, int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_3210(double* in, double* out, int nmo, int ncas)
+void DeviceH2eff::transpose_3210(double* in, double* out, int nmo, int ncas)
 {
   dim3 block_size(1,1,_DEFAULT_BLOCK_SIZE);
   dim3 grid_size(_TILE(ncas,block_size.x),_TILE(ncas,block_size.y),_TILE(ncas,block_size.z));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _transpose_3210<<<grid_size, block_size, 0, s>>>(in, out, nmo, ncas);
   
@@ -219,12 +219,12 @@ void Device::transpose_3210(double* in, double* out, int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   dim3 block_size(1, 1, _UNPACK_BLOCK_SIZE);
   dim3 grid_size(nmo, ncas, _TILE(ncas_pair, _DEFAULT_BLOCK_SIZE));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _pack_h2eff_2d<<<grid_size, block_size, 0, s>>>(in, out, map, nmo, ncas, ncas_pair);
   
@@ -237,12 +237,12 @@ void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int nc
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+void DeviceH2eff::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
 {
   dim3 block_size(1,1,1);
   dim3 grid_size(_TILE(ncas, block_size.x), _TILE(nao, block_size.y));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _get_mo_cas<<<grid_size, block_size, 0, s>>>(big_mat, small_mat, ncas, ncore, nao);
   
@@ -255,12 +255,12 @@ void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_d_vuwM(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_d_vuwM(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   dim3 block_size(_UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE, 1);
   dim3 grid_size(_TILE(nmo*ncas,block_size.x), _TILE(ncas*ncas,block_size.y));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _pack_d_vuwM<<<grid_size,block_size, 0, s>>>(in, out, map, nmo, ncas, ncas_pair);
   
@@ -273,12 +273,12 @@ void Device::pack_d_vuwM(const double * in, double * out, int * map, int nmo, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_d_vuwM_add(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_d_vuwM_add(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   dim3 block_size(_UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE, 1);
   dim3 grid_size(_TILE(nmo*ncas,block_size.x), _TILE(ncas*ncas,block_size.y));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _pack_d_vuwM_add<<<grid_size,block_size, 0, s>>>(in, out, map, nmo, ncas, ncas_pair);
   

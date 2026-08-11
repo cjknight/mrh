@@ -14,7 +14,7 @@
 
 /* ---------------------------------------------------------------------- */
 
-void Device::extract_submatrix(const double* big_mat, double* small_mat, int ncas, int ncore, int nmo)
+void DeviceH2eff::extract_submatrix(const double* big_mat, double* small_mat, int ncas, int ncore, int nmo)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<ncas; ++i)
@@ -24,7 +24,7 @@ void Device::extract_submatrix(const double* big_mat, double* small_mat, int nca
 
 /* ---------------------------------------------------------------------- */
 
-void Device::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<nmo*ncas; ++i)
@@ -37,7 +37,7 @@ void Device::unpack_h2eff_2d(double * in, double * out, int * map, int nmo, int 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_2310(double * in, double * out, int nmo, int ncas)
+void DeviceH2eff::transpose_2310(double * in, double * out, int nmo, int ncas)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<nmo; ++i)
@@ -52,7 +52,7 @@ void Device::transpose_2310(double * in, double * out, int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_3210(double* in, double* out, int nmo, int ncas)
+void DeviceH2eff::transpose_3210(double* in, double* out, int nmo, int ncas)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<ncas; ++i)
@@ -67,7 +67,7 @@ void Device::transpose_3210(double* in, double* out, int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<nmo; ++i)
@@ -81,7 +81,7 @@ void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int nc
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+void DeviceH2eff::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<ncas; ++i)
@@ -91,7 +91,7 @@ void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_d_vuwM(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_d_vuwM(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<nmo*ncas; ++i)
@@ -101,7 +101,7 @@ void Device::pack_d_vuwM(const double * in, double * out, int * map, int nmo, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::pack_d_vuwM_add(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
+void DeviceH2eff::pack_d_vuwM_add(const double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<nmo*ncas; ++i)

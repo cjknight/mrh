@@ -33,6 +33,7 @@ Device::Device()
   _jk = nullptr;
   _impham = nullptr;
   _lassi = nullptr;
+  _h2eff = nullptr;
 
   buf_fdrv = nullptr;
 
@@ -50,9 +51,6 @@ Device::Device()
   buf_papa = nullptr;
   pin_fxpp = nullptr;//remove when ao2mo_v3 is running
   pin_bufpa = nullptr;//remove when ao2mo_v4 is running
-  // h2eff_df
-  size_buf_eri_h2eff = 0;
-  buf_eri_h2eff = nullptr;
 
   // tdms
   size_bravecs = 0;
@@ -202,6 +200,7 @@ Device::Device()
   _jk = new DeviceJk(dev_ctx);
   _impham = new DeviceImpham(dev_ctx);
   _lassi = new DeviceLassi(dev_ctx);
+  _h2eff = new DeviceH2eff(dev_ctx);
 
   // check device connectivity
 
@@ -227,6 +226,9 @@ Device::~Device()
 
   delete _lassi;
   _lassi = nullptr;
+
+  delete _h2eff;
+  _h2eff = nullptr;
 
   pm->dev_free_host(rho);
   //pm->dev_free_host(vj);

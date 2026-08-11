@@ -69,36 +69,6 @@ void Device::init_ppaa_papa_ao2mo( int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::init_eri_h2eff(int nmo, int ncas)
-{
-  double t0 = omp_get_wtime();
-  
-  // host initializes on each device 
-
-  int ncas_pair = ncas*(ncas+1)/2;
-  int size_eri_h2eff = nmo*ncas*ncas_pair;
-
-  for(int id=0; id<num_devices; ++id) {
-    pm->dev_set_device(id);
-
-    my_device_data * dd = &(device_data[id]);
-
-    dd->active = 0;
-
-    grow_array(dd->h2eff.d_eri_h2eff, size_eri_h2eff, dd->h2eff.size_eri_h2eff, "eri_h2eff", FLERR);
-  }
-  
-  int _size_buf_eri_h2eff = num_devices * size_eri_h2eff;
-
-  grow_array_host(buf_eri_h2eff, _size_buf_eri_h2eff, size_buf_eri_h2eff, "h:buf_eri_h2eff");
-  
-  double t1 = omp_get_wtime();
-  t_array[8] += t1 - t0;
-  // counts in pull ppaa
-}
-
-/* ---------------------------------------------------------------------- */
-
 void Device::extract_mo_cas(int ncas, int ncore, int nao)
 {
   double t0 = omp_get_wtime();
