@@ -129,7 +129,7 @@ void _transpose_210(double * in, double * out, int naux, int nao, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas)
+void DeviceAo2mo::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas)
 {
   sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(ncas, _TILE(nmo, block_size[1]), _TILE(naux, block_size[2]));
@@ -153,7 +153,7 @@ void Device::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, int ncore, int ncas)
+void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, int ncore, int ncas)
 {
   sycl::range<3> block_size(1, 1, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(ncas, ncas, _TILE(naux, block_size[2]));
@@ -177,7 +177,7 @@ void Device::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
+void DeviceAo2mo::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
 {
   sycl::queue * s = pm->dev_get_queue();
 
@@ -209,7 +209,7 @@ void Device::transpose_120(double * in, double * out, int naux, int nao, int nca
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufd( const double* bufpp, double* bufd, int naux, int nmo)
+void DeviceAo2mo::get_bufd( const double* bufpp, double* bufd, int naux, int nmo)
 {
   sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, _UNPACK_BLOCK_SIZE);
   sycl::range<3> grid_size(1, _TILE(nmo, block_size[1]), _TILE(naux, block_size[2]));

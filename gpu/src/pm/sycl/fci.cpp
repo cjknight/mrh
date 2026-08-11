@@ -909,12 +909,12 @@ void _filter_tdm3h(double * in, double * out, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
+void DeviceFci::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
 {
   sycl::range<3> block_size(1, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, _TILE(nlinka, block_size[1]), _TILE(na, block_size[2]));
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   /*
   DPCT1049:20: The work-group size passed to the SYCL kernel may exceed the
@@ -933,13 +933,13 @@ void Device::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- general::get_rdm_from_ci; :: Na= %i Nb =%i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 na, nb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
 {
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> block_size(1, 1, 1);
@@ -947,7 +947,7 @@ void Device::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm
 			   _TILE(nb, block_size[1]),
 			   _TILE(na, block_size[2]));
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   /*
   DPCT1049:21: The work-group size passed to the SYCL kernel may exceed the
@@ -966,18 +966,18 @@ void Device::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- general::get_rdm_from_ci; :: Na= %i Nb =%i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 na, nb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinka, 
+void DeviceFci::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinka, 
                                         int ia_bra, int ja_bra, int ib_bra, int jb_bra, 
                                         int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sign, 
                                         int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   int na_bra = ja_bra - ia_bra; 
   int na_ket = ja_ket - ia_ket; 
@@ -1016,17 +1016,17 @@ void Device::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * 
 #endif
   }
 
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1b_v2( double * cibra, double * ciket, double * rdm, int norb, int nlinkb, 
+void DeviceFci::compute_FCItrans_rdm1b_v2( double * cibra, double * ciket, double * rdm, int norb, int nlinkb, 
                                         int ia_bra, int ja_bra, int ib_bra, int jb_bra, 
                                         int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sign, 
                                         int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   int na_bra = ja_bra - ia_bra; 
   int na_ket = ja_ket - ia_ket; 
@@ -1061,14 +1061,14 @@ void Device::compute_FCItrans_rdm1b_v2( double * cibra, double * ciket, double *
     }
   }
   
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
+void DeviceFci::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   {
     sycl::range<3> block_size(1, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
@@ -1089,10 +1089,10 @@ void Device::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm,
     }
     
 #ifdef _DEBUG_DEVICE
-    pm->dev_stream_wait();
+    ctx.pm->dev_stream_wait();
     printf("LIBGPU ::  -- compute_FCImake_rdm1a :: Na= %i Nb =%i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	   na, nb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
 #endif
   }
   
@@ -1109,19 +1109,19 @@ void Device::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm,
    }
 
 #ifdef _DEBUG_DEVICE
-    pm->dev_stream_wait();
+    ctx.pm->dev_stream_wait();
     printf("LIBGPU ::  -- compute_FCImake_rdm1a :: _symmetrize_rdm :: Na= %i Nb =%i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	   na, nb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
 #endif
   }
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   {
     //dim3 block_size(_DEFAULT_BLOCK_SIZE,_DEFAULT_BLOCK_SIZE,_DEFAULT_BLOCK_SIZE); //TODO: fix this?
@@ -1147,7 +1147,7 @@ void Device::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm,
                       });
     }
     
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
   }
   
   {
@@ -1167,9 +1167,9 @@ void Device::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm,
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinka, int * link_index)
+void DeviceFci::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinka, int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   sycl::range<3> grid_size(1,  _TILE(nb, block_size[1]), _TILE(batches, block_size[2]));
@@ -1189,18 +1189,18 @@ void Device::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, i
   }
   
 #ifdef _DEBUG_DEVICE
-  pm->dev_stream_wait();
+  ctx.pm->dev_stream_wait();
   printf("LIBGPU ::  -- general::compute_FCIrdm2_a_t1ci; :: Nb= %i Norb =%i Nlinka =%i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 nb, norb, nlinka, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinkb, int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   sycl::range<3> grid_size(1, _TILE(nb, block_size[1]), _TILE(batches, block_size[2]));
@@ -1223,15 +1223,15 @@ void Device::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, i
 #ifdef _DEBUG_DEVICE 
   printf("LIBGPU ::  -- general::compute_FCIrdm2_b_t1ci; :: Nb= %i Norb =%i Nlinkb =%i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 nb, norb, nlinkb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
 #if 0
   dim3 block_size(_DEFAULT_BLOCK_SIZE,1,1);
@@ -1259,15 +1259,15 @@ void Device::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, 
 #ifdef _DEBUG_DEVICE 
   printf("LIBGPU ::  -- general::compute_FCIrdm2_a_t1ci; :: Nb= %i Norb =%i Nlinka =%i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 nb, norb, nlinka, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
 #if 0
   dim3 block_size(_DEFAULT_BLOCK_SIZE,1,1);
@@ -1295,15 +1295,15 @@ void Device::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, 
 #ifdef _DEBUG_DEVICE 
   printf("LIBGPU ::  -- general::compute_FCIrdm2_b_t1ci; :: Nb= %i Norb =%i Nlinkb =%i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 nb, norb, nlinkb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_ci, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_ci, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   sycl::range<3> grid_size(1, _TILE(jb - ib, block_size[1]), _TILE(batches, block_size[2]));
@@ -1326,15 +1326,15 @@ void Device::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, 
 #ifdef _DEBUG_DEVICE 
   printf("LIBGPU ::  -- general::compute_FCIrdm2_a_t1ci; :: Nb= %i Norb =%i Nlinka =%i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 nb, norb, nlinka, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   sycl::range<3> block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   sycl::range<3> grid_size(1, _TILE(nb, block_size[1]), _TILE(batches, block_size[2]));
@@ -1356,16 +1356,16 @@ void Device::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, 
 #ifdef _DEBUG_DEVICE 
   printf("LIBGPU ::  -- general::compute_FCIrdm2_b_t1ci; :: Nb= %i Norb =%i Nlinkb =%i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 nb, norb, nlinkb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_jikl(double * tdm, double * buf, int norb)
+void DeviceFci::transpose_jikl(double * tdm, double * buf, int norb)
 {
   int norb2 = norb*norb;
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   {
     sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
@@ -1385,10 +1385,10 @@ void Device::transpose_jikl(double * tdm, double * buf, int norb)
     }
     
 #ifdef _DEBUG_DEVICE
-    pm->dev_stream_wait();
+    ctx.pm->dev_stream_wait();
     printf("LIBGPU ::  -- general::transpose_jikl; :: Norb= %i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	   norb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
 #endif  
   }
   
@@ -1413,19 +1413,19 @@ void Device::transpose_jikl(double * tdm, double * buf, int norb)
       });
     }
 #ifdef _DEBUG_DEVICE
-    pm->dev_stream_wait();
+    ctx.pm->dev_stream_wait();
     printf("LIBGPU ::  -- general::copy_tdm; :: Norb= %i grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	   norb, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
 #endif  
   }
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2, int num_gemm_batches)
+void DeviceFci::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2, int num_gemm_batches)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, 1, _TILE(size_tdm2, block_size[2]));
@@ -1441,19 +1441,19 @@ void Device::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2
 #endif
   
 #ifdef _DEBUG_DEVICE
-  pm->dev_stream_wait();
+  ctx.pm->dev_stream_wait();
   printf("LIBGPU ::  -- reduce_buf3_to_rdm :: size_tdm2= %i  num_gemm_batches= %i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 size_tdm2, num_gemm_batches, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
+void DeviceFci::reorder(double * dm1, double * dm2, double * buf, int norb)
 {
   int norb2 = norb*norb;
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   //for k in range (norb): rdm2[:,k,k,:] -= rdm1.T //remember, rdm1 is returned as rdm1.T, so double transpose, hence just rdm1
   {
     sycl::range<3> block_size(1, 1, 1);
@@ -1472,7 +1472,7 @@ void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
                         _add_rdm1_to_2(dm1, dm2, norb);
                       });
     }
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
   }
   
   //rdm2 = (rdm2+rdm2.transpose(2,3,0,1))/2
@@ -1483,19 +1483,19 @@ void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
     dim3 block_size(1, 1, _DEFAULT_BLOCK_SIZE);
     dim3 grid_size(1, 1, _TILE(norb2*norb2, block_size[2]));
     _veccopy<<<grid_size, block_size, 0,s>>>(dm2, buf, norb2*norb2); 
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
   }
   { 
     dim3 block_size(1, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
     dim3 grid_size (1, _TILE(norb2, block_size[1]), _TILE(norb2, block_size[2]));
     _add_rdm_transpose<<<grid_size, block_size, 0, s>>>(buf, dm2, norb); 
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
   }
   {
     dim3 block_size(1, 1, _DEFAULT_BLOCK_SIZE); 
     dim3 grid_size(1, 1, _TILE(norb2*norb2, block_size[2]));
     _build_rdm<<<grid_size, block_size, 0>>>(buf, dm2, norb2*norb2);
-    pm->dev_check_errors();
+    ctx.pm->dev_check_errors();
   }
 #endif
   //axpy pending from buf2 to rdm2 
@@ -1503,10 +1503,10 @@ void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_sfudm( const double * dm2, double * dm1, int norb)
+void DeviceFci::filter_sfudm( const double * dm2, double * dm1, int norb)
 {
   //only need dm2[-1,:-1, :-1, -1]
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   int norb_m1 = norb-1;
   sycl::range<3> block_size(1, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
@@ -1525,16 +1525,16 @@ void Device::filter_sfudm( const double * dm2, double * dm1, int norb)
                       _filter_sfudm(dm2, dm1, norb_m1);
                     });
   }
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdmpp( const double * dm2, double * dm1, int norb, int spin)
+void DeviceFci::filter_tdmpp( const double * dm2, double * dm1, int norb, int spin)
 {
   //only need dm2[:-ndum,-1,:-ndum,-ndum] //ndum = 2-(spin%2)
   int ndum = (spin!=1) ? 2:1;
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   sycl::range<3> block_size(1, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1,
@@ -1553,17 +1553,17 @@ void Device::filter_tdmpp( const double * dm2, double * dm1, int norb, int spin)
                       _filter_tdmpp(dm2, dm1, norb, spin);
                     });
   }
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdm1h( const double * in, double * out, int norb)
+void DeviceFci::filter_tdm1h( const double * in, double * out, int norb)
 {
   //tdm1h = tdm1h.T
   //tdm1h = tdm1h[-1,:-1]
   //in is (norb+1)^2
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, 1, _TILE(norb, block_size[2]));
@@ -1580,16 +1580,16 @@ void Device::filter_tdm1h( const double * in, double * out, int norb)
                       _filter_tdm1h(in, out, norb);
                     });
   }
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdm3h(double * in, double * out, int norb)
+void DeviceFci::filter_tdm3h(double * in, double * out, int norb)
 {
   //tdm3h = tdm3h[:-1,-1,:-1,:-1]
   //dm2 is (norb+1)^4
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> block_size(1, 1, 1);
@@ -1608,7 +1608,7 @@ void Device::filter_tdm3h(double * in, double * out, int norb)
                       _filter_tdm3h(in, out, norb);
                     });
   }
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 

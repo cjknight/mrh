@@ -20,6 +20,8 @@ namespace py = pybind11;
 #include "device_impham.h"
 #include "device_lassi.h"
 #include "device_h2eff.h"
+#include "device_ao2mo.h"
+#include "device_fci.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -105,10 +107,7 @@ public :
  
   void df_ao2mo_v4 (int, int, int, int, int, int,
 			    int, size_t);
-  void get_bufpa(const double *, double *, int, int, int, int);
-  void get_bufaa(const double *, double *, int, int, int, int);
   void transpose_120(double *, double *, int, int, int, int order = 0);
-  void get_bufd(const double *, double *, int, int);
   void pull_jk_ao2mo_v4 (py::array_t<double>,py::array_t<double>,int, int);
   void pull_ppaa_papa_ao2mo_v4 (py::array_t<double>,py::array_t<double>, int, int);
   
@@ -150,13 +149,7 @@ public :
   void compute_Pi (int, int, int, int); 
   void pull_Pi (py::array_t<double>, int, int); 
 
-  //FCI
-  //struct my_LinkT {
-  //  unsigned int addr;
-  //  uint8_t a;
-  //  uint8_t i;
-  //  int8_t sign;
-  //  };
+  //FCI (tdm/rdm orchestration -> DeviceFci via _fci shims)
   void init_tdm1(int);
   void init_tdm2(int);
   void init_tdm3hab(int);
@@ -167,11 +160,10 @@ public :
   void copy_ketvecs_host(py::array_t<double>, int , int, int);
   void push_cibra_from_host(int, int , int, int);
   void push_ciket_from_host(int, int , int, int);
-
   void push_cibra(py::array_t<double>, int , int, int);
   void push_ciket(py::array_t<double>, int , int, int);
-  void push_link_indexa(int, int , py::array_t<int> ); //TODO: figure out the shape? or maybe move the compressed version 
-  void push_link_indexb(int, int , py::array_t<int> ); //TODO: figure out the shape? or maybe move the compressed version 
+  void push_link_indexa(int, int , py::array_t<int> );
+  void push_link_indexb(int, int , py::array_t<int> );
   void compute_trans_rdm1a(int , int , int , int , int, int );
   void compute_trans_rdm1b(int , int , int , int , int, int );
   void compute_make_rdm1a(int , int , int , int , int, int );
@@ -195,22 +187,18 @@ public :
   void compute_tdm1h_spin( int , int , int , int , int , int,
                            int , int , int , int , int ,
                            int , int , int , int , int , int);
-
   void reorder_rdm(int, int);
   void transpose_tdm2(int, int);
   void pull_tdm1(py::array_t<double> , int, int );
   void pull_tdm2(py::array_t<double> , int, int );
-
   void pull_tdm1_host(int, int, int, int, int, int, int);
   void pull_tdm2_host(int, int, int, int, int, int, int);
   void pull_tdm3h_host(int, int, int);
   void pull_tdm3hab(py::array_t<double> ,py::array_t<double> , int, int );
   void pull_tdm3hab_v2(py::array_t<double>, py::array_t<double> ,py::array_t<double> , int, int, int, int );
   void pull_tdm3hab_v2_host(int, int, int, int, int, int, int, int );
-
   void copy_tdm1_host_to_page(py::array_t<double> , int );
   void copy_tdm2_host_to_page(py::array_t<double> , int );
-
 
   void init_ox1_pinned(int);
 
@@ -252,44 +240,11 @@ public :
   void vecadd(const double *, double *, int); // replace with ml->daxpy()
   void vecadd_batch(const double *, double *, int, int);
   void memset_zero_batch_stride(double *, int, int, int, int);
-  //FCI
-  //void FCIcompress_link (my_LinkT *, int, int, int, int); 
+  //FCI (inner kernels moved to DeviceFci; generic vector helpers stay)
   void set_to_zero(double *, int);
-  void transpose_jikl(double *, double *, int);
   void veccopy(const double *, double *, int);
-  void compute_FCItrans_rdm1a (double *, double *, double *, int, int, int, int, int *);
-  void compute_FCItrans_rdm1b (double *, double *, double *, int, int, int, int, int *);
-  void compute_FCItrans_rdm1a_v2 (double *, double *, double *, 
-                                 int, int, 
-                                 int, int, int, int,  
-                                 int, int, int, int, int,  
-                                 int *);
-  void compute_FCItrans_rdm1b_v2 (double *, double *, double *, 
-                                 int, int, 
-                                 int, int, int, int,  
-                                 int, int, int, int, int,  
-                                 int *);
-  void compute_FCImake_rdm1a (double *, double *, double *, int, int, int, int, int *);
-  void compute_FCImake_rdm1b (double *, double *, double *, int, int, int, int, int *);
-  void compute_FCIrdm2_a_t1ci_v2 (double *, double *, int, int, int, int, int, int*); 
-  void compute_FCIrdm2_b_t1ci_v2 (double *, double *, int, int, int, int, int, int*); 
-  void compute_FCIrdm3h_a_t1ci_v2 (double *, double *, int, int, int, int,
-                                int, int, int, int, int*);
-  void compute_FCIrdm3h_b_t1ci_v2 (double *, double *, int, int, int, int, int,
-                                int, int, int, int, int*);
-  void compute_FCIrdm3h_a_t1ci_v3 (double *, double *, int, int, int, int, int, int,
-                                int, int, int, int, int*);
-  void compute_FCIrdm3h_b_t1ci_v3 (double *, double *, int, int, int, int, int, int,
-                                int, int, int, int, int*);
-  void reorder(double *, double *, double *, int);
-  void reduce_buf3_to_rdm(const double *, double *, int, int);
-  void filter_sfudm(const double *, double *, int);
-  void filter_tdmpp(const double *, double *, int, int);
-  void filter_tdm1h(const double *, double *, int);
-  void filter_tdm3h(double *, double *, int);
   void transpose_021(double *, double *, int, int, int);
   void transpose_102(double *, double *, int, int, int);
- 
   void transpose_2130(const double*, double *, int, int, int, int);
   // multi-gpu communication (better here or part of PM?)
 
@@ -301,6 +256,7 @@ private:
   friend class DeviceJk; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
   friend class DeviceImpham; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
   friend class DeviceH2eff; // eri-cache (dd_fetch_eri) / pumap (dd_fetch_pumap) services
+  friend class DeviceAo2mo; // eri-cache (dd_fetch_eri) / pumap (dd_fetch_pumap) services
 
   class PM * pm;
 
@@ -329,33 +285,17 @@ private:
  
   double * buf_fdrv;
   // ao2mo
-  int size_buf_k_pc;
-  int size_buf_j_pc;
   int size_fxpp; // remove when ao2mo_v3 is running
   int size_bufpa;
   int size_bufaa;
   int size_k_pc;
   int size_j_pc;
-  int size_buf_ppaa;
-  int size_buf_papa;
 
-  double * buf_j_pc; 
-  double * buf_k_pc; 
   double * pin_fxpp;//remove when ao2mo_v3 is running
   double * pin_bufpa;
-  double * buf_ppaa;
-  double * buf_papa;
 
-  //tdms
-  int size_bravecs;
-  int size_ketvecs;
-  int size_dm1_full;
-  int size_dm2_full;
-  double * h_bravecs;
-  double * h_ketvecs;
-  double * h_dm1_full;
-  double * h_dm2_full;
-  double * h_dm2_p_full;
+  DeviceAo2mo * _ao2mo; // ao2mo domain; owns buf_j_pc/buf_k_pc/buf_ppaa/buf_papa staging
+  DeviceFci * _fci;     // fci domain; owns h_bravecs/h_ketvecs/h_dm1_full/h_dm2_full/h_dm2_p_full staging
 
  
   // eri caching on device

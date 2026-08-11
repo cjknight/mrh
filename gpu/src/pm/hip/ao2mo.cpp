@@ -99,7 +99,7 @@ __global__ void _transpose_210(double * in, double * out, int naux, int nao, int
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas)
+void DeviceAo2mo::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas)
 {
   dim3 block_size(_UNPACK_BLOCK_SIZE,_UNPACK_BLOCK_SIZE,1);
   dim3 grid_size (_TILE(naux, block_size.x), _TILE(nmo, block_size.y), ncas);
@@ -111,7 +111,7 @@ void Device::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, int ncore, int ncas)
+void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, int ncore, int ncas)
 {
   dim3 block_size(_UNPACK_BLOCK_SIZE,1,1);
   dim3 grid_size (_TILE(naux, block_size.x), ncas, ncas);
@@ -123,7 +123,7 @@ void Device::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
+void DeviceAo2mo::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
 {
   hipStream_t s = *(pm->dev_get_queue());
 
@@ -143,7 +143,7 @@ void Device::transpose_120(double * in, double * out, int naux, int nao, int nca
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufd( const double* bufpp, double* bufd, int naux, int nmo)
+void DeviceAo2mo::get_bufd( const double* bufpp, double* bufd, int naux, int nmo)
 {
   dim3 block_size (_UNPACK_BLOCK_SIZE,_UNPACK_BLOCK_SIZE,1);
   dim3 grid_size (_TILE(naux, block_size.x),_TILE(nmo, block_size.y),1);

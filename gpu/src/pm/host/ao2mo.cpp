@@ -14,7 +14,7 @@
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas)
+void DeviceAo2mo::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, int ncore, int ncas)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<naux; ++i)
@@ -28,7 +28,7 @@ void Device::get_bufpa(const double* bufpp, double* bufpa, int naux, int nmo, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, int ncore, int ncas)
+void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, int ncore, int ncas)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<naux; ++i)
@@ -42,7 +42,7 @@ void Device::get_bufaa(const double* bufpp, double* bufaa, int naux, int nmo, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
+void DeviceAo2mo::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<naux; ++i)
@@ -56,7 +56,7 @@ void Device::transpose_120(double * in, double * out, int naux, int nao, int nca
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_bufd(const double* bufpp, double* bufd, int naux, int nmo)
+void DeviceAo2mo::get_bufd(const double* bufpp, double* bufd, int naux, int nmo)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<naux; ++i)

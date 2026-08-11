@@ -34,34 +34,17 @@ Device::Device()
   _impham = nullptr;
   _lassi = nullptr;
   _h2eff = nullptr;
+  _ao2mo = nullptr;
+  _fci = nullptr;
 
   buf_fdrv = nullptr;
 
-  //ao2mo
-  size_buf_j_pc = 0;
-  size_buf_k_pc = 0;
-  size_buf_ppaa = 0;
-  size_buf_papa = 0;
+  //ao2mo (dead members, kept until ao2mo_v3 removal)
   size_fxpp = 0;//remove when ao2mo_v3 is running
   size_bufpa = 0;//remove when ao2mo_v4 is running
 
-  buf_j_pc = nullptr;
-  buf_k_pc = nullptr;
-  buf_ppaa = nullptr;
-  buf_papa = nullptr;
   pin_fxpp = nullptr;//remove when ao2mo_v3 is running
   pin_bufpa = nullptr;//remove when ao2mo_v4 is running
-
-  // tdms
-  size_bravecs = 0;
-  size_ketvecs = 0;
-  size_dm1_full = 0;
-  size_dm2_full = 0;
-  h_bravecs = nullptr;
-  h_ketvecs = nullptr;
-  h_dm1_full = nullptr;
-  h_dm2_full = nullptr;
-  h_dm2_p_full = nullptr;
 
   // The eri cache must be enabled on ALL builds (host + GPU): the _ERIS path
   // (get_dfobj_status / df_ao2mo_v4) relies on get_jk having cached blocks via
@@ -201,6 +184,8 @@ Device::Device()
   _impham = new DeviceImpham(dev_ctx);
   _lassi = new DeviceLassi(dev_ctx);
   _h2eff = new DeviceH2eff(dev_ctx);
+  _ao2mo = new DeviceAo2mo(dev_ctx);
+  _fci = new DeviceFci(dev_ctx);
 
   // check device connectivity
 
@@ -230,25 +215,20 @@ Device::~Device()
   delete _h2eff;
   _h2eff = nullptr;
 
+  delete _ao2mo;
+  _ao2mo = nullptr;
+
+  delete _fci;
+  _fci = nullptr;
+
   pm->dev_free_host(rho);
   //pm->dev_free_host(vj);
   pm->dev_free_host(_vktmp);
 
   pm->dev_free_host(buf_fdrv);
   
-  pm->dev_free_host(buf_j_pc);
-  pm->dev_free_host(buf_k_pc);
-  pm->dev_free_host(buf_ppaa);
-  pm->dev_free_host(buf_papa);
   pm->dev_free_host(pin_fxpp);//remove 
   pm->dev_free_host(pin_bufpa);//remove when ao2mo_v3 is running
-
-  //tdms
-  pm->dev_free_host(h_bravecs);
-  pm->dev_free_host(h_ketvecs);
-  pm->dev_free_host(h_dm1_full);
-  pm->dev_free_host(h_dm2_full);
-  pm->dev_free_host(h_dm2_p_full);
   if(verbose_level) get_dev_properties(num_devices);
 
   if(verbose_level) { // this needs to be cleaned up and generalized...

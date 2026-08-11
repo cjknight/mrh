@@ -731,12 +731,12 @@ __global__ void _filter_tdm3h(double * in, double * out, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
+void DeviceFci::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
 {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, 1);
   dim3 grid_size(_TILE(na, block_size.x),_TILE(nlinka,block_size.y),1);
 
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
 
   _compute_FCItrans_rdm1a<<<grid_size, block_size,0,s>>>(cibra, ciket, rdm, norb, na, nb, nlinka, link_index);
 #ifdef _DEBUG_DEVICE
@@ -748,13 +748,13 @@ void Device::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
 {
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   dim3 block_size(1,1,1);
   dim3 grid_size(_TILE(na, block_size.x),_TILE(nb,block_size.y),_TILE(nlinkb, block_size.z));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
 
 
   _compute_FCItrans_rdm1b<<<grid_size, block_size,0,s>>>(cibra, ciket, rdm, norb, na, nb, nlinkb, link_index);
@@ -767,12 +767,12 @@ void Device::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinka, 
+void DeviceFci::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinka, 
                                         int ia_bra, int ja_bra, int ib_bra, int jb_bra, 
                                         int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sign, 
                                         int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   int na_bra = ja_bra - ia_bra; 
   int na_ket = ja_ket - ia_ket; 
   int nb_bra = jb_bra - ib_bra; 
@@ -802,12 +802,12 @@ void Device::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1b_v2( double * cibra, double * ciket, double * rdm, int norb, int nlinkb, 
+void DeviceFci::compute_FCItrans_rdm1b_v2( double * cibra, double * ciket, double * rdm, int norb, int nlinkb, 
                                         int ia_bra, int ja_bra, int ib_bra, int jb_bra, 
                                         int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sign, 
                                         int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
 
   int na_bra = ja_bra - ia_bra; 
   int na_ket = ja_ket - ia_ket; 
@@ -833,9 +833,9 @@ void Device::compute_FCItrans_rdm1b_v2( double * cibra, double * ciket, double *
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
+void DeviceFci::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   {dim3 block_size(_DEFAULT_BLOCK_SIZE,_DEFAULT_BLOCK_SIZE,1);
   dim3 grid_size(_TILE(na, block_size.x),_TILE(nlinka, block_size.y),1);
   _compute_FCImake_rdm1a<<<grid_size, block_size,0,s>>>(cibra, ciket, rdm, norb, na, nb, nlinka, link_index);
@@ -852,9 +852,9 @@ void Device::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm,
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   {
   //dim3 block_size(_DEFAULT_BLOCK_SIZE,_DEFAULT_BLOCK_SIZE,_DEFAULT_BLOCK_SIZE); //TODO: fix this?
   dim3 block_size(1,1,1);
@@ -873,9 +873,9 @@ void Device::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm,
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinka, int * link_index)
+void DeviceFci::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinka, int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   dim3 block_size(1, 1, _DEFAULT_BLOCK_SIZE);
   dim3 grid_size(_TILE(batches, block_size.x),_TILE(nb, block_size.y), 1);
   _compute_FCIrdm2_a_t1ci_v4<<<grid_size, block_size, 0,s>>>(ci, buf, stra_id,batches,nb, norb, nlinka, link_index);
@@ -888,9 +888,9 @@ void Device::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, i
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinkb, int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   {dim3 block_size(1, 1,_DEFAULT_BLOCK_SIZE);
   dim3 grid_size(_TILE(batches,block_size.x),_TILE(nb, block_size.y), 1);
   _compute_FCIrdm2_b_t1ci_v4<<<grid_size, block_size, 0,s>>>(ci, buf, stra_id, batches, nb, norb, nlinkb, link_index);}
@@ -903,9 +903,9 @@ void Device::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, i
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   #if 0
   dim3 block_size(_DEFAULT_BLOCK_SIZE,1,1);
   dim3 grid_size(_TILE(jb-ib, block_size.x), 1, 1);
@@ -924,9 +924,9 @@ void Device::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   #if 0
   dim3 block_size(_DEFAULT_BLOCK_SIZE,1,1);
   dim3 grid_size(_TILE(nb, block_size.x), 1, 1);
@@ -945,9 +945,9 @@ void Device::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_ci, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_ci, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   dim3 block_size(1, 1,_DEFAULT_BLOCK_SIZE);
   dim3 grid_size(_TILE(batches,block_size.x), _TILE(jb-ib, block_size.y), 1);
   _compute_FCIrdm3h_a_t1ci_v5<<<grid_size, block_size, 0,s>>>(ci, buf, stra_id, batches, nb, nb_ci, norb, nlinka, ia, ja, ib, jb, link_index);
@@ -960,9 +960,9 @@ void Device::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   dim3 block_size(1, 1,_DEFAULT_BLOCK_SIZE);
   dim3 grid_size(_TILE(batches, block_size.x), _TILE(nb, block_size.y), 1);
   _compute_FCIrdm3h_b_t1ci_v5<<<grid_size, block_size, 0,s>>>(ci, buf, stra_id, batches, nb, nb_bra, norb, nlinkb, ia, ja, ib, jb, link_index);
@@ -975,10 +975,10 @@ void Device::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_jikl(double * tdm, double * buf, int norb)
+void DeviceFci::transpose_jikl(double * tdm, double * buf, int norb)
 {
   int norb2 = norb*norb;
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1,1); 
   dim3 grid_size(_TILE(norb2, block_size.x), 1,1);
@@ -1003,9 +1003,9 @@ void Device::transpose_jikl(double * tdm, double * buf, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2, int num_gemm_batches)
+void DeviceFci::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2, int num_gemm_batches)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1,1);
   dim3 grid_size (_TILE(size_tdm2, block_size.x),1,1);
 
@@ -1023,10 +1023,10 @@ void Device::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2
 
 /* ---------------------------------------------------------------------- */
 
-void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
+void DeviceFci::reorder(double * dm1, double * dm2, double * buf, int norb)
 {
   int norb2 = norb*norb;
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   printf("Inside reorder\n");
   //for k in range (norb): rdm2[:,k,k,:] -= rdm1.T //remember, rdm1 is returned as rdm1.T, so double transpose, hence just rdm1
   {
@@ -1062,10 +1062,10 @@ void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_sfudm( const double * dm2, double * dm1, int norb)
+void DeviceFci::filter_sfudm( const double * dm2, double * dm1, int norb)
 {
   //only need dm2[-1,:-1, :-1, -1]
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   int norb_m1 = norb-1;
   dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, 1);
   dim3 grid_size(_TILE(norb_m1, block_size.x),_TILE(norb_m1, block_size.y),1);
@@ -1075,11 +1075,11 @@ void Device::filter_sfudm( const double * dm2, double * dm1, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdmpp( const double * dm2, double * dm1, int norb, int spin)
+void DeviceFci::filter_tdmpp( const double * dm2, double * dm1, int norb, int spin)
 {
   //only need dm2[:-ndum,-1,:-ndum,-ndum] //ndum = 2-(spin%2)
   int ndum = (spin!=1) ? 2:1; 
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, 1);
   dim3 grid_size(_TILE(norb-ndum, block_size.x),_TILE(norb-ndum, block_size.y),1);
   _filter_tdmpp<<<grid_size, block_size, 0,s>>>(dm2,dm1,norb,spin);
@@ -1088,12 +1088,12 @@ void Device::filter_tdmpp( const double * dm2, double * dm1, int norb, int spin)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdm1h( const double * in, double * out, int norb)
+void DeviceFci::filter_tdm1h( const double * in, double * out, int norb)
 {
   //tdm1h = tdm1h.T
   //tdm1h = tdm1h[-1,:-1]
   //in is (norb+1)^2
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   dim3 grid_size(_TILE(norb, block_size.x),1,1);
   _filter_tdm1h<<<grid_size, block_size, 0,s>>>(in,out,norb);
@@ -1102,11 +1102,11 @@ void Device::filter_tdm1h( const double * in, double * out, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdm3h(double * in, double * out, int norb)
+void DeviceFci::filter_tdm3h(double * in, double * out, int norb)
 {
   //tdm3h = tdm3h[:-1,-1,:-1,:-1]
   //dm2 is (norb+1)^4
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   dim3 block_size(1,1,1);
   dim3 grid_size(_TILE(norb, block_size.x),_TILE(norb, block_size.y),_TILE(norb, block_size.z));

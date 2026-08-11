@@ -15,300 +15,335 @@
 
 /* ---------------------------------------------------------------------- */
 
-void Device::init_tdm1(int norb)
+DeviceFci::DeviceFci(DeviceContext & ctx) : ctx(ctx)
+{
+  h_bravecs = nullptr;
+  h_ketvecs = nullptr;
+  h_dm1_full = nullptr;
+  h_dm2_full = nullptr;
+  h_dm2_p_full = nullptr;
+  size_bravecs = 0;
+  size_ketvecs = 0;
+  size_dm1_full = 0;
+  size_dm2_full = 0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+DeviceFci::~DeviceFci()
+{
+  if(h_bravecs) ctx.pm->dev_free_host(h_bravecs);
+  if(h_ketvecs) ctx.pm->dev_free_host(h_ketvecs);
+  if(h_dm1_full) ctx.pm->dev_free_host(h_dm1_full);
+  if(h_dm2_full) ctx.pm->dev_free_host(h_dm2_full);
+  if(h_dm2_p_full) ctx.pm->dev_free_host(h_dm2_p_full);
+  h_bravecs = nullptr;
+  h_ketvecs = nullptr;
+  h_dm1_full = nullptr;
+  h_dm2_full = nullptr;
+  h_dm2_p_full = nullptr;
+  size_bravecs = 0;
+  size_ketvecs = 0;
+  size_dm1_full = 0;
+  size_dm2_full = 0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceFci::init_tdm1(int norb)
 {
   double t0 = omp_get_wtime();
   int size_tdm1 = norb*norb; 
   //int id=0;
-  for (int device_id=0; device_id<num_devices; ++device_id){
-  pm->dev_set_device(device_id);
-  //pm->dev_profile_start("tdms :: init tdm1");
-  my_device_data * dd = &(device_data[device_id]);
-  grow_array(dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
-  //pm->dev_profile_stop();
+  for (int device_id=0; device_id<ctx.num_devices; ++device_id){
+  ctx.pm->dev_set_device(device_id);
+  //ctx.pm->dev_profile_start("tdms :: init tdm1");
+  my_device_data * dd = &(ctx.device_data[device_id]);
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
+  //ctx.pm->dev_profile_stop();
   }
   double t1 = omp_get_wtime();
-  t_array[14] += t1 - t0;
+  ctx.t_array[14] += t1 - t0;
 } 
 /* ---------------------------------------------------------------------- */
-void Device::init_tdm2(int norb)
+void DeviceFci::init_tdm2(int norb)
 {
   double t0 = omp_get_wtime();
   int size_tdm2 = norb*norb*norb*norb; 
-  for (int device_id=0; device_id<num_devices; ++device_id){
-  pm->dev_set_device(device_id);
-  //pm->dev_profile_start("tdms :: init tdm1");
-  my_device_data * dd = &(device_data[device_id]);
-  grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR);
-  //pm->dev_profile_stop();
+  for (int device_id=0; device_id<ctx.num_devices; ++device_id){
+  ctx.pm->dev_set_device(device_id);
+  //ctx.pm->dev_profile_start("tdms :: init tdm1");
+  my_device_data * dd = &(ctx.device_data[device_id]);
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR);
+  //ctx.pm->dev_profile_stop();
   }
   double t1 = omp_get_wtime();
-  t_array[15] += t1 - t0;
+  ctx.t_array[15] += t1 - t0;
 } 
 /* ---------------------------------------------------------------------- */
-void Device::init_tdm3hab(int norb)
+void DeviceFci::init_tdm3hab(int norb)
 {
   double t0 = omp_get_wtime();
   int size_tdm2 = norb*norb*norb*norb; 
-  for (int device_id=0; device_id<num_devices; ++device_id){
-    pm->dev_set_device(device_id);
-    //pm->dev_profile_start("tdms :: init tdm1");
-    my_device_data * dd = &(device_data[device_id]);
-    grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR);
-    grow_array(dd->fci.d_tdm2_p, size_tdm2, dd->fci.size_tdm2_p, "tdm2_p", FLERR);
-  //pm->dev_profile_stop();
+  for (int device_id=0; device_id<ctx.num_devices; ++device_id){
+    ctx.pm->dev_set_device(device_id);
+    //ctx.pm->dev_profile_start("tdms :: init tdm1");
+    my_device_data * dd = &(ctx.device_data[device_id]);
+    ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR);
+    ::grow_array(ctx.pm, dd->fci.d_tdm2_p, size_tdm2, dd->fci.size_tdm2_p, "tdm2_p", FLERR);
+  //ctx.pm->dev_profile_stop();
   }
 
-  //pm->dev_profile_stop();
+  //ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  //t_array[15] += t1 - t0;//TODO: Fix timing array position
+  //ctx.t_array[15] += t1 - t0;//TODO: Fix timing array position
 } 
 /* ---------------------------------------------------------------------- */
-void Device::init_tdm1_host(int _size_dm1)
+void DeviceFci::init_tdm1_host(int _size_dm1)
 {
   double t0 = omp_get_wtime();
-  grow_array_host(h_dm1_full, _size_dm1, size_dm1_full, "h:dm1_full");  
+  ::grow_array_host(ctx.pm, h_dm1_full, _size_dm1, size_dm1_full, "h:dm1_full");  
   double t1 = omp_get_wtime();
 }
 /* ---------------------------------------------------------------------- */
-void Device::init_tdm2_host(int _size_dm2)
+void DeviceFci::init_tdm2_host(int _size_dm2)
 {
   double t0 = omp_get_wtime();
-  grow_array_host(h_dm2_full, _size_dm2, size_dm2_full, "h:dm2_full");  
+  ::grow_array_host(ctx.pm, h_dm2_full, _size_dm2, size_dm2_full, "h:dm2_full");  
   double t1 = omp_get_wtime();
 }
 /* ---------------------------------------------------------------------- */
-void Device::init_tdm3h_host(int _size_dm2)
+void DeviceFci::init_tdm3h_host(int _size_dm2)
 {
   double t0 = omp_get_wtime();
-  grow_array_host(h_dm2_full, _size_dm2, size_dm2_full, "h:dm2_full");  
-  grow_array_host(h_dm2_p_full, _size_dm2, size_dm2_full, "h:dm2_p_full");  
+  ::grow_array_host(ctx.pm, h_dm2_full, _size_dm2, size_dm2_full, "h:dm2_full");  
+  ::grow_array_host(ctx.pm, h_dm2_p_full, _size_dm2, size_dm2_full, "h:dm2_p_full");  
   double t1 = omp_get_wtime();
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::push_cibra(py::array_t<double> _cibra, int na, int nb, int count)
+void DeviceFci::push_cibra(py::array_t<double> _cibra, int na, int nb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: push cibra");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: push cibra");
 
   py::buffer_info info_cibra = _cibra.request(); //2D array (na, nb)
   double * cibra = static_cast<double*>(info_cibra.ptr);
   int size_cibra = na*nb;
-  grow_array(dd->fci.d_cibra, size_cibra, dd->fci.size_cibra, "cibra", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_cibra, size_cibra, dd->fci.size_cibra, "cibra", FLERR);
 
-  pm->dev_push_async(dd->fci.d_cibra, cibra, size_cibra*sizeof(double));
-  pm->dev_profile_stop();
+  ctx.pm->dev_push_async(dd->fci.d_cibra, cibra, size_cibra*sizeof(double));
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[16] += t1 - t0;
+  ctx.t_array[16] += t1 - t0;
   
 } 
  /* ---------------------------------------------------------------------- */
-void Device::push_ciket(py::array_t<double> _ciket, int na, int nb, int count)
+void DeviceFci::push_ciket(py::array_t<double> _ciket, int na, int nb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: push ciket");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: push ciket");
 
   py::buffer_info info_ciket = _ciket.request(); //2D array (na, nb)
   double * ciket = static_cast<double*>(info_ciket.ptr);
   int size_ciket = na*nb;
-  grow_array(dd->fci.d_ciket, size_ciket, dd->fci.size_ciket, "ciket", FLERR);
-  pm->dev_push_async(dd->fci.d_ciket, ciket, size_ciket*sizeof(double));
-  pm->dev_profile_stop();
+  ::grow_array(ctx.pm, dd->fci.d_ciket, size_ciket, dd->fci.size_ciket, "ciket", FLERR);
+  ctx.pm->dev_push_async(dd->fci.d_ciket, ciket, size_ciket*sizeof(double));
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[16] += t1 - t0;
+  ctx.t_array[16] += t1 - t0;
 } 
 /* ---------------------------------------------------------------------- */
-void Device::copy_bravecs_host(py::array_t<double> _bravecs, int nvecs, int na, int nb)
+void DeviceFci::copy_bravecs_host(py::array_t<double> _bravecs, int nvecs, int na, int nb)
 {
   double t0 = omp_get_wtime();
   py::buffer_info info_bravecs = _bravecs.request(); //3D array (nvecs, na, nb)
   double * bravecs = static_cast<double*>(info_bravecs.ptr);
   int _size_bravecs = nvecs*na*nb;
-  grow_array_host(h_bravecs, _size_bravecs, size_bravecs, "h:bravecs");
+  ::grow_array_host(ctx.pm, h_bravecs, _size_bravecs, size_bravecs, "h:bravecs");
 #pragma omp parallel for
   for (int i=0;i<_size_bravecs;++i){h_bravecs[i] = bravecs[i];}
   double t1 = omp_get_wtime();
 }
 /* ---------------------------------------------------------------------- */
-void Device::copy_ketvecs_host(py::array_t<double> _ketvecs, int nvecs, int na, int nb)
+void DeviceFci::copy_ketvecs_host(py::array_t<double> _ketvecs, int nvecs, int na, int nb)
 {
   double t0 = omp_get_wtime();
   py::buffer_info info_ketvecs = _ketvecs.request(); //3D array (nvecs*na, nb)
   double * ketvecs = static_cast<double*>(info_ketvecs.ptr);
   int _size_ketvecs = nvecs*na*nb;
-  grow_array_host(h_ketvecs, _size_ketvecs, size_ketvecs, "h:ketvecs");
+  ::grow_array_host(ctx.pm, h_ketvecs, _size_ketvecs, size_ketvecs, "h:ketvecs");
 #pragma omp parallel for
   for (int i=0;i<_size_ketvecs;++i){h_ketvecs[i] = ketvecs[i];}
   double t1 = omp_get_wtime();
 }
 /* ---------------------------------------------------------------------- */
-void Device::push_cibra_from_host(int bra_index, int na, int nb, int count)
+void DeviceFci::push_cibra_from_host(int bra_index, int na, int nb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  pm->dev_profile_start("tdms :: push_ci");
-  my_device_data * dd = &(device_data[id]);
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.pm->dev_profile_start("tdms :: push_ci");
+  my_device_data * dd = &(ctx.device_data[id]);
   int size_cibra = na*nb;
-  grow_array(dd->fci.d_cibra, size_cibra, dd->fci.size_cibra, "cibra", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_cibra, size_cibra, dd->fci.size_cibra, "cibra", FLERR);
   double * h_bra_loc = &(h_bravecs[bra_index*size_cibra]);
-  pm->dev_push_async(dd->fci.d_cibra, h_bra_loc, size_cibra*sizeof(double));
-  pm->dev_profile_stop();
+  ctx.pm->dev_push_async(dd->fci.d_cibra, h_bra_loc, size_cibra*sizeof(double));
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
 }
 /* ---------------------------------------------------------------------- */
-void Device::push_ciket_from_host(int ket_index, int na, int nb, int count)
+void DeviceFci::push_ciket_from_host(int ket_index, int na, int nb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  pm->dev_profile_start("tdms :: push_ci");
-  my_device_data * dd = &(device_data[id]);
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.pm->dev_profile_start("tdms :: push_ci");
+  my_device_data * dd = &(ctx.device_data[id]);
   int size_ciket = na*nb;
-  grow_array(dd->fci.d_ciket, size_ciket, dd->fci.size_ciket, "ciket", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_ciket, size_ciket, dd->fci.size_ciket, "ciket", FLERR);
   double * h_ket_loc = &(h_ketvecs[ket_index*size_ciket]);
-  pm->dev_push_async(dd->fci.d_ciket, h_ket_loc, size_ciket*sizeof(double));
-  pm->dev_profile_stop();
+  ctx.pm->dev_push_async(dd->fci.d_ciket, h_ket_loc, size_ciket*sizeof(double));
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::push_link_indexa(int na, int nlinka, py::array_t<int> _link_indexa)
+void DeviceFci::push_link_indexa(int na, int nlinka, py::array_t<int> _link_indexa)
 {
   double t0 = omp_get_wtime();
   if (nlinka>0){
     py::buffer_info info_link_indexa = _link_indexa.request(); //3D array (na, nlinka, 4)
     int * link_indexa = static_cast<int*>(info_link_indexa.ptr);
     int size_clinka = na*nlinka*4; //a,i,str,sign
-    for (int device_id=0;device_id<num_devices;++device_id){
-      pm->dev_set_device(device_id); 
-      my_device_data * dd = &(device_data[device_id]);
-      grow_array(dd->fci.d_clinka, size_clinka, dd->fci.size_clinka, "clinka", FLERR);
-      pm->dev_push_async(dd->fci.d_clinka, link_indexa, size_clinka*sizeof(int));
+    for (int device_id=0;device_id<ctx.num_devices;++device_id){
+      ctx.pm->dev_set_device(device_id); 
+      my_device_data * dd = &(ctx.device_data[device_id]);
+      ::grow_array(ctx.pm, dd->fci.d_clinka, size_clinka, dd->fci.size_clinka, "clinka", FLERR);
+      ctx.pm->dev_push_async(dd->fci.d_clinka, link_indexa, size_clinka*sizeof(int));
     }
   }
   double t1 = omp_get_wtime();
-  t_array[17] += t1 - t0;
+  ctx.t_array[17] += t1 - t0;
 }
 /* ---------------------------------------------------------------------- */
-void Device::push_link_indexb(int nb, int nlinkb, py::array_t<int> _link_indexb)
+void DeviceFci::push_link_indexb(int nb, int nlinkb, py::array_t<int> _link_indexb)
 {
   double t0 = omp_get_wtime();
   if (nlinkb>0){
     py::buffer_info info_link_indexb = _link_indexb.request(); //3D array (nb, nlinkb, 4)
     int * link_indexb = static_cast<int*>(info_link_indexb.ptr);
     int size_clinkb = nb*nlinkb*4; //a,i,str,sign
-    for (int device_id=0;device_id<num_devices;++device_id){
-      pm->dev_set_device(device_id); 
-      my_device_data * dd = &(device_data[device_id]);
-      grow_array(dd->fci.d_clinkb, size_clinkb, dd->fci.size_clinkb, "clinkb", FLERR);
-      pm->dev_push_async(dd->fci.d_clinkb, link_indexb, size_clinkb*sizeof(int));
+    for (int device_id=0;device_id<ctx.num_devices;++device_id){
+      ctx.pm->dev_set_device(device_id); 
+      my_device_data * dd = &(ctx.device_data[device_id]);
+      ::grow_array(ctx.pm, dd->fci.d_clinkb, size_clinkb, dd->fci.size_clinkb, "clinkb", FLERR);
+      ctx.pm->dev_push_async(dd->fci.d_clinkb, link_indexb, size_clinkb*sizeof(int));
     } 
   }
   double t1 = omp_get_wtime();
-  t_array[17] += t1 - t0;
+  ctx.t_array[17] += t1 - t0;
 }
 /* ---------------------------------------------------------------------- */
-void Device::compute_trans_rdm1a(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+void DeviceFci::compute_trans_rdm1a(int na, int nb, int nlinka, int nlinkb, int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_trans_rdm1a");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_trans_rdm1a");
 
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
-  grow_array(dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
+  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   if (nlinka>0){
     compute_FCItrans_rdm1a(dd->fci.d_cibra, dd->fci.d_ciket, dd->fci.d_tdm1, norb, na, nb, nlinka, dd->fci.d_clinka);
   }
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[18] += t1 - t0;
-  count_array[8]++;
+  ctx.t_array[18] += t1 - t0;
+  ctx.count_array[8]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::compute_trans_rdm1b(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+void DeviceFci::compute_trans_rdm1b(int na, int nb, int nlinka, int nlinkb, int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_trans_rdm1b");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_trans_rdm1b");
 
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
-  grow_array(dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
+  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   if (nlinkb>0){
     compute_FCItrans_rdm1b(dd->fci.d_cibra, dd->fci.d_ciket, dd->fci.d_tdm1, norb, na, nb, nlinkb, dd->fci.d_clinkb);
   }
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[19] += t1 - t0;
-  count_array[9]++;
+  ctx.t_array[19] += t1 - t0;
+  ctx.count_array[9]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::compute_make_rdm1a(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+void DeviceFci::compute_make_rdm1a(int na, int nb, int nlinka, int nlinkb, int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
 
-  pm->dev_profile_start("tdms :: compute_make_rdm1a");
+  ctx.pm->dev_profile_start("tdms :: compute_make_rdm1a");
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
-  grow_array(dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
+  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   if (nlinka>0){
   compute_FCImake_rdm1a(dd->fci.d_cibra, dd->fci.d_ciket, dd->fci.d_tdm1, norb, na, nb, nlinka, dd->fci.d_clinka);
   }
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[20] += t1 - t0;
-  count_array[10]++;
+  ctx.t_array[20] += t1 - t0;
+  ctx.count_array[10]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::compute_make_rdm1b(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+void DeviceFci::compute_make_rdm1b(int na, int nb, int nlinka, int nlinkb, int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: make_rdm1b");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: make_rdm1b");
 
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
-  grow_array(dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
+  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   if (nlinkb>0){
   compute_FCImake_rdm1b(dd->fci.d_cibra, dd->fci.d_ciket, dd->fci.d_tdm1, norb, na, nb, nlinkb, dd->fci.d_clinkb);
   }
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[21] += t1 - t0;
-  count_array[11]++;
+  ctx.t_array[21] += t1 - t0;
+  ctx.count_array[11]++;
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::compute_tdm12kern_a_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count )
+void DeviceFci::compute_tdm12kern_a_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count )
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_tdm12kern_a_v2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_tdm12kern_a_v2");
   int norb2 = norb*norb;
   int size_buf = norb2*nb;
   int size_tdm2 = norb2*norb2;
@@ -333,16 +368,16 @@ void Device::compute_tdm12kern_a_v2(int na, int nb, int nlinka, int nlinkb, int 
   int num_buf_batches_for_gemv; 
   int num_gemm_batches; 
   int num_gemv_batches; 
-  grow_array(dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
-  grow_array(dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
   size_t bits_buf = sizeof(double)*buf_batch_size*size_buf;
-  ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-  ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
-  grow_array(dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
-  grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
-  ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
-  ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
+  ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+  ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
+  ctx.ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
+  ctx.ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
  
 
   for (int stra_id = 0; stra_id<na; stra_id += buf_batch_size){
@@ -352,7 +387,7 @@ void Device::compute_tdm12kern_a_v2(int na, int nb, int nlinka, int nlinkb, int 
     for (int i=0; i<num_buf_batches; i+=gemv_batch_size){
       double * bravec = &(dd->fci.d_cibra[(stra_id+i)*nb]);
       num_gemv_batches = _MIN(gemv_batch_size, num_buf_batches-i);
-      ml->gemv_batch((char *) "N", &norb2, &nb,
+      ctx.ml->gemv_batch((char *) "N", &norb2, &nb,
           &alpha, &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf,
           bravec, &one, &nb, 
           &beta, dd->jk.d_buf3, &one, &size_tdm1,
@@ -362,7 +397,7 @@ void Device::compute_tdm12kern_a_v2(int na, int nb, int nlinka, int nlinkb, int 
 
     for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
       num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-      ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+      ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
         &alpha, 
         &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
         &(dd->jk.d_buf2[i*size_buf]), &norb2, &size_buf, 
@@ -370,27 +405,27 @@ void Device::compute_tdm12kern_a_v2(int na, int nb, int nlinka, int nlinkb, int 
       reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
       }
 
-    ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-    ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+    ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+    ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
   }     
 
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[22] += t1 - t0;
-  count_array[12]++;
+  ctx.t_array[22] += t1 - t0;
+  ctx.count_array[12]++;
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::compute_tdm12kern_b_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+void DeviceFci::compute_tdm12kern_b_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_tdm12kern_b_v2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_tdm12kern_b_v2");
   int norb2 = norb*norb;
   int size_buf = norb2*nb;
   int size_tdm2 = norb2*norb2;
@@ -416,16 +451,16 @@ void Device::compute_tdm12kern_b_v2(int na, int nb, int nlinka, int nlinkb, int 
   int num_gemm_batches; 
   int num_gemv_batches; 
   //  printf("buf_batches: %i gemm_batches = %i\n",buf_batch_size, gemm_batch_size);
-  grow_array(dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
-  grow_array(dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
   size_t bits_buf = sizeof(double)*buf_batch_size*size_buf;
-  ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-  ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
-  grow_array(dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
-  grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
-  ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
-  ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
+  ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+  ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
+  ctx.ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
+  ctx.ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
  
 
   for (int stra_id = 0; stra_id<na; stra_id += buf_batch_size){
@@ -435,7 +470,7 @@ void Device::compute_tdm12kern_b_v2(int na, int nb, int nlinka, int nlinkb, int 
     for (int i=0; i<num_buf_batches; i+=gemv_batch_size){
       double * bravec = &(dd->fci.d_cibra[(stra_id+i)*nb]);
       num_gemv_batches = _MIN(gemv_batch_size, num_buf_batches-i);
-      ml->gemv_batch((char *) "N", &norb2, &nb,
+      ctx.ml->gemv_batch((char *) "N", &norb2, &nb,
           &alpha, &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf,
           bravec, &one, &nb, 
           &beta, dd->jk.d_buf3, &one, &size_tdm1,
@@ -445,7 +480,7 @@ void Device::compute_tdm12kern_b_v2(int na, int nb, int nlinka, int nlinkb, int 
 
     for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
       num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-      ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+      ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
         &alpha, 
         &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
         &(dd->jk.d_buf2[i*size_buf]), &norb2, &size_buf, 
@@ -453,31 +488,31 @@ void Device::compute_tdm12kern_b_v2(int na, int nb, int nlinka, int nlinkb, int 
       reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
       }
 
-    ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-    ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+    ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+    ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
   }     
 
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[23] += t1 - t0;
-  count_array[13]++;
+  ctx.t_array[23] += t1 - t0;
+  ctx.count_array[13]++;
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::compute_tdm12kern_ab_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+void DeviceFci::compute_tdm12kern_ab_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
 {
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Inside Device::compute_tdm12kern_ab_v2()\n");
 #endif
   
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_tdm12kern_ab_v2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_tdm12kern_ab_v2");
   int norb2 = norb*norb;
   int size_buf = norb2*nb;
   int size_tdm2 = norb2*norb2;
@@ -501,16 +536,16 @@ void Device::compute_tdm12kern_ab_v2(int na, int nb, int nlinka, int nlinkb, int
   int num_buf_batches; 
   int num_gemm_batches; 
   int num_gemv_batches; 
-  grow_array(dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
-  grow_array(dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
   size_t bits_buf = sizeof(double)*buf_batch_size*size_buf;
-  ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-  ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
-  grow_array(dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
-  grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
-  ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
-  ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
+  ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+  ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
+  ctx.ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
+  ctx.ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
  
 
   for (int stra_id = 0; stra_id<na; stra_id += buf_batch_size){
@@ -520,7 +555,7 @@ void Device::compute_tdm12kern_ab_v2(int na, int nb, int nlinka, int nlinkb, int
 
     for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
       num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-      ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+      ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
         &alpha, 
         &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
         &(dd->jk.d_buf2[i*size_buf]), &norb2, &size_buf, 
@@ -528,34 +563,34 @@ void Device::compute_tdm12kern_ab_v2(int na, int nb, int nlinka, int nlinkb, int
       reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
       }
 
-    ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-    ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+    ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+    ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
   }     
 
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[24] += t1 - t0;
-  count_array[14]++;
+  ctx.t_array[24] += t1 - t0;
+  ctx.count_array[14]++;
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: -- Leaving Device::compute_tdm12kern_ab_v2()\n");
 #endif
 }
 /* ---------------------------------------------------------------------- */
-void Device::compute_rdm12kern_sf_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+void DeviceFci::compute_rdm12kern_sf_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
 {
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Inside Device::compute_rdm12kern_sf_v2()\n");
 #endif
   
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_tdm12kern_sf_v2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_tdm12kern_sf_v2");
   int norb2 = norb*norb;
   int size_buf = norb2*nb;
   int size_tdm2 = norb2*norb2;
@@ -581,17 +616,17 @@ void Device::compute_rdm12kern_sf_v2(int na, int nb, int nlinka, int nlinkb, int
   int num_buf_batches; 
   int num_gemm_batches; 
   int num_gemv_batches; 
-  grow_array(dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
   size_t bits_buf = sizeof(double)*buf_batch_size*size_buf;
-  grow_array(dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
-  grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
 
-  ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-  ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
-  ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
-  //double * h_buf3 = (double *)pm->dev_malloc_host(final_size_buf*sizeof(double));
+  ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+  ctx.ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
+  ctx.ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
+  //double * h_buf3 = (double *)ctx.pm->dev_malloc_host(final_size_buf*sizeof(double));
 
   for (int stra_id = 0; stra_id<na; stra_id += buf_batch_size){
     num_buf_batches = _MIN(buf_batch_size, na-stra_id);
@@ -601,7 +636,7 @@ void Device::compute_rdm12kern_sf_v2(int na, int nb, int nlinka, int nlinkb, int
     for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
  
       num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-      ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+      ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
         &alpha, 
         &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
         &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
@@ -612,7 +647,7 @@ void Device::compute_rdm12kern_sf_v2(int na, int nb, int nlinka, int nlinkb, int
     for (int i=0; i<num_buf_batches; i+=gemv_batch_size){
       double * ketvec = &(dd->fci.d_ciket[(stra_id+i)*nb]);
       num_gemv_batches = _MIN(gemv_batch_size, num_buf_batches-i);
-      ml->gemv_batch((char *) "N", &norb2, &nb,
+      ctx.ml->gemv_batch((char *) "N", &norb2, &nb,
           &alpha, &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf,
           ketvec, &one, &nb, 
           &beta, dd->jk.d_buf3, &one, &size_tdm1,
@@ -620,23 +655,23 @@ void Device::compute_rdm12kern_sf_v2(int na, int nb, int nlinka, int nlinkb, int
       reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm1, size_tdm1, num_gemv_batches);
       }
 
-    ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-    ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+    ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+    ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
   }     
 
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[25] += t1 - t0;
-  count_array[15]++;
+  ctx.t_array[25] += t1 - t0;
+  ctx.count_array[15]++;
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_rdm12kern_sf_v2()\n");
 #endif
 }
 /* ---------------------------------------------------------------------- */
-void Device::compute_tdm13h_spin_v4(int na, int nb, 
+void DeviceFci::compute_tdm13h_spin_v4(int na, int nb, 
                                  int nlinka, int nlinkb, 
                                  int norb, int spin, int _reorder,
                                  int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, 
@@ -648,11 +683,11 @@ void Device::compute_tdm13h_spin_v4(int na, int nb,
   
   //na, nb is same for both zero-padded ci vectors, but not necessarily for non padded vectors
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_tdm13h_spin_v4");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_tdm13h_spin_v4");
 
   int na_bra = ja_bra - ia_bra;
   int nb_bra = jb_bra - ib_bra;
@@ -672,17 +707,17 @@ void Device::compute_tdm13h_spin_v4(int na, int nb,
   int bits_nbket = sizeof(double)*nb_ket*norb2;
   int bits_tdm1h = sizeof(double)*size_tdm1h;
   int bits_tdm3h = sizeof(double)*size_tdm3h;
-  grow_array(dd->fci.d_tdm1, size_tdm1h, dd->fci.size_tdm1, "tdm1", FLERR);
-  grow_array(dd->fci.d_tdm2, size_tdm3h, dd->fci.size_tdm2, "tdm2", FLERR); 
-  grow_array(dd->fci.d_tdm2_p, size_tdm3h, dd->fci.size_tdm2_p, "tdm2_p", FLERR); 
-  grow_array(dd->jk.d_buf1,size_buf, dd->jk.size_buf1, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf2,size_buf, dd->jk.size_buf2, "buf2", FLERR); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1h, dd->fci.size_tdm1, "tdm1", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm3h, dd->fci.size_tdm2, "tdm2", FLERR); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm2_p, size_tdm3h, dd->fci.size_tdm2_p, "tdm2_p", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf1,size_buf, dd->jk.size_buf1, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf2,size_buf, dd->jk.size_buf2, "buf2", FLERR); 
   //dd->fci.d_tdm1h = dd->fci.d_tdm1;
-  ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-  ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
-  ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1h);
-  ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm3h);
-  ml->memset(dd->fci.d_tdm2_p, &zero, &bits_tdm3h);
+  ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+  ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+  ctx.ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1h);
+  ctx.ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm3h);
+  ctx.ml->memset(dd->fci.d_tdm2_p, &zero, &bits_tdm3h);
   //dd->fci.d_tdm3ha = dd->fci.d_tdm2;
   //dd->fci.d_tdm3hb = dd->fci.d_tdm2_p;
 
@@ -743,22 +778,22 @@ void Device::compute_tdm13h_spin_v4(int na, int nb,
         
           compute_FCIrdm3h_b_t1ci_v2(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, nb, nb_ket, norb, nlinkb, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinkb);
 
-          ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb, &alpha, 
+          ctx.ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb, &alpha, 
                 dd->jk.d_buf1, &norb2, dd->jk.d_buf2, &norb2, 
                 &beta, dd->fci.d_tdm2, &norb2);
           double * bravec = &(dd->fci.d_cibra[(stra_id-ia_bra)*nb_bra]);
-          ml->gemv((char *) "N", &norb2, &nb_bra, &alpha, 
+          ctx.ml->gemv((char *) "N", &norb2, &nb_bra, &alpha, 
                 &(dd->jk.d_buf1[ib_bra*norb2]), &norb2, bravec, &one, 
                 &beta, dd->fci.d_tdm1, &one);
-          ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
+          ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
           }
         compute_FCIrdm3h_a_t1ci_v2(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, nb_ket, norb, nlinka, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinka);
         // buf1 is only populated from ib_ket:jb_ket, so don't need to run the multiplication over the whole thing 
-        ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb_ket, &alpha, 
+        ctx.ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb_ket, &alpha, 
                &(dd->jk.d_buf2[ib_ket*norb2]), &norb2, &(dd->jk.d_buf1[ib_ket*norb2]), &norb2, //remember the switch?
                &beta, dd->fci.d_tdm2_p, &norb2);
-        ml->memset(dd->jk.d_buf2, &zero, &bits_buf);
-        ml->memset(&(dd->jk.d_buf1[ib_ket*norb2]), &zero, &bits_nbket);
+        ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf);
+        ctx.ml->memset(&(dd->jk.d_buf1[ib_ket*norb2]), &zero, &bits_nbket);
       }
   }
   else {
@@ -785,12 +820,12 @@ void Device::compute_tdm13h_spin_v4(int na, int nb,
       if (b_len>0){
         compute_FCIrdm3h_a_t1ci_v2(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, nb_ket, norb, nlinka, ia_ket, ja_ket, ib_max, jb_min, dd->fci.d_clinka);// !limits
 
-        ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &b_len, &alpha, 
+        ctx.ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &b_len, &alpha, 
                 &(dd->jk.d_buf1[ib_max*norb2]), &norb2, &(dd->jk.d_buf2[ib_max*norb2]), &norb2, 
                 &beta, dd->fci.d_tdm2, &norb2);
         if ((stra_id >= ia_bra) && (stra_id < ja_bra)){
           double * bravec = &(dd->fci.d_cibra[(stra_id-ia_bra)*nb_bra]);
-          ml->gemv((char *) "N", &norb2, &nb_bra, &alpha, 
+          ctx.ml->gemv((char *) "N", &norb2, &nb_bra, &alpha, 
                 &(dd->jk.d_buf1[ib_bra*nb]), &norb2, bravec, &one, 
                 &beta, dd->fci.d_tdm1, &one);
         }
@@ -798,34 +833,34 @@ void Device::compute_tdm13h_spin_v4(int na, int nb,
 
       if ((stra_id>=ia_ket) && (stra_id<ja_ket)){
 
-      ml->memset(dd->jk.d_buf1, &zero, &bits_buf); // can be optimized
+      ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); // can be optimized
  
       //when populated, rdm3h_b has the capability to populate the entire matrix, but buf2 is still blocked zero from a
       //can rdm3h_b take in what should be range of str0 (nb) because we are only need a specific range here (ib_bra -> jb_bra)
       //similar to the plot above of rdm3h_a * rdm3h_b, but buf1 is fully filled. 
       compute_FCIrdm3h_b_t1ci_v2(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, nb, nb_bra, norb, nlinkb, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinkb); 
-      ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb_bra, &alpha, 
+      ctx.ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb_bra, &alpha, 
                &(dd->jk.d_buf1[ib_bra*norb2]),&norb2, &(dd->jk.d_buf2[ib_bra*norb2]), &norb2, 
                &beta, dd->fci.d_tdm2_p, &norb2);
       }
-      ml->memset(dd->jk.d_buf2, &zero, &bits_buf); //can be optimized based
-      ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+      ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); //can be optimized based
+      ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
     }
   }
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
   transpose_jikl(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb);
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[26] += t1-t0;//TODO: fix this
-  count_array[16]++;//TODO: fix this
+  ctx.t_array[26] += t1-t0;//TODO: fix this
+  ctx.count_array[16]++;//TODO: fix this
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_tdm13h_spin_v4()\n");
 #endif
 } 
 /* ---------------------------------------------------------------------- */
-void Device::compute_tdm13h_spin_v5(int na, int nb, 
+void DeviceFci::compute_tdm13h_spin_v5(int na, int nb, 
                                  int nlinka, int nlinkb, 
                                  int norb, int spin, int _reorder,
                                  int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, 
@@ -837,11 +872,11 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
   
   //na, nb is same for both zero-padded ci vectors, but not necessarily for non padded vectors
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_tdm13h_spin_v4");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_tdm13h_spin_v4");
 
   int na_bra = ja_bra - ia_bra;
   int nb_bra = jb_bra - ib_bra;
@@ -874,21 +909,21 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
   int num_buf_batches; 
   int num_gemm_batches; 
 
-  grow_array(dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
-  grow_array(dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
   size_t bits_buf = sizeof(double)*buf_batch_size*size_buf;
 
-  ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-  ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+  ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+  ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
 
-  grow_array(dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
-  grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
-  grow_array(dd->fci.d_tdm2_p, size_tdm2, dd->fci.size_tdm2_p, "tdm2_p", FLERR); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm2_p, size_tdm2, dd->fci.size_tdm2_p, "tdm2_p", FLERR); 
 
-  ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
-  ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
-  ml->memset(dd->fci.d_tdm2_p, &zero, &bits_tdm2);
+  ctx.ml->memset(dd->fci.d_tdm1, &zero, &bits_tdm1);
+  ctx.ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
+  ctx.ml->memset(dd->fci.d_tdm2_p, &zero, &bits_tdm2);
  
 
 
@@ -952,12 +987,12 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
         
         compute_FCIrdm3h_b_t1ci_v3(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, num_buf_batches, nb, nb_ket, norb, nlinkb, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinkb);
         //compute_FCIrdm3h_b_t1ci_v2(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, nb, nb_ket, norb, nlinkb, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinkb);
-        //ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb, &alpha, 
+        //ctx.ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb, &alpha, 
         //        dd->jk.d_buf1, &norb2, dd->jk.d_buf2, &norb2, 
         //        &beta, dd->fci.d_tdm2, &norb2);
         for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
           num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-          ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+          ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
             &alpha, 
             &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
             &(dd->jk.d_buf2[i*size_buf]), &norb2, &size_buf, 
@@ -1029,25 +1064,25 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
           bravec_starting_index = start_id - ia_bra;
           double * bravec = &(dd->fci.d_cibra[bravec_starting_index*nb_bra]);
           double * buf_mat = &(dd->jk.d_buf1[buf_starting_index*size_buf]);
-          ml->gemv_batch((char *) "N", &norb2, &nb_bra, &alpha,
+          ctx.ml->gemv_batch((char *) "N", &norb2, &nb_bra, &alpha,
                          &(buf_mat[ib_bra*norb2]), &norb2, &size_buf,
                          bravec, &one, &nb_bra,
                          &beta, dd->jk.d_buf3, &one, &norb2, &num_gemv_batches);
            
           //double * bravec = &(dd->fci.d_cibra[(stra_id-ia_bra)*nb_bra]);
-          //ml->gemv((char *) "N", &norb2, &nb_bra, &alpha, 
+          //ctx.ml->gemv((char *) "N", &norb2, &nb_bra, &alpha, 
           //      &(dd->jk.d_buf1[ib_bra*norb2]), &norb2, bravec, &one, 
           //      &beta, dd->fci.d_tdm1, &one);
           reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm1, size_tdm1, num_gemv_batches);
           }
-        ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
+        ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
 
         //compute_FCIrdm3h_a_t1ci_v2(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, nb_ket, norb, nlinka, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinka);
         compute_FCIrdm3h_a_t1ci_v3(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, num_buf_batches, nb, nb_ket, norb, nlinka, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinka);
         // buf1 is only populated from ib_ket:jb_ket, so don't need to run the multiplication over the whole thing 
         for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
           num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-          ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb_ket, 
+          ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb_ket, 
             &alpha, 
             &(dd->jk.d_buf2[ib_ket*norb2]), &norb2, &size_buf,
             &(dd->jk.d_buf1[ib_ket*norb2]), &norb2, &size_buf,//remember the switch?
@@ -1056,11 +1091,11 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
           reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2_p, size_tdm2, num_gemm_batches);
           }
 
-        //ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb_ket, &alpha, 
+        //ctx.ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb_ket, &alpha, 
         //       &(dd->jk.d_buf2[ib_ket*norb2]), &norb2, &(dd->jk.d_buf1[ib_ket*norb2]), &norb2, //remember the switch?
         //       &beta, dd->fci.d_tdm2_p, &norb2);
-        ml->memset(dd->jk.d_buf2, &zero, &bits_buf);
-        ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
+        ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf);
+        ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
       } // for main loop
     } //for full if
   else {
@@ -1095,12 +1130,12 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
         compute_FCIrdm3h_a_t1ci_v3(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, num_buf_batches, nb, nb_ket, norb, nlinka, ia_ket, ja_ket, ib_max, jb_min, dd->fci.d_clinka);// !limits
 
 
-        //ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &b_len, &alpha, 
+        //ctx.ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &b_len, &alpha, 
         //        &(dd->jk.d_buf1[ib_max*norb2]), &norb2, &(dd->jk.d_buf2[ib_max*norb2]), &norb2, 
         //        &beta, dd->fci.d_tdm2, &norb2);
         for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
           num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-          ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &b_len, 
+          ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &b_len, 
             &alpha, 
             &(dd->jk.d_buf1[i*size_buf+ib_max*norb2]), &norb2, &size_buf, 
             &(dd->jk.d_buf2[i*size_buf+ib_max*norb2]), &norb2, &size_buf, 
@@ -1110,7 +1145,7 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
 
         //if ((stra_id >= ia_bra) && (stra_id < ja_bra)){
         //  double * bravec = &(dd->fci.d_cibra[(stra_id-ia_bra)*nb_bra]);
-        //  ml->gemv((char *) "N", &norb2, &nb_bra, &alpha, 
+        //  ctx.ml->gemv((char *) "N", &norb2, &nb_bra, &alpha, 
         //        &(dd->jk.d_buf1[ib_bra*nb]), &norb2, bravec, &one, 
         //        &beta, dd->fci.d_tdm1, &one);
         //using similar logic from before
@@ -1123,7 +1158,7 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
           printf("stra_id:%i num_buf_batches:%i buf_starting_index:%i bravec_starting_index:%i num_gemv_batches:%i\n",stra_id, num_buf_batches, buf_starting_index, bravec_starting_index, num_gemv_batches);
           double * bravec = &(dd->fci.d_cibra[bravec_starting_index*nb_bra]);
           double * buf_mat = &(dd->jk.d_buf1[buf_starting_index*size_buf]);
-          ml->gemv_batch((char *) "N", &norb2, &nb_bra, &alpha,
+          ctx.ml->gemv_batch((char *) "N", &norb2, &nb_bra, &alpha,
                          &(buf_mat[ib_bra*norb2]), &norb2, &size_buf,
                          bravec, &one, &nb_bra,
                          &beta, dd->jk.d_buf3, &one, &norb2, &num_gemv_batches); 
@@ -1141,7 +1176,7 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
         int buf1_starting_index = start_id - ia_bra;//goes as stra_id in b_t1ci,
         int buf2_starting_index = start_id - stra_id;//goes into buf2 for gemm
 
-        ml->memset(dd->jk.d_buf1, &zero, &bits_buf); // can be optimized
+        ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); // can be optimized
         //when populated, rdm3h_b has the capability to populate the entire matrix, but buf2 is still blocked zero from a
         //can rdm3h_b take in what should be range of str0 (nb) because we are only need a specific range here (ib_bra -> jb_bra)
 
@@ -1150,12 +1185,12 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
         compute_FCIrdm3h_b_t1ci_v3(dd->fci.d_ciket, dd->jk.d_buf1, buf1_starting_index, num_total_gemm_batches, nb, nb_bra, norb, nlinkb, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinkb); //remember that this fills up buf1 starting from 0 to upto num_total_gemm_batches
          
         //similar to the plot above of rdm3h_a * rdm3h_b, but buf1 is fully filled. 
-        //ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb_bra, &alpha, 
+        //ctx.ml->gemm((char *) "N", (char *) "T", &norb2, &norb2, &nb_bra, &alpha, 
         //       &(dd->jk.d_buf1[ib_bra*norb2]),&norb2, &(dd->jk.d_buf2[ib_bra*norb2]), &norb2, 
         //       &beta, dd->fci.d_tdm2_p, &norb2);
         for (int i=0; i<num_total_gemm_batches; i+=gemm_batch_size) {
           num_gemm_batches = _MIN(gemm_batch_size, num_total_gemm_batches-i);
-          ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+          ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
             &alpha, 
             &(dd->jk.d_buf1[i*size_buf+ib_bra*norb2]), &norb2, &size_buf, 
             &(dd->jk.d_buf2[i*size_buf+ib_bra*norb2]), &norb2, &size_buf, 
@@ -1164,17 +1199,17 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
           }
 
       }//tdm2_p
-      ml->memset(dd->jk.d_buf2, &zero, &bits_buf); //can be optimized based
-      ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+      ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); //can be optimized based
+      ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
     }
     }//for full else
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
   transpose_jikl(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb);
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[26] += t1-t0;//TODO: fix this
-  count_array[16]++;//TODO: fix this
+  ctx.t_array[26] += t1-t0;//TODO: fix this
+  ctx.count_array[16]++;//TODO: fix this
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_tdm13h_spin_v5()\n");
@@ -1182,7 +1217,7 @@ void Device::compute_tdm13h_spin_v5(int na, int nb,
 } 
 
 /* ---------------------------------------------------------------------- */
-void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int norb, int spin,
+void DeviceFci::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int norb, int spin,
                                  int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, 
                                  int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sgn_ket, int count )
 {
@@ -1194,11 +1229,11 @@ void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int n
   //for this function specifcally, reorder does not do anything, therefore, any calculation of tdm1 is meaningless.
   //we just need to filder tdm2 to tdm1 (see sfudm)
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_tdmpp_spin_v4");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_tdmpp_spin_v4");
   int norb2 = norb*norb;
   int size_buf = norb2*nb;
   int size_tdm2 = norb2*norb2;
@@ -1225,18 +1260,18 @@ void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int n
   int gemm_batch_size = final_size_buf/(norb2*norb2); // this is integer division // number of tdm2 in a single buf
   int num_buf_batches; 
   int num_gemm_batches; 
-  grow_array(dd->jk.d_buf1, final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf2, final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
-  grow_array(dd->jk.d_buf3, final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf1, final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf2, final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf3, final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
   size_t bits_buf = sizeof(double)*buf_batch_size*size_buf;
   size_t bits_buf1;
   size_t bits_buf2;
   size_t bits_buf3;
-  ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-  ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
-  grow_array(dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
-  grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
-  ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
+  ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+  ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR);
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
+  ctx.ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
   
  /*
  tdm12kern_a
@@ -1276,15 +1311,15 @@ void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int n
         compute_FCIrdm3h_a_t1ci_v3(dd->fci.d_ciket, dd->jk.d_buf1, stra_id, num_buf_batches, nb, nb_ket, norb, nlinka, ia_ket, ja_ket, ib_ket, jb_ket, dd->fci.d_clinka);
         for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
           num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-          ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+          ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
             &alpha, 
             &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
             &(dd->jk.d_buf2[i*size_buf]), &norb2, &size_buf, 
             &beta, dd->jk.d_buf3, &norb2, &size_tdm2, &num_gemm_batches); 
           reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
           }
-	memset_zero_batch_stride(dd->jk.d_buf1, size_buf, ib_ket*norb2, nb_ket*norb2, num_buf_batches);
-	memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
+	ctx.owner->memset_zero_batch_stride(dd->jk.d_buf1, size_buf, ib_ket*norb2, nb_ket*norb2, num_buf_batches);
+	ctx.owner->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
         }
       }
     else if (spin==1) { 
@@ -1296,15 +1331,15 @@ void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int n
 
           for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
             num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-            ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+            ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
               &alpha, 
               &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
               &(dd->jk.d_buf2[i*size_buf]), &norb2, &size_buf, 
               &beta, dd->jk.d_buf3, &norb2, &size_tdm2, &num_gemm_batches); 
             reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
             }
-          ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
-	  memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
+          ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
+	  ctx.owner->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
           }
         } 
     else if (spin==2){
@@ -1315,7 +1350,7 @@ void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int n
          
          for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
            num_gemm_batches = _MIN(gemm_batch_size, num_buf_batches-i);
-           ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+           ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
              &alpha, 
              &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
              &(dd->jk.d_buf2[i*size_buf]), &norb2, &size_buf, 
@@ -1323,17 +1358,17 @@ void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int n
            reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
          }
          
-         ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
-         ml->memset(dd->jk.d_buf2, &zero, &bits_buf);
+         ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
+         ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf);
          } 
        }
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
 
   filter_tdmpp (dd->fci.d_tdm2, dd->fci.d_tdm1, norb, spin);
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[29] += t1-t0;//TODO: fix this
-  count_array[19]++;//TODO: fix this
+  ctx.t_array[29] += t1-t0;//TODO: fix this
+  ctx.count_array[19]++;//TODO: fix this
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_tdmpp_spin_v4()\n");
@@ -1343,7 +1378,7 @@ void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int n
 
 
 /* ---------------------------------------------------------------------- */
-void Device::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int norb, 
+void DeviceFci::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int norb, 
                              int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, 
                              int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sgn_ket, int count )
 {
@@ -1352,11 +1387,11 @@ void Device::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int norb,
 #endif
   
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: compute_sfudm_v2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: compute_sfudm_v2");
   int norb2 = norb*norb;
   int size_buf = norb2*nb;
   int size_tdm2 = norb2*norb2;
@@ -1382,17 +1417,17 @@ void Device::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int norb,
   
   int num_buf_batches; 
   int num_gemm_batches; 
-  grow_array(dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
-  grow_array(dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
-  grow_array(dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf1,final_size_buf, dd->jk.size_buf1, "buf1", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf2,final_size_buf, dd->jk.size_buf2, "buf2", FLERR); 
+  ::grow_array(ctx.pm, dd->jk.d_buf3,final_size_buf, dd->jk.size_buf3, "buf3", FLERR); 
   size_t bits_buf = sizeof(double)*buf_batch_size*size_buf;
   size_t bits_buf3;
   //printf("total_size: %i nb_ket: %i\n", final_size_buf, nb_ket);
-  grow_array(dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); 
-  grow_array(dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
-  ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
-  ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
-  ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
+  ::grow_array(ctx.pm, dd->fci.d_tdm1, size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); 
+  ::grow_array(ctx.pm, dd->fci.d_tdm2, size_tdm2, dd->fci.size_tdm2, "tdm2", FLERR); 
+  ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf); 
+  ctx.ml->memset(dd->jk.d_buf2, &zero, &bits_buf); 
+  ctx.ml->memset(dd->fci.d_tdm2, &zero, &bits_tdm2);
   
   /*
   tdm12kern_ab
@@ -1409,24 +1444,24 @@ void Device::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int norb,
 
       for (int i=0; i<num_buf_batches; i+=gemm_batch_size) {
         num_gemm_batches = (gemm_batch_size < num_buf_batches - i) ? gemm_batch_size : num_buf_batches - i;
-        ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
+        ctx.ml->gemm_batch((char *) "N",(char *) "T", &norb2, &norb2, &nb, 
           &alpha, 
           &(dd->jk.d_buf1[i*size_buf]), &norb2, &size_buf, 
           &(dd->jk.d_buf2[i*size_buf]), &norb2, &size_buf, 
           &beta, dd->jk.d_buf3, &norb2, &size_tdm2, &num_gemm_batches); 
        reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
       }
-      ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
-      memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
+      ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
+      ctx.owner->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
     }
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
 
   filter_sfudm(&(dd->fci.d_tdm2[norb2*norb*(norb-1)]), dd->fci.d_tdm1, norb);
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[28] += t1-t0;//TODO: fix this
-  count_array[18]++;//TODO: fix this
+  ctx.t_array[28] += t1-t0;//TODO: fix this
+  ctx.count_array[18]++;//TODO: fix this
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_sfudm_v2()\n");
@@ -1434,20 +1469,20 @@ void Device::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int norb,
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::compute_tdm1h_spin( int na, int nb, int nlinka, int nlinkb, int norb, int spin, 
+void DeviceFci::compute_tdm1h_spin( int na, int nb, int nlinka, int nlinkb, int norb, int spin, 
                              int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, 
                              int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sgn_ket, int count )
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id);
-  ml->set_handle(id);
-  my_device_data * dd = &(device_data[id]);
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id);
+  ctx.ml->set_handle(id);
+  my_device_data * dd = &(ctx.device_data[id]);
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
 
-  grow_array(dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
+  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   /* 
      spin = 0: 
        trans_rdm1a: cibra, ciket -> tdm1
@@ -1472,169 +1507,169 @@ void Device::compute_tdm1h_spin( int na, int nb, int nlinka, int nlinkb, int nor
   }
 
   double t1 = omp_get_wtime();
-  t_array[27] += t1 - t0;
-  count_array[17]++;
+  ctx.t_array[27] += t1 - t0;
+  ctx.count_array[17]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::reorder_rdm(int norb, int count)
+void DeviceFci::reorder_rdm(int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
   //get buffer array
   int _size_buf = norb*norb*norb*norb;
-  grow_array(dd->jk.d_buf1, _size_buf, dd->jk.size_buf1, "buf1", FLERR);
+  ::grow_array(ctx.pm, dd->jk.d_buf1, _size_buf, dd->jk.size_buf1, "buf1", FLERR);
   reorder(dd->fci.d_tdm1, dd->fci.d_tdm2, dd->jk.d_buf1, norb);
   double t1 = omp_get_wtime();
-  //t_array[30] += t1-t0;
-  //count_array[20]++;
+  //ctx.t_array[30] += t1-t0;
+  //ctx.count_array[20]++;
 
 }
 /* ---------------------------------------------------------------------- */
-void Device::transpose_tdm2(int norb, int count)
+void DeviceFci::transpose_tdm2(int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
   //get buffer array
   int size_tdm2 = norb*norb*norb*norb;
-  transpose_3210(dd->fci.d_tdm2, dd->jk.d_buf2, norb, norb);
-  veccopy(dd->jk.d_buf2, dd->fci.d_tdm2, size_tdm2);
+  ctx.owner->transpose_3210(dd->fci.d_tdm2, dd->jk.d_buf2, norb, norb);
+  ctx.owner->veccopy(dd->jk.d_buf2, dd->fci.d_tdm2, size_tdm2);
   
   double t1 = omp_get_wtime();
-  //t_array[30] += t1-t0;
-  //count_array[20]++;
+  //ctx.t_array[30] += t1-t0;
+  //ctx.count_array[20]++;
 
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::pull_tdm1(py::array_t<double> _tdm1, int norb, int count)
+void DeviceFci::pull_tdm1(py::array_t<double> _tdm1, int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: pull tdm1");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: pull tdm1");
   py::buffer_info info_tdm1 = _tdm1.request(); //2D array (norb, norb)
   double * tdm1 = static_cast<double*>(info_tdm1.ptr);
-  pm->dev_pull_async(dd->fci.d_tdm1, tdm1, norb*norb*sizeof(double));
+  ctx.pm->dev_pull_async(dd->fci.d_tdm1, tdm1, norb*norb*sizeof(double));
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[30] += t1-t0;
-  count_array[20]++;
+  ctx.t_array[30] += t1-t0;
+  ctx.count_array[20]++;
 
 }
 /* ---------------------------------------------------------------------- */
-void Device::pull_tdm2(py::array_t<double> _tdm2, int norb, int count)
+void DeviceFci::pull_tdm2(py::array_t<double> _tdm2, int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: pull tdm2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: pull tdm2");
   py::buffer_info info_tdm2 = _tdm2.request(); //4D array (norb, norb, norb, norb)
   double * tdm2 = static_cast<double*>(info_tdm2.ptr);
-  pm->dev_pull_async(dd->fci.d_tdm2, tdm2, norb*norb*norb*norb*sizeof(double));
+  ctx.pm->dev_pull_async(dd->fci.d_tdm2, tdm2, norb*norb*norb*norb*sizeof(double));
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[31] += t1-t0;
-  count_array[21]++;
+  ctx.t_array[31] += t1-t0;
+  ctx.count_array[21]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::pull_tdm1_host(int i, int j, int n_bra, int n_ket, int size_tdm1, int factor, int count)
+void DeviceFci::pull_tdm1_host(int i, int j, int n_bra, int n_ket, int size_tdm1, int factor, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: pull tdm1");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: pull tdm1");
   int loc_tdm1 = (i*n_ket+j)*size_tdm1;
   double * h_dm1_loc = &(h_dm1_full[loc_tdm1]);
-  pm->dev_pull_async(dd->fci.d_tdm1, h_dm1_loc, size_tdm1*sizeof(double));
-  pm->dev_profile_stop();
+  ctx.pm->dev_pull_async(dd->fci.d_tdm1, h_dm1_loc, size_tdm1*sizeof(double));
+  ctx.pm->dev_profile_stop();
    
   if ((factor*(count+1) == n_bra*n_ket)&&(n_ket == j+1) &&(n_bra = i+1)){
-    for (int device_id =0; device_id<num_devices; ++device_id){
-      pm->dev_set_device(device_id); 
-      pm->dev_barrier();
+    for (int device_id =0; device_id<ctx.num_devices; ++device_id){
+      ctx.pm->dev_set_device(device_id); 
+      ctx.pm->dev_barrier();
       }
     }
   double t1 = omp_get_wtime();
-  t_array[30] += t1-t0;
-  count_array[20]++;
+  ctx.t_array[30] += t1-t0;
+  ctx.count_array[20]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::pull_tdm2_host(int i, int j, int n_bra, int n_ket, int size_tdm2, int factor, int count)
+void DeviceFci::pull_tdm2_host(int i, int j, int n_bra, int n_ket, int size_tdm2, int factor, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: pull tdm2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: pull tdm2");
   int loc_tdm2 = (i*n_ket+j)*size_tdm2;
   double * h_dm2_loc = &(h_dm2_full[loc_tdm2]);
-  pm->dev_pull_async(dd->fci.d_tdm2, h_dm2_loc, size_tdm2*sizeof(double));
-  pm->dev_profile_stop();
+  ctx.pm->dev_pull_async(dd->fci.d_tdm2, h_dm2_loc, size_tdm2*sizeof(double));
+  ctx.pm->dev_profile_stop();
   
   if (factor*(count+1) == n_bra*n_ket){
-    for (int device_id =0; device_id<num_devices; ++device_id){
-      pm->dev_set_device(device_id); 
-      pm->dev_barrier();
+    for (int device_id =0; device_id<ctx.num_devices; ++device_id){
+      ctx.pm->dev_set_device(device_id); 
+      ctx.pm->dev_barrier();
       }
     }
 
   double t1 = omp_get_wtime();
-  t_array[31] += t1-t0;
-  count_array[21]++;
+  ctx.t_array[31] += t1-t0;
+  ctx.count_array[21]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::pull_tdm3h_host(int loc, int size_tdm2, int count)
+void DeviceFci::pull_tdm3h_host(int loc, int size_tdm2, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: pull tdm2");
-  pm->dev_pull_async(dd->fci.d_tdm2, &h_dm2_full[loc], size_tdm2*sizeof(double));
-  pm->dev_pull_async(dd->fci.d_tdm2_p, &h_dm2_p_full[loc], size_tdm2*sizeof(double));
-  pm->dev_profile_stop();
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: pull tdm2");
+  ctx.pm->dev_pull_async(dd->fci.d_tdm2, &h_dm2_full[loc], size_tdm2*sizeof(double));
+  ctx.pm->dev_pull_async(dd->fci.d_tdm2_p, &h_dm2_p_full[loc], size_tdm2*sizeof(double));
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[31] += t1-t0;
-  count_array[21]++;
+  ctx.t_array[31] += t1-t0;
+  ctx.count_array[21]++;
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::pull_tdm3hab(py::array_t<double> _tdm3ha, py::array_t<double> _tdm3hb, int norb, int count)
+void DeviceFci::pull_tdm3hab(py::array_t<double> _tdm3ha, py::array_t<double> _tdm3hb, int norb, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: pull tdm2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: pull tdm2");
   py::buffer_info info_tdm3ha = _tdm3ha.request(); //4D array (norb, norb, norb, norb)
   double * tdm3ha = static_cast<double*>(info_tdm3ha.ptr);
-  pm->dev_pull_async(dd->fci.d_tdm2, tdm3ha, norb*norb*norb*norb*sizeof(double));
+  ctx.pm->dev_pull_async(dd->fci.d_tdm2, tdm3ha, norb*norb*norb*norb*sizeof(double));
   py::buffer_info info_tdm3hb = _tdm3hb.request(); //4D array (norb, norb, norb, norb)
   double * tdm3hb = static_cast<double*>(info_tdm3hb.ptr);
-  pm->dev_pull_async(dd->fci.d_tdm2_p, tdm3hb, norb*norb*norb*norb*sizeof(double));
+  ctx.pm->dev_pull_async(dd->fci.d_tdm2_p, tdm3hb, norb*norb*norb*norb*sizeof(double));
 
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[32] += t1-t0;
-  count_array[22]++;
+  ctx.t_array[32] += t1-t0;
+  ctx.count_array[22]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> _tdm3ha, py::array_t<double> _tdm3hb, int norb, int cre, int spin, int count)
+void DeviceFci::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> _tdm3ha, py::array_t<double> _tdm3hb, int norb, int cre, int spin, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
-  pm->dev_profile_start("tdms :: pull tdm2_v2");
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
+  ctx.pm->dev_profile_start("tdms :: pull tdm2_v2");
   py::buffer_info info_tdm1h = _tdm1h.request(); //1D array (norb)
   double * tdm1h = static_cast<double*>(info_tdm1h.ptr);
   py::buffer_info info_tdm3ha = _tdm3ha.request(); //3D array (norb, norb, norb)
@@ -1643,7 +1678,7 @@ void Device::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> _td
   double * tdm3hb;
   
   filter_tdm1h(dd->fci.d_tdm1, dd->jk.d_buf3, norb);
-  pm->dev_pull_async(dd->jk.d_buf3, tdm1h, norb*sizeof(double));
+  ctx.pm->dev_pull_async(dd->jk.d_buf3, tdm1h, norb*sizeof(double));
   if (spin){ //SWITCH is important
     tdm3hb = static_cast<double*>(info_tdm3ha.ptr);
     tdm3ha = static_cast<double*>(info_tdm3hb.ptr);
@@ -1656,7 +1691,7 @@ void Device::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> _td
   int norb2 = norb*norb;
   if (spin)
     { 
-      transpose_3210(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb+1, norb+1);//using a function from before
+      ctx.owner->transpose_3210(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb+1, norb+1);//using a function from before
       filter_tdm3h(dd->jk.d_buf2, &(dd->jk.d_buf3[norb+norb*norb2]), norb);
     }
   else
@@ -1666,32 +1701,32 @@ void Device::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> _td
   filter_tdm3h(dd->fci.d_tdm2, &(dd->jk.d_buf3[norb]), norb);
   
   if (cre==0){
-    transpose_021(&(dd->jk.d_buf3[norb]),dd->fci.d_tdm2, norb, norb, norb);
-    transpose_021(&(dd->jk.d_buf3[norb+norb*norb2]),dd->fci.d_tdm2_p, norb, norb, norb);
-    pm->dev_pull_async(dd->fci.d_tdm2, tdm3ha, norb*norb2*sizeof(double));
-    pm->dev_pull_async(dd->fci.d_tdm2_p, tdm3hb, norb*norb2*sizeof(double));
+    ctx.owner->transpose_021(&(dd->jk.d_buf3[norb]),dd->fci.d_tdm2, norb, norb, norb);
+    ctx.owner->transpose_021(&(dd->jk.d_buf3[norb+norb*norb2]),dd->fci.d_tdm2_p, norb, norb, norb);
+    ctx.pm->dev_pull_async(dd->fci.d_tdm2, tdm3ha, norb*norb2*sizeof(double));
+    ctx.pm->dev_pull_async(dd->fci.d_tdm2_p, tdm3hb, norb*norb2*sizeof(double));
     }
   else{
-    pm->dev_pull_async(&(dd->jk.d_buf3[norb]), tdm3ha, norb*norb2*sizeof(double));
-    pm->dev_pull_async(&(dd->jk.d_buf3[norb+norb*norb2]), tdm3hb, norb*norb2*sizeof(double));
+    ctx.pm->dev_pull_async(&(dd->jk.d_buf3[norb]), tdm3ha, norb*norb2*sizeof(double));
+    ctx.pm->dev_pull_async(&(dd->jk.d_buf3[norb+norb*norb2]), tdm3hb, norb*norb2*sizeof(double));
     }
 
   //printf("3ha sgpu\n");
   //for (int i=0; i<norb; ++i){for (int j=0;j<norb2;++j){printf("%f\t",tdm3hb[i*norb2+j]);}printf("\n");}
   //printf("3hb sgpu\n");
   //for (int i=0; i<norb; ++i){for (int j=0;j<norb2;++j){printf("%f\t",tdm3hb[i*norb2+j]);}printf("\n");}
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  t_array[32] += t1-t0;
-  count_array[22]++;
+  ctx.t_array[32] += t1-t0;
+  ctx.count_array[22]++;
 }
 /* ---------------------------------------------------------------------- */
-void Device::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int norb, int cre, int spin, int count)
+void DeviceFci::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int norb, int cre, int spin, int count)
 {
   double t0 = omp_get_wtime();
-  int id = count % num_devices;
-  pm->dev_set_device(id); 
-  my_device_data * dd = &(device_data[id]);
+  int id = count % ctx.num_devices;
+  ctx.pm->dev_set_device(id); 
+  my_device_data * dd = &(ctx.device_data[id]);
   int norb1 = norb+1;
   int norb2 = norb*norb;
   int size_tdm1h = norb;
@@ -1702,16 +1737,16 @@ void Device::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int norb, 
   double * h_dm3ha_loc;
   double * h_dm3hb_loc;
 
-  grow_array(dd->jk.d_buf3, norb, dd->jk.size_buf3, "buf3", FLERR);
+  ::grow_array(ctx.pm, dd->jk.d_buf3, norb, dd->jk.size_buf3, "buf3", FLERR);
   
   filter_tdm1h(dd->fci.d_tdm1, dd->jk.d_buf3, norb);
-  pm->dev_pull_async(dd->jk.d_buf3, h_dm1_loc, norb*sizeof(double));
+  ctx.pm->dev_pull_async(dd->jk.d_buf3, h_dm1_loc, norb*sizeof(double));
   h_dm3hb_loc = &(h_dm2_full[loc_tdm3h+(1-spin)*size_tdm3h]);
   h_dm3ha_loc = &(h_dm2_full[loc_tdm3h+spin*size_tdm3h]);
   filter_tdm3h(dd->fci.d_tdm2, &(dd->jk.d_buf3[norb]), norb);
   if (spin)
     { 
-      transpose_3210(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb+1, norb+1);//using a function from before, it was for transpose of ncas,ncas,ncas,nmo shaped
+      ctx.owner->transpose_3210(dd->fci.d_tdm2_p, dd->jk.d_buf2, norb+1, norb+1);//using a function from before, it was for transpose of ncas,ncas,ncas,nmo shaped
       filter_tdm3h(dd->jk.d_buf2, &(dd->jk.d_buf3[norb+norb*norb2]), norb);
     }
   else
@@ -1720,30 +1755,30 @@ void Device::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int norb, 
     }
   
   if (cre==0){
-    transpose_021(&(dd->jk.d_buf3[norb]),dd->fci.d_tdm2, norb, norb, norb);
-    transpose_021(&(dd->jk.d_buf3[norb+norb*norb2]),dd->fci.d_tdm2_p, norb, norb, norb);
-    pm->dev_pull_async(dd->fci.d_tdm2, h_dm3ha_loc, norb*norb2*sizeof(double));
-    pm->dev_pull_async(dd->fci.d_tdm2_p, h_dm3hb_loc, norb*norb2*sizeof(double));
+    ctx.owner->transpose_021(&(dd->jk.d_buf3[norb]),dd->fci.d_tdm2, norb, norb, norb);
+    ctx.owner->transpose_021(&(dd->jk.d_buf3[norb+norb*norb2]),dd->fci.d_tdm2_p, norb, norb, norb);
+    ctx.pm->dev_pull_async(dd->fci.d_tdm2, h_dm3ha_loc, norb*norb2*sizeof(double));
+    ctx.pm->dev_pull_async(dd->fci.d_tdm2_p, h_dm3hb_loc, norb*norb2*sizeof(double));
     }
   else{
-    pm->dev_pull_async(&(dd->jk.d_buf3[norb]), h_dm3ha_loc, norb*norb2*sizeof(double));
-    pm->dev_pull_async(&(dd->jk.d_buf3[norb+norb*norb2]), h_dm3hb_loc, norb*norb2*sizeof(double));
+    ctx.pm->dev_pull_async(&(dd->jk.d_buf3[norb]), h_dm3ha_loc, norb*norb2*sizeof(double));
+    ctx.pm->dev_pull_async(&(dd->jk.d_buf3[norb+norb*norb2]), h_dm3hb_loc, norb*norb2*sizeof(double));
     }
-  pm->dev_profile_stop();
+  ctx.pm->dev_profile_stop();
   if (count+1 == n_bra*n_ket){
-    for (int device_id =0; device_id<num_devices; ++device_id){
-      pm->dev_set_device(device_id); 
-      pm->dev_barrier();
+    for (int device_id =0; device_id<ctx.num_devices; ++device_id){
+      ctx.pm->dev_set_device(device_id); 
+      ctx.pm->dev_barrier();
       }
     }
   //printf("i:%i j:%i\n",i,j);
   double t1 = omp_get_wtime();
-  t_array[32] += t1-t0;
-  count_array[22]++;
+  ctx.t_array[32] += t1-t0;
+  ctx.count_array[22]++;
 }
 
 /* ---------------------------------------------------------------------- */
-void Device::copy_tdm1_host_to_page(py::array_t<double> _dm1_full, int size_dm1_full)
+void DeviceFci::copy_tdm1_host_to_page(py::array_t<double> _dm1_full, int size_dm1_full)
 {
   double t0 = omp_get_wtime();
   py::buffer_info info_dm1_full = _dm1_full.request(); // (size_dm1_full)
@@ -1755,7 +1790,7 @@ void Device::copy_tdm1_host_to_page(py::array_t<double> _dm1_full, int size_dm1_
   double t1 = omp_get_wtime();
 }
 /* ---------------------------------------------------------------------- */
-void Device::copy_tdm2_host_to_page(py::array_t<double> _dm2_full, int size_dm2_full)
+void DeviceFci::copy_tdm2_host_to_page(py::array_t<double> _dm2_full, int size_dm2_full)
 {
   double t0 = omp_get_wtime();
   py::buffer_info info_dm2_full = _dm2_full.request(); // (size_dm2_full)
@@ -1766,3 +1801,122 @@ void Device::copy_tdm2_host_to_page(py::array_t<double> _dm2_full, int size_dm2_
   }
   double t1 = omp_get_wtime();
 }
+
+/* ---------------------------------------------------------------------- */
+
+void Device::init_tdm1(int norb)
+{ _fci->init_tdm1(norb); }
+
+void Device::init_tdm2(int norb)
+{ _fci->init_tdm2(norb); }
+
+void Device::init_tdm3hab(int norb)
+{ _fci->init_tdm3hab(norb); }
+
+void Device::init_tdm1_host(int _size_dm1)
+{ _fci->init_tdm1_host(_size_dm1); }
+
+void Device::init_tdm2_host(int _size_dm2)
+{ _fci->init_tdm2_host(_size_dm2); }
+
+void Device::init_tdm3h_host(int _size_dm2)
+{ _fci->init_tdm3h_host(_size_dm2); }
+
+void Device::push_cibra(py::array_t<double> _cibra, int na, int nb, int count)
+{ _fci->push_cibra(_cibra, na, nb, count); }
+
+void Device::push_ciket(py::array_t<double> _ciket, int na, int nb, int count)
+{ _fci->push_ciket(_ciket, na, nb, count); }
+
+void Device::copy_bravecs_host(py::array_t<double> _bravecs, int nvecs, int na, int nb)
+{ _fci->copy_bravecs_host(_bravecs, nvecs, na, nb); }
+
+void Device::copy_ketvecs_host(py::array_t<double> _ketvecs, int nvecs, int na, int nb)
+{ _fci->copy_ketvecs_host(_ketvecs, nvecs, na, nb); }
+
+void Device::push_cibra_from_host(int bra_index, int na, int nb, int count)
+{ _fci->push_cibra_from_host(bra_index, na, nb, count); }
+
+void Device::push_ciket_from_host(int ket_index, int na, int nb, int count)
+{ _fci->push_ciket_from_host(ket_index, na, nb, count); }
+
+void Device::push_link_indexa(int na, int nlinka, py::array_t<int> _link_indexa)
+{ _fci->push_link_indexa(na, nlinka, _link_indexa); }
+
+void Device::push_link_indexb(int nb, int nlinkb, py::array_t<int> _link_indexb)
+{ _fci->push_link_indexb(nb, nlinkb, _link_indexb); }
+
+void Device::compute_trans_rdm1a(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+{ _fci->compute_trans_rdm1a(na, nb, nlinka, nlinkb, norb, count); }
+
+void Device::compute_trans_rdm1b(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+{ _fci->compute_trans_rdm1b(na, nb, nlinka, nlinkb, norb, count); }
+
+void Device::compute_make_rdm1a(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+{ _fci->compute_make_rdm1a(na, nb, nlinka, nlinkb, norb, count); }
+
+void Device::compute_make_rdm1b(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+{ _fci->compute_make_rdm1b(na, nb, nlinka, nlinkb, norb, count); }
+
+void Device::compute_tdm12kern_a_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+{ _fci->compute_tdm12kern_a_v2(na, nb, nlinka, nlinkb, norb, count); }
+
+void Device::compute_tdm12kern_b_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+{ _fci->compute_tdm12kern_b_v2(na, nb, nlinka, nlinkb, norb, count); }
+
+void Device::compute_tdm12kern_ab_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+{ _fci->compute_tdm12kern_ab_v2(na, nb, nlinka, nlinkb, norb, count); }
+
+void Device::compute_rdm12kern_sf_v2(int na, int nb, int nlinka, int nlinkb, int norb, int count)
+{ _fci->compute_rdm12kern_sf_v2(na, nb, nlinka, nlinkb, norb, count); }
+
+void Device::compute_tdm13h_spin_v4(int na, int nb, int nlinka, int nlinkb, int norb, int spin, int _reorder, int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sgn_ket, int count)
+{ _fci->compute_tdm13h_spin_v4(na, nb, nlinka, nlinkb, norb, spin, _reorder, ia_bra, ja_bra, ib_bra, jb_bra, sgn_bra, ia_ket, ja_ket, ib_ket, jb_ket, sgn_ket, count); }
+
+void Device::compute_tdm13h_spin_v5(int na, int nb, int nlinka, int nlinkb, int norb, int spin, int _reorder, int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sgn_ket, int count)
+{ _fci->compute_tdm13h_spin_v5(na, nb, nlinka, nlinkb, norb, spin, _reorder, ia_bra, ja_bra, ib_bra, jb_bra, sgn_bra, ia_ket, ja_ket, ib_ket, jb_ket, sgn_ket, count); }
+
+void Device::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, int norb, int spin, int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sgn_ket, int count)
+{ _fci->compute_tdmpp_spin_v4(na, nb, nlinka, nlinkb, norb, spin, ia_bra, ja_bra, ib_bra, jb_bra, sgn_bra, ia_ket, ja_ket, ib_ket, jb_ket, sgn_ket, count); }
+
+void Device::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int norb, int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sgn_ket, int count)
+{ _fci->compute_sfudm_v2(na, nb, nlinka, nlinkb, norb, ia_bra, ja_bra, ib_bra, jb_bra, sgn_bra, ia_ket, ja_ket, ib_ket, jb_ket, sgn_ket, count); }
+
+void Device::compute_tdm1h_spin(int na, int nb, int nlinka, int nlinkb, int norb, int spin, int ia_bra, int ja_bra, int ib_bra, int jb_bra, int sgn_bra, int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sgn_ket, int count)
+{ _fci->compute_tdm1h_spin(na, nb, nlinka, nlinkb, norb, spin, ia_bra, ja_bra, ib_bra, jb_bra, sgn_bra, ia_ket, ja_ket, ib_ket, jb_ket, sgn_ket, count); }
+
+void Device::reorder_rdm(int norb, int count)
+{ _fci->reorder_rdm(norb, count); }
+
+void Device::transpose_tdm2(int norb, int count)
+{ _fci->transpose_tdm2(norb, count); }
+
+void Device::pull_tdm1(py::array_t<double> _tdm1, int norb, int count)
+{ _fci->pull_tdm1(_tdm1, norb, count); }
+
+void Device::pull_tdm2(py::array_t<double> _tdm2, int norb, int count)
+{ _fci->pull_tdm2(_tdm2, norb, count); }
+
+void Device::pull_tdm1_host(int i, int j, int n_bra, int n_ket, int size_tdm1, int factor, int count)
+{ _fci->pull_tdm1_host(i, j, n_bra, n_ket, size_tdm1, factor, count); }
+
+void Device::pull_tdm2_host(int i, int j, int n_bra, int n_ket, int size_tdm2, int factor, int count)
+{ _fci->pull_tdm2_host(i, j, n_bra, n_ket, size_tdm2, factor, count); }
+
+void Device::pull_tdm3h_host(int loc, int size_tdm2, int count)
+{ _fci->pull_tdm3h_host(loc, size_tdm2, count); }
+
+void Device::pull_tdm3hab(py::array_t<double> _tdm3ha, py::array_t<double> _tdm3hb, int norb, int count)
+{ _fci->pull_tdm3hab(_tdm3ha, _tdm3hb, norb, count); }
+
+void Device::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> _tdm3ha, py::array_t<double> _tdm3hb, int norb, int cre, int spin, int count)
+{ _fci->pull_tdm3hab_v2(_tdm1h, _tdm3ha, _tdm3hb, norb, cre, spin, count); }
+
+void Device::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int norb, int cre, int spin, int count)
+{ _fci->pull_tdm3hab_v2_host(i, j, n_bra, n_ket, norb, cre, spin, count); }
+
+void Device::copy_tdm1_host_to_page(py::array_t<double> _dm1_full, int size_dm1_full)
+{ _fci->copy_tdm1_host_to_page(_dm1_full, size_dm1_full); }
+
+void Device::copy_tdm2_host_to_page(py::array_t<double> _dm2_full, int size_dm2_full)
+{ _fci->copy_tdm2_host_to_page(_dm2_full, size_dm2_full); }

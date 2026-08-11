@@ -14,7 +14,7 @@
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
+void DeviceFci::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int str0=0; str0<na; ++str0)
@@ -36,7 +36,7 @@ void Device::compute_FCItrans_rdm1a(double * cibra, double * ciket, double * rdm
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int str0=0; str0<na; ++str0)
@@ -56,7 +56,7 @@ void Device::compute_FCItrans_rdm1b(double * cibra, double * ciket, double * rdm
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinka,
+void DeviceFci::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinka,
                                         int ia_bra, int ja_bra, int ib_bra, int jb_bra,
                                         int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sign_dummy,
                                         int * link_index)
@@ -95,7 +95,7 @@ void Device::compute_FCItrans_rdm1a_v2(double * cibra, double * ciket, double * 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCItrans_rdm1b_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinkb,
+void DeviceFci::compute_FCItrans_rdm1b_v2(double * cibra, double * ciket, double * rdm, int norb, int nlinkb,
                                         int ia_bra, int ja_bra, int ib_bra, int jb_bra,
                                         int ia_ket, int ja_ket, int ib_ket, int jb_ket, int sign_dummy,
                                         int * link_index)
@@ -131,7 +131,7 @@ void Device::compute_FCItrans_rdm1b_v2(double * cibra, double * ciket, double * 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
+void DeviceFci::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinka, int * link_index)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int str0=0; str0<na; ++str0)
@@ -158,7 +158,7 @@ void Device::compute_FCImake_rdm1a(double * cibra, double * ciket, double * rdm,
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm, int norb, int na, int nb, int nlinkb, int * link_index)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int str0=0; str0<na; ++str0)
@@ -183,7 +183,7 @@ void Device::compute_FCImake_rdm1b(double * cibra, double * ciket, double * rdm,
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinka, int * link_index)
+void DeviceFci::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinka, int * link_index)
 {
   int norb2 = norb*norb;
 #pragma omp parallel for collapse(2) schedule(static)
@@ -206,7 +206,7 @@ void Device::compute_FCIrdm2_a_t1ci_v2(double * ci, double * buf, int stra_id, i
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinkb, int * link_index)
+void DeviceFci::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, int batches, int nb, int norb, int nlinkb, int * link_index)
 {
   int norb2 = norb*norb;
 #pragma omp parallel for collapse(2) schedule(static)
@@ -230,7 +230,7 @@ void Device::compute_FCIrdm2_b_t1ci_v2(double * ci, double * buf, int stra_id, i
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
 {
   int norb2 = norb*norb;
 #pragma omp parallel for schedule(static)
@@ -254,7 +254,7 @@ void Device::compute_FCIrdm3h_a_t1ci_v2(double * ci, double * buf, int stra_id, 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
 {
   int norb2 = norb*norb;
 #pragma omp parallel for schedule(static)
@@ -278,7 +278,7 @@ void Device::compute_FCIrdm3h_b_t1ci_v2(double * ci, double * buf, int stra_id, 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_ci, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_ci, int norb, int nlinka, int ia, int ja, int ib, int jb, int * link_index)
 {
   int norb2 = norb*norb;
 #pragma omp parallel for collapse(2) schedule(static)
@@ -303,7 +303,7 @@ void Device::compute_FCIrdm3h_a_t1ci_v3(double * ci, double * buf, int stra_id, 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
+void DeviceFci::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, int batches, int nb, int nb_bra, int norb, int nlinkb, int ia, int ja, int ib, int jb, int * link_index)
 {
   int norb2 = norb*norb;
 #pragma omp parallel for collapse(2) schedule(static)
@@ -328,7 +328,7 @@ void Device::compute_FCIrdm3h_b_t1ci_v3(double * ci, double * buf, int stra_id, 
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_jikl(double * tdm, double * buf, int norb)
+void DeviceFci::transpose_jikl(double * tdm, double * buf, int norb)
 {
   int norb2 = norb*norb;
 #pragma omp parallel for schedule(static)
@@ -347,7 +347,7 @@ void Device::transpose_jikl(double * tdm, double * buf, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2, int num_gemm_batches)
+void DeviceFci::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2, int num_gemm_batches)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<size_tdm2; ++i) {
@@ -359,7 +359,7 @@ void Device::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2
 
 /* ---------------------------------------------------------------------- */
 
-void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
+void DeviceFci::reorder(double * dm1, double * dm2, double * buf, int norb)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<norb; ++i)
@@ -370,7 +370,7 @@ void Device::reorder(double * dm1, double * dm2, double * buf, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_sfudm(const double * dm2, double * dm1, int norb)
+void DeviceFci::filter_sfudm(const double * dm2, double * dm1, int norb)
 {
   int norb_m1 = norb-1;
   int norb1 = norb_m1 + 1;
@@ -383,7 +383,7 @@ void Device::filter_sfudm(const double * dm2, double * dm1, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdmpp(const double * dm2, double * dm1, int norb, int spin)
+void DeviceFci::filter_tdmpp(const double * dm2, double * dm1, int norb, int spin)
 {
   int ndum = (spin!=1) ? 2:1;
 #pragma omp parallel for collapse(2) schedule(static)
@@ -394,7 +394,7 @@ void Device::filter_tdmpp(const double * dm2, double * dm1, int norb, int spin)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdm1h(const double * in, double * out, int norb)
+void DeviceFci::filter_tdm1h(const double * in, double * out, int norb)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<norb; ++i) out[i] = in[i*(norb+1)+norb];
@@ -402,7 +402,7 @@ void Device::filter_tdm1h(const double * in, double * out, int norb)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::filter_tdm3h(double * in, double * out, int norb)
+void DeviceFci::filter_tdm3h(double * in, double * out, int norb)
 {
   int norb1 = norb+1;
 #pragma omp parallel for collapse(3) schedule(static)
