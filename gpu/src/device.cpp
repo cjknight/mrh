@@ -30,15 +30,10 @@ Device::Device()
   _vktmp = nullptr;
 
   _pdft = nullptr;
+  _jk = nullptr;
 
   buf_fdrv = nullptr;
 
-  size_buf_vj = 0;
-  size_buf_vk = 0;
-  
-  buf_vj = nullptr;
-  buf_vk = nullptr;
-  
   //ao2mo
   size_buf_j_pc = 0;
   size_buf_k_pc = 0;
@@ -207,6 +202,7 @@ Device::Device()
   for(int i=0; i<_NUM_SIMPLE_COUNTER; ++i) count_array[i] = 0;
 
   // subdomains borrow shared infrastructure through the DeviceContext
+  dev_ctx.owner = this;
   dev_ctx.pm = pm;
   dev_ctx.ml = ml;
   dev_ctx.num_devices = num_devices;
@@ -218,6 +214,7 @@ Device::Device()
   dev_ctx.device_data = device_data;
 
   _pdft = new DevicePdft(dev_ctx);
+  _jk = new DeviceJk(dev_ctx);
 
   // check device connectivity
 
@@ -232,6 +229,9 @@ Device::~Device()
 {
   if(verbose_level) printf("LIBGPU: destroying device\n");
 
+  delete _jk;
+  _jk = nullptr;
+
   delete _pdft;
   _pdft = nullptr;
 
@@ -239,9 +239,6 @@ Device::~Device()
   //pm->dev_free_host(vj);
   pm->dev_free_host(_vktmp);
 
-  pm->dev_free_host(buf_vj);
-  pm->dev_free_host(buf_vk);
-  
   pm->dev_free_host(buf_fdrv);
   
   pm->dev_free_host(buf_j_pc);

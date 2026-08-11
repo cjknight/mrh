@@ -9,6 +9,8 @@
 #include "pm/pm.h"
 #include "mathlib/mathlib.h"
 
+class Device; // forward decl for DeviceContext::owner (facade back-reference)
+
 // Buffer growth helpers shared by all subdomains. These used to be private
 // Device templates; promoting them to free functions lets DeviceJk/DevicePdft/
 // ... grow their own buffers without reaching back into the Device class.
@@ -128,6 +130,9 @@ struct my_device_data {
 // Subdomains access PM/MATHLIB/per-device state through this instead of owning
 // copies of the pointers.
 struct DeviceContext {
+  Device * owner;        // Device facade. Temporary back-reference for the shared
+                         // ERI-cache/comm services (dd_fetch_eri, mgpu_bcast, ...)
+                         // until those are extracted as DeviceEriCache/DeviceComm.
   PM_NS::PM * pm;
   MATHLIB_NS::MATHLIB * ml;
   int num_devices;

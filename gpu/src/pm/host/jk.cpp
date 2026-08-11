@@ -24,7 +24,7 @@ void Device::fdrv(double *vout, double *vin, double *mo_coeff,
 
 /* ---------------------------------------------------------------------- */
 
-void Device::getjk_rho(double * rho, double * dmtril, double * eri, int nset, int naux, int nao_pair)
+void DeviceJk::getjk_rho(double * rho, double * dmtril, double * eri, int nset, int naux, int nao_pair)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<nset; ++i) {
@@ -39,7 +39,7 @@ void Device::getjk_rho(double * rho, double * dmtril, double * eri, int nset, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::getjk_vj(double * vj, double * rho, double * eri, int nset, int nao_pair, int naux, int init)
+void DeviceJk::getjk_vj(double * vj, double * rho, double * eri, int nset, int nao_pair, int naux, int init)
 {
   const int gs_nao_pair = (nao_pair + (_DOT_BLOCK_SIZE - 1)) / _DOT_BLOCK_SIZE;
   const int chunk_size = (gs_nao_pair <= _CUDA_MAX_GRID_DIM_YZ) ? gs_nao_pair : _CUDA_MAX_GRID_DIM_YZ;
@@ -63,7 +63,7 @@ void Device::getjk_vj(double * vj, double * rho, double * eri, int nset, int nao
 
 /* ---------------------------------------------------------------------- */
 
-void Device::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
+void DeviceJk::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<naux; ++i) {

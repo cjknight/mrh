@@ -16,6 +16,7 @@ namespace py = pybind11;
 #include "pm/dev_array.h"
 #include "device_context.h"
 #include "device_pdft.h"
+#include "device_jk.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -88,9 +89,7 @@ public :
 	      int, int, size_t);
   void pull_get_jk(py::array_t<double>, py::array_t<double>, int, int, int);
 
-  void getjk_rho(double *, double *, double *, int, int, int);
-  void getjk_vj(double *, double *, double *, int, int, int, int);
-  void getjk_unpack_buf2(double *, double *, int *, int, int, int);
+  void getjk_unpack_buf2(double *, double *, int *, int, int, int); // transitional shim -> DeviceJk
   void transpose(double*, double*, int, int);
   
   void set_update_dfobj_(int);
@@ -302,6 +301,8 @@ public :
 
 private:
 
+  friend class DeviceJk; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
+
   class PM * pm;
 
   class MATHLIB * ml;
@@ -320,8 +321,6 @@ private:
   //  int nset;
 
   int size_fdrv;
-  int size_buf_vj;
-  int size_buf_vk;
   
   // get_jk
   
@@ -330,9 +329,6 @@ private:
   double * _vktmp;
  
   double * buf_fdrv;
-
-  double * buf_vj;
-  double * buf_vk;
   // ao2mo
   int size_buf_k_pc;
   int size_buf_j_pc;
@@ -457,6 +453,7 @@ private:
 
   DeviceContext dev_ctx;
   DevicePdft * _pdft;
+  DeviceJk * _jk;
 };
 
 #endif

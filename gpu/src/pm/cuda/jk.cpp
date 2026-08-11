@@ -209,7 +209,7 @@ __global__ void _pack_eri1(double * eri1, double * buf2, int * map, int naux, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::getjk_rho(double * rho, double * dmtril, double * eri, int nset, int naux, int nao_pair)
+void DeviceJk::getjk_rho(double * rho, double * dmtril, double * eri, int nset, int naux, int nao_pair)
 {
 #if 1
   dim3 grid_size(nset, naux, 1);
@@ -219,7 +219,7 @@ void Device::getjk_rho(double * rho, double * dmtril, double * eri, int nset, in
   dim3 block_size(1, _RHO_BLOCK_SIZE, 1);
 #endif
 
-  cudaStream_t s = *(pm->dev_get_queue());
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
   
   _getjk_rho<<<grid_size, block_size, 0, s>>>(rho, dmtril, eri, nset, naux, nao_pair);
   
@@ -232,7 +232,7 @@ void Device::getjk_rho(double * rho, double * dmtril, double * eri, int nset, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::getjk_vj(double * vj, double * rho, double * eri, int nset, int nao_pair, int naux, int init)
+void DeviceJk::getjk_vj(double * vj, double * rho, double * eri, int nset, int nao_pair, int naux, int init)
 {
   const int gs_nao_pair = (nao_pair + (_DOT_BLOCK_SIZE - 1)) / _DOT_BLOCK_SIZE;
   const int chunk_size = (gs_nao_pair <= _CUDA_MAX_GRID_DIM_YZ) ? gs_nao_pair : _CUDA_MAX_GRID_DIM_YZ;
@@ -241,7 +241,7 @@ void Device::getjk_vj(double * vj, double * rho, double * eri, int nset, int nao
   dim3 grid_size(nset, num_chunks, chunk_size);
   dim3 block_size(1, 1, _DOT_BLOCK_SIZE);
 
-  cudaStream_t s = *(pm->dev_get_queue());
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
   _getjk_vj<<<grid_size, block_size, 0, s>>>(vj, rho, eri, nset, nao_pair, naux, chunk_size, init);
 
 #ifdef _DEBUG_DEVICE
@@ -253,7 +253,7 @@ void Device::getjk_vj(double * vj, double * rho, double * eri, int nset, int nao
 
 /* ---------------------------------------------------------------------- */
 
-void Device::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
+void DeviceJk::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
 {
 #if 1
   dim3 grid_size(naux, _TILE(nao, _UNPACK_BLOCK_SIZE), 1);
@@ -263,7 +263,7 @@ void Device::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux,
   dim3 block_size(1, _UNPACK_BLOCK_SIZE, 1);
 #endif
   
-  cudaStream_t s = *(pm->dev_get_queue());
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
   
   _getjk_unpack_buf2<<<grid_size, block_size, 0, s>>>(buf2, eri, map, naux, nao, nao_pair);
   
