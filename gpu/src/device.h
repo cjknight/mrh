@@ -18,6 +18,7 @@ namespace py = pybind11;
 #include "device_pdft.h"
 #include "device_jk.h"
 #include "device_impham.h"
+#include "device_lassi.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -365,18 +366,7 @@ private:
   double * h_dm2_full;
   double * h_dm2_p_full;
 
-  int size_new_sivecs;
-  int size_old_sivecs;
-  int size_ox1; 
-  int size_op;
-  int size_instruction_list;
-  int ox1_on_gpu;
-  double * h_new_sivecs;
-  double * h_old_sivecs;
-  double * h_ox1;
-  int * h_instruction_list;
  
-  
   // eri caching on device
   bool use_eri_cache;
   
@@ -453,6 +443,7 @@ private:
   DevicePdft * _pdft;
   DeviceJk * _jk;
   DeviceImpham * _impham;
+  DeviceLassi * _lassi;
 };
 
 #endif

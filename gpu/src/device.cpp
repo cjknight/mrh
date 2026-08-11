@@ -32,6 +32,7 @@ Device::Device()
   _pdft = nullptr;
   _jk = nullptr;
   _impham = nullptr;
+  _lassi = nullptr;
 
   buf_fdrv = nullptr;
 
@@ -64,17 +65,6 @@ Device::Device()
   h_dm2_full = nullptr;
   h_dm2_p_full = nullptr;
 
-  // matvecs;
-  size_new_sivecs=0;
-  size_old_sivecs=0;
-  size_ox1 = 0;
-  size_instruction_list=0;
-  size_op = 0;
-  ox1_on_gpu = 0;
-  h_new_sivecs = nullptr;
-  h_old_sivecs = nullptr;
-  h_ox1 = nullptr;
-  h_instruction_list = nullptr;
   // The eri cache must be enabled on ALL builds (host + GPU): the _ERIS path
   // (get_dfobj_status / df_ao2mo_v4) relies on get_jk having cached blocks via
   // dd_fetch_eri. On host builds _USE_GPU is undefined, so leaving this inside
@@ -211,6 +201,7 @@ Device::Device()
   _pdft = new DevicePdft(dev_ctx);
   _jk = new DeviceJk(dev_ctx);
   _impham = new DeviceImpham(dev_ctx);
+  _lassi = new DeviceLassi(dev_ctx);
 
   // check device connectivity
 
@@ -233,6 +224,9 @@ Device::~Device()
 
   delete _pdft;
   _pdft = nullptr;
+
+  delete _lassi;
+  _lassi = nullptr;
 
   pm->dev_free_host(rho);
   //pm->dev_free_host(vj);
