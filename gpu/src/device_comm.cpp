@@ -15,13 +15,24 @@
 
 /* ---------------------------------------------------------------------- */
 
-void Device::mgpu_bcast(std::vector<double *> d_ptr, double * h_ptr, size_t size)
+DeviceComm::DeviceComm(DeviceContext & _ctx)
+  : ctx(_ctx)
+{
+}
+
+DeviceComm::~DeviceComm()
+{
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceComm::mgpu_bcast(std::vector<double *> d_ptr, double * h_ptr, size_t size)
 {
   // push data from host to first device
   
-  pm->dev_set_device(0);
+  ctx.pm->dev_set_device(0);
     
-  int err = pm->dev_push_async(d_ptr[0], h_ptr, size);
+  int err = ctx.pm->dev_push_async(d_ptr[0], h_ptr, size);
   
   if(err) {
     printf("LIBGPU:: dev_push_async(d_ptr[0]) failed\n");
@@ -29,12 +40,12 @@ void Device::mgpu_bcast(std::vector<double *> d_ptr, double * h_ptr, size_t size
   }
 
   for(int i=1; i<d_ptr.size(); ++i)
-    pm->dev_memcpy_peer(d_ptr[i], i, d_ptr[0], 0, size);
+    ctx.pm->dev_memcpy_peer(d_ptr[i], i, d_ptr[0], 0, size);
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N, bool blocking, std::vector<double *> buf_ptr, std::vector<int> active)
+void DeviceComm::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N, bool blocking, std::vector<double *> buf_ptr, std::vector<int> active)
 {
 #if defined(_DEBUG_P2P)
   printf("LIBGPU :: -- GPU-GPU Reduction  Starting!\n");
@@ -43,7 +54,7 @@ void Device::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N, boo
   size_t size = N * sizeof(double);
 
   int num_active = 0;
-  for(int i=0; i<num_devices; ++i) num_active += active[i];
+  for(int i=0; i<ctx.num_devices; ++i) num_active += active[i];
   
   int nrecv = num_active / 2;
 
@@ -78,22 +89,22 @@ void Device::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N, boo
 	if(blocking) {
 	  // need to ensure dest is done using buf
 	  
-	  pm->dev_set_device(dest);
+	  ctx.pm->dev_set_device(dest);
 	  
-	  pm->dev_stream_wait();
+	  ctx.pm->dev_stream_wait();
 	}
 	
 	// src initiates transfer
 	
-	pm->dev_set_device(src);
+	ctx.pm->dev_set_device(src);
 	
-	pm->dev_memcpy_peer(buf_ptr[dest],dest, d_ptr[src], src, size);
+	ctx.pm->dev_memcpy_peer(buf_ptr[dest],dest, d_ptr[src], src, size);
 	
 	// dest launches kernel
 	
-	pm->dev_set_device(dest); 
+	ctx.pm->dev_set_device(dest); 
 	
-	vecadd(buf_ptr[dest], d_ptr[dest], N);
+	ctx.owner->vecadd(buf_ptr[dest], d_ptr[dest], N);
       }
       
       nactive--;
@@ -123,22 +134,22 @@ void Device::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N, boo
 	  if(blocking) {
 	    // need to ensure dest is done using buf
 	    
-	    pm->dev_set_device(dest);
+	    ctx.pm->dev_set_device(dest);
 	    
-	    pm->dev_stream_wait();
+	    ctx.pm->dev_stream_wait();
 	  }
 
 	  // src initiates transfer
 	  
-	  pm->dev_set_device(src);
+	  ctx.pm->dev_set_device(src);
 	  
-	  pm->dev_memcpy_peer(buf_ptr[dest], dest, d_ptr[src], src, size);
+	  ctx.pm->dev_memcpy_peer(buf_ptr[dest], dest, d_ptr[src], src, size);
 
 	  // dest launches kernel
 	  
-	  pm->dev_set_device(dest); 
+	  ctx.pm->dev_set_device(dest); 
 	  
-	  vecadd(buf_ptr[dest], d_ptr[dest], N);
+	  ctx.owner->vecadd(buf_ptr[dest], d_ptr[dest], N);
 	}
       }
 
@@ -162,22 +173,22 @@ void Device::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N, boo
 #endif
 	  if(blocking) {
 	    // need to ensure dest is done using buf
-	    pm->dev_set_device(dest);
+	    ctx.pm->dev_set_device(dest);
 	    
-	    pm->dev_stream_wait();
+	    ctx.pm->dev_stream_wait();
 	  }
 
 	  // src initiates transfer
 	  
-	  pm->dev_set_device(src);
+	  ctx.pm->dev_set_device(src);
 	  
-	  pm->dev_memcpy_peer(buf_ptr[dest], dest, d_ptr[src], src, size);
+	  ctx.pm->dev_memcpy_peer(buf_ptr[dest], dest, d_ptr[src], src, size);
 
 	  // dest launches kernel
 	  
-	  pm->dev_set_device(dest); 
+	  ctx.pm->dev_set_device(dest); 
 	  
-	  vecadd(buf_ptr[dest], d_ptr[dest], N);
+	  ctx.owner->vecadd(buf_ptr[dest], d_ptr[dest], N);
 	}
 
 	nrecv--;
@@ -196,9 +207,9 @@ void Device::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N, boo
   printf("LIBGPU :: -- GPU-GPU Reduction  transferring result to host\n");
 #endif
   
-  pm->dev_set_device(0);
+  ctx.pm->dev_set_device(0);
   
-  pm->dev_pull(d_ptr[0], h_ptr, size);
+  ctx.pm->dev_pull(d_ptr[0], h_ptr, size);
   
 #if defined(_DEBUG_P2P)
   printf("LIBGPU :: -- GPU-GPU Reduction  completed!\n");

@@ -10,6 +10,7 @@
 #include "mathlib/mathlib.h"
 
 class Device; // forward decl for DeviceContext::owner (facade back-reference)
+class DeviceComm; // forward decl for DeviceContext::comm (owned multi-GPU comm subdomain)
 
 // Buffer growth helpers shared by all subdomains. These used to be private
 // Device templates; promoting them to free functions lets DeviceJk/DevicePdft/
@@ -131,10 +132,11 @@ struct my_device_data {
 // copies of the pointers.
 struct DeviceContext {
   Device * owner;        // Device facade. Temporary back-reference for the shared
-                         // ERI-cache/comm services (dd_fetch_eri, mgpu_bcast, ...)
-                         // until those are extracted as DeviceEriCache/DeviceComm.
+                         // ERI-cache/utility services (dd_fetch_eri, vecadd, ...)
+                         // until those are extracted as DeviceEriCache/DeviceUtils.
   PM_NS::PM * pm;
   MATHLIB_NS::MATHLIB * ml;
+  DeviceComm * comm;     // multi-GPU bcast/reduce (owned by the Device facade)
   int num_devices;
   int verbose_level;
   int grid_size, block_size;

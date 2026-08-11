@@ -57,7 +57,7 @@ void DeviceLassi::push_op(py::array_t<double> _op, int m, int k, int counts)
     my_device_data * dd = &(ctx.device_data[id]);
     ::grow_array(ctx.pm, dd->jk.d_buf1, _size_op, dd->jk.size_buf1, "buf1", FLERR);
     op_vec[id] = dd->jk.d_buf1;}
-  ctx.owner->mgpu_bcast(op_vec, op, _size_op*sizeof(double));
+  ctx.comm->mgpu_bcast(op_vec, op, _size_op*sizeof(double));
   #else
   for (int i=0; i<ctx.num_devices;++i){
     ctx.pm->dev_set_device(i);
@@ -89,7 +89,7 @@ void DeviceLassi::push_op_4frag(py::array_t<double> _op, int size_op, int size_r
     //printf("size_buf: %i\n", dd->jk.size_buf1);
     op_vec[id] = dd->jk.d_buf1;}
 
-  ctx.owner->mgpu_bcast(op_vec, op, _size_op*sizeof(double));
+  ctx.comm->mgpu_bcast(op_vec, op, _size_op*sizeof(double));
 
   double t1 = omp_get_wtime();
   ctx.t_array[33] += t1-t0;
@@ -110,7 +110,7 @@ void DeviceLassi::push_d2(py::array_t<double> _d2, int size_d2, int loc_d2, int 
     my_device_data * dd = &(ctx.device_data[id]);
     d2_vec[id] = &(dd->jk.d_buf1[loc_d2]);}
 
-  ctx.owner->mgpu_bcast(d2_vec, d2, size_d2*sizeof(double));
+  ctx.comm->mgpu_bcast(d2_vec, d2, size_d2*sizeof(double));
 
   double t1 = omp_get_wtime();
   ctx.t_array[33] += t1-t0;
@@ -131,7 +131,7 @@ void DeviceLassi::push_d3(py::array_t<double> _d3, int size_d3, int loc_d3, int 
     my_device_data * dd = &(ctx.device_data[id]);
     d3_vec[id] = &(dd->jk.d_buf1[loc_d3]);}
 
-  ctx.owner->mgpu_bcast(d3_vec, d3, size_d3*sizeof(double));
+  ctx.comm->mgpu_bcast(d3_vec, d3, size_d3*sizeof(double));
 
   double t1 = omp_get_wtime();
   ctx.t_array[33] += t1-t0;
@@ -234,7 +234,7 @@ void DeviceLassi::bcast_vec(int size, int counts)
     ctx.pm->dev_set_device(id);
     my_device_data * dd = &(ctx.device_data[id]);
     vec_vec[id] = dd->jk.d_buf2;}
-  //ctx.owner->mgpu_bcast(vec_vec, op, _size_op*sizeof(double));
+  //ctx.comm->mgpu_bcast(vec_vec, op, _size_op*sizeof(double));
   //not doing bcast directly because it copies from host to devices
   for(int i=1; i<vec_vec.size(); ++i){
     ctx.pm->dev_memcpy_peer(vec_vec[i], i, vec_vec[0], 0, size*sizeof(double));
@@ -762,7 +762,7 @@ void DeviceLassi::finalize_ox1_pinned(py::array_t<double> _ox1, int size)
     if (dd->active) ++count_active;
     }
   if (count_active){
-    ctx.owner->mgpu_reduce(ox1_vec, h_ox1, size, true, buf_vec, active);
+    ctx.comm->mgpu_reduce(ox1_vec, h_ox1, size, true, buf_vec, active);
 #pragma omp parallel for
     for (int i=0;i<size;++i){ox1[i]+=h_ox1[i];}
     }

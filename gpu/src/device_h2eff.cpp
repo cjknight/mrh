@@ -503,7 +503,7 @@ void DeviceH2eff::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
     active[i] = dd->active;
   }
 
-  ctx.owner->mgpu_reduce(e_vec, buf_eri_h2eff, N, true, buf_vec, active);
+  ctx.comm->mgpu_reduce(e_vec, buf_eri_h2eff, N, true, buf_vec, active);
 
 #pragma omp parallel for
   for(int i=0; i<N; ++i) eri[i] = buf_eri_h2eff[i];

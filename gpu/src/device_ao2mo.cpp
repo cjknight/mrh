@@ -152,7 +152,7 @@ void DeviceAo2mo::pull_jk_ao2mo_v4(py::array_t<double> _j_pc, py::array_t<double
     active[i] = dd->active;
   }
 
-  ctx.owner->mgpu_reduce(pc_vec, buf_j_pc, N, true, buf_vec, active);
+  ctx.comm->mgpu_reduce(pc_vec, buf_j_pc, N, true, buf_vec, active);
 
 #pragma omp parallel for
   for(int i=0; i<nmo*ncore; ++i) j_pc[i] = buf_j_pc[i];
@@ -165,7 +165,7 @@ void DeviceAo2mo::pull_jk_ao2mo_v4(py::array_t<double> _j_pc, py::array_t<double
     buf_vec[i] = dd->jk.d_buf1;
   }
   
-  ctx.owner->mgpu_reduce(pc_vec, buf_k_pc, N, true, buf_vec, active);
+  ctx.comm->mgpu_reduce(pc_vec, buf_k_pc, N, true, buf_vec, active);
 
 #pragma omp parallel for
   for(int i=0; i<nmo*ncore; ++i) k_pc[i] = buf_k_pc[i];
@@ -297,7 +297,7 @@ void DeviceAo2mo::pull_ppaa_papa_ao2mo_v4(py::array_t<double> _ppaa, py::array_t
     active[i] = dd->active;
   }
 
-  ctx.owner->mgpu_reduce(p_vec, buf_ppaa, N, true, buf_vec, active);
+  ctx.comm->mgpu_reduce(p_vec, buf_ppaa, N, true, buf_vec, active);
 
 #pragma omp parallel for
   for(int i=0; i<N; ++i) ppaa[i] = buf_ppaa[i];
@@ -309,7 +309,7 @@ void DeviceAo2mo::pull_ppaa_papa_ao2mo_v4(py::array_t<double> _ppaa, py::array_t
     p_vec[i] = dd->ao2mo.d_papa; // pointing at d_buf3
   }
 
-  ctx.owner->mgpu_reduce(p_vec, buf_papa, N, true, buf_vec, active);
+  ctx.comm->mgpu_reduce(p_vec, buf_papa, N, true, buf_vec, active);
 
 #pragma omp parallel for
   for(int i=0; i<N; ++i) papa[i] = buf_papa[i];

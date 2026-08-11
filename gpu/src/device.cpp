@@ -36,6 +36,7 @@ Device::Device()
   _h2eff = nullptr;
   _ao2mo = nullptr;
   _fci = nullptr;
+  _comm = nullptr;
 
   buf_fdrv = nullptr;
 
@@ -179,6 +180,9 @@ Device::Device()
   dev_ctx.count_array = count_array;
   dev_ctx.device_data = device_data;
 
+  _comm = new DeviceComm(dev_ctx);
+  dev_ctx.comm = _comm;
+
   _pdft = new DevicePdft(dev_ctx);
   _jk = new DeviceJk(dev_ctx);
   _impham = new DeviceImpham(dev_ctx);
@@ -220,6 +224,9 @@ Device::~Device()
 
   delete _fci;
   _fci = nullptr;
+
+  delete _comm;
+  _comm = nullptr;
 
   pm->dev_free_host(rho);
   //pm->dev_free_host(vj);
@@ -677,7 +684,7 @@ void Device::push_mo_coeff(py::array_t<double> _mo_coeff, int _size_mo_coeff)
     mo_vec[id] = dd->d_mo_coeff;
   }
     
-  mgpu_bcast(mo_vec, mo_coeff, _size_mo_coeff*sizeof(double)); // host -> gpu 0, then Bcast to all gpu
+  _comm->mgpu_bcast(mo_vec, mo_coeff, _size_mo_coeff*sizeof(double)); // host -> gpu 0, then Bcast to all gpu
 
 #else
   for(int id=0; id<num_devices; ++id) {

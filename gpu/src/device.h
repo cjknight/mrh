@@ -15,6 +15,7 @@ namespace py = pybind11;
 #include "mathlib/mathlib.h"
 #include "pm/dev_array.h"
 #include "device_context.h"
+#include "device_comm.h"
 #include "device_pdft.h"
 #include "device_jk.h"
 #include "device_impham.h"
@@ -246,15 +247,11 @@ public :
   void transpose_021(double *, double *, int, int, int);
   void transpose_102(double *, double *, int, int, int);
   void transpose_2130(const double*, double *, int, int, int, int);
-  // multi-gpu communication (better here or part of PM?)
-
-  void mgpu_bcast(std::vector<double *>, double *, size_t);
-  void mgpu_reduce(std::vector<double *>, double *, int, bool, std::vector<double *>, std::vector<int>);
 
 private:
 
-  friend class DeviceJk; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
-  friend class DeviceImpham; // shared eri-cache/comm services until DeviceEriCache/DeviceComm
+  friend class DeviceJk; // shared eri-cache services until DeviceEriCache
+  friend class DeviceImpham; // shared eri-cache services until DeviceEriCache
   friend class DeviceH2eff; // eri-cache (dd_fetch_eri) / pumap (dd_fetch_pumap) services
   friend class DeviceAo2mo; // eri-cache (dd_fetch_eri) / pumap (dd_fetch_pumap) services
 
@@ -371,6 +368,7 @@ private:
   int num_devices;
 
   DeviceContext dev_ctx;
+  DeviceComm * _comm;
   DevicePdft * _pdft;
   DeviceJk * _jk;
   DeviceImpham * _impham;

@@ -300,7 +300,7 @@ void DeviceImpham::pull_eri_impham(py::array_t<double> _eri, int naoaux, int nao
       active[i] = dd->active;
     }
 
-    ctx.owner->mgpu_reduce(e_vec, pin_eri_impham, N, true, buf_vec, active);
+    ctx.comm->mgpu_reduce(e_vec, pin_eri_impham, N, true, buf_vec, active);
 
 #pragma omp parallel for
     for(int i=0; i<N; ++i) eri[i] += pin_eri_impham[i];

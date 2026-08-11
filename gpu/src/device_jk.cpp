@@ -174,7 +174,7 @@ void DeviceJk::get_jk(int naux, int nao, int nset,
       dmtril_vec[i] = dest->jk.d_dmtril;
     }
     
-    ctx.owner->mgpu_bcast(dmtril_vec, dmtril, size);  // host -> gpu 0, then Bcast to all gpu
+    ctx.comm->mgpu_bcast(dmtril_vec, dmtril, size);  // host -> gpu 0, then Bcast to all gpu
   }
 #else
   if(count < ctx.num_devices) {
@@ -375,7 +375,7 @@ void DeviceJk::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int
   }
   
   if(v_vec[0]) {
-    ctx.owner->mgpu_reduce(v_vec, buf_vj, N, true, buf_vec, active);
+    ctx.comm->mgpu_reduce(v_vec, buf_vj, N, true, buf_vec, active);
     
 #pragma omp parallel for
     for(int j=0; j<N; ++j) vj[j] += buf_vj[j];
@@ -405,7 +405,7 @@ void DeviceJk::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int
   }
   
   if(v_vec[0]) {
-    ctx.owner->mgpu_reduce(v_vec, buf_vk, N, true, buf_vec, active);
+    ctx.comm->mgpu_reduce(v_vec, buf_vk, N, true, buf_vec, active);
     
 #pragma omp parallel for
     for(int j=0; j<N; ++j) vk[j] += buf_vk[j];
