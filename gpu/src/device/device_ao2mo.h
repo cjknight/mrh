@@ -44,7 +44,6 @@ public:
   void get_bufpa(const double *, double *, int, int, int, int);
   void get_bufaa(const double *, double *, int, int, int, int);
   void get_bufd(const double *, double *, int, int);
-  void transpose_120(double *, double *, int, int, int, int order = 0);
   void get_mo_cas(const double *, double *, int, int, int);
 
 private:

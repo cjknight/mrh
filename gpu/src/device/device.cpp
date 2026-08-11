@@ -162,7 +162,6 @@ Device::Device()
   for(int i=0; i<_NUM_SIMPLE_COUNTER; ++i) count_array[i] = 0;
 
   // subdomains borrow shared infrastructure through the DeviceContext
-  dev_ctx.owner = this;
   dev_ctx.pm = pm;
   dev_ctx.ml = ml;
   dev_ctx.num_devices = num_devices;

@@ -42,7 +42,6 @@ public:
   // kernel launchers (implemented in pm/<platform>/jk.cpp)
   void getjk_rho(double *, double *, double *, int, int, int);
   void getjk_vj(double *, double *, double *, int, int, int, int);
-  void getjk_unpack_buf2(double *, double *, int *, int, int, int);
 
 private:
 

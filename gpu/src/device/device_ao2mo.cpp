@@ -447,7 +447,7 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
   
   int * my_d_tril_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
 
-  ctx.owner->getjk_unpack_buf2(d_eri_unpacked, d_eri, my_d_tril_map_ptr, naux, nao, nao_pair);
+  ctx.utils->getjk_unpack_buf2(d_eri_unpacked, d_eri, my_d_tril_map_ptr, naux, nao, nao_pair);
   
   //bufpp = mo.T @ eri @ mo
   //buf = np.einsum('ijk,kl->ijl',eri_unpacked,mo_coeff),i=naux,j=nao,l=nao
@@ -483,7 +483,7 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
   
   // fxpp[str(k)] =bufpp.transpose(1,2,0);
 
-  transpose_120(d_bufpp, d_fxpp, naux, nmo, nmo);
+  ctx.utils->transpose_120(d_bufpp, d_fxpp, naux, nmo, nmo);
 
 // calculate j_pc
   
@@ -566,7 +566,3 @@ void Device::pull_ppaa_papa_ao2mo_v4(py::array_t<double> _ppaa, py::array_t<doub
 
 void Device::extract_mo_cas(int ncas, int ncore, int nao)
 { _ao2mo->extract_mo_cas(ncas, ncore, nao); }
-
-/* transitional shim: transpose_120 is still called by DeviceH2eff */
-void Device::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
-{ _ao2mo->transpose_120(in, out, naux, nao, ncas, order); }

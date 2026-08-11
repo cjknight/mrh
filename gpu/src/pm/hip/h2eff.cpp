@@ -54,6 +54,23 @@ __global__ void _transpose_2310(double * in, double * out, int nmo, int ncas) {
 
 /* ---------------------------------------------------------------------- */
 
+__global__ void _transpose_210(double * in, double * out, int naux, int nao, int ncas) {
+    //Pum->muP
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    int k = blockIdx.z * blockDim.z + threadIdx.z;
+
+    if(i >= naux) return;
+    if(j >= ncas) return;
+    if(k >= nao) return;
+
+    int inputIndex = i*nao*ncas+j*nao+k;
+    int outputIndex = k*ncas*naux  + j*naux + i;
+    out[outputIndex] = in[inputIndex];
+}
+
+/* ---------------------------------------------------------------------- */
+
 __global__ void _pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
   const int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -164,6 +181,24 @@ void DeviceH2eff::transpose_2310(double * in, double * out, int nmo, int ncas)
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- update_h2eff_sub::transpose_2310 :: nmo= %i  ncas= %i  _DEFAULT_BLOCK_SIZE= %i  grid_size= %i %i %i  block_size= %i %i %i\n",
 	 nmo, ncas, _DEFAULT_BLOCK_SIZE, grid_size.x,grid_size.y,grid_size.z,block_size.x,block_size.y,block_size.z);
+  _HIP_CHECK_ERRORS();
+#endif
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceH2eff::transpose_210(double * in, double * out, int naux, int nao, int ncas)
+{
+  dim3 block_size(_UNPACK_BLOCK_SIZE, 1, _UNPACK_BLOCK_SIZE);
+  dim3 grid_size(_TILE(naux,block_size.x), _TILE(ncas,block_size.y), _TILE(nao,block_size.z));
+  
+  hipStream_t s = *(ctx.pm->dev_get_queue());
+  
+  _transpose_210<<<grid_size,block_size, 0, s>>>(in, out, naux, nao, ncas);
+  
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- h2eff_df_contract1::transpose_210 :: naux= %i  ncas= %i  _UNPACK_BLOCK_SIZE= %i  grid_size= %i %i %i  block_size= %i %i %i\n",
+	 naux, ncas, _UNPACK_BLOCK_SIZE, grid_size.x,grid_size.y,grid_size.z,block_size.x,block_size.y,block_size.z);
   _HIP_CHECK_ERRORS();
 #endif
 }

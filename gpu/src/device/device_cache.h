@@ -29,6 +29,7 @@ using namespace MATHLIB_NS;
 // It used to live on Device and was reached from subdomains via
 // ctx.owner->dd_fetch_eri / dd_fetch_pumap; it is now an owned subdomain
 // reachable via ctx.cache->dd_fetch_eri / dd_fetch_pumap.
+// The former ctx.owner back-reference no longer exists.
 class DeviceCache {
 
 public:

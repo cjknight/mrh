@@ -95,8 +95,6 @@ public :
 	      int, int, size_t);
   void pull_get_jk(py::array_t<double>, py::array_t<double>, int, int, int);
 
-  void getjk_unpack_buf2(double *, double *, int *, int, int, int); // transitional shim -> DeviceJk
-  
   void set_update_dfobj_(int); // forwarder -> DeviceCache
   void get_dfobj_status(size_t, py::array_t<int>); // forwarder -> DeviceCache
  
@@ -107,7 +105,6 @@ public :
  
   void df_ao2mo_v4 (int, int, int, int, int, int,
 			    int, size_t);
-  void transpose_120(double *, double *, int, int, int, int order = 0);
   void pull_jk_ao2mo_v4 (py::array_t<double>,py::array_t<double>,int, int);
   void pull_ppaa_papa_ao2mo_v4 (py::array_t<double>,py::array_t<double>, int, int);
   
@@ -123,7 +120,6 @@ public :
   //UPDATE H2EFF
   void update_h2eff_sub(int, int, int, int,
                         py::array_t<double>,py::array_t<double>);
-  void transpose_210(double *, double *, int, int, int);
   
   //LAS_AO2MO
   void init_eri_h2eff( int, int);//VA: new function
@@ -137,7 +133,6 @@ public :
   void compute_eri_impham(int, int, int, int, int, size_t, int);
   void pull_eri_impham( py::array_t<double>, int, int, int);
   void compute_eri_impham_v2(int, int, int, int, int, size_t, size_t);
-  void pack_eri(double *, double *, int *, int, int, int); // shared: impham build + device_impham (DeviceImpham)
   
   //PDFT
   void init_mo_grid(int, int);

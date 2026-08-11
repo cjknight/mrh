@@ -18,6 +18,7 @@ using namespace MATHLIB_NS;
 // the DeviceContext provided by the Device facade. It used to live on Device
 // and was reached from subdomains via ctx.owner->mgpu_bcast/mgpu_reduce; it is
 // now an owned subdomain reachable via ctx.comm->mgpu_bcast/mgpu_reduce.
+// The former ctx.owner back-reference no longer exists.
 class DeviceComm {
 
 public:

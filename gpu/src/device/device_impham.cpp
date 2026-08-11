@@ -102,7 +102,7 @@ void DeviceImpham::compute_eri_impham(int nao_s, int nao_f, int blksize, int nau
 
   int * d_my_unpack_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao_s, _PUMAP_2D_UNPACK);
 
-  ctx.owner->getjk_unpack_buf2(d_cderi_unpacked, d_cderi, d_my_unpack_map_ptr, naux, nao_s, nao_s_pair);
+  ctx.utils->getjk_unpack_buf2(d_cderi_unpacked, d_cderi, d_my_unpack_map_ptr, naux, nao_s, nao_s_pair);
 
   const double alpha = 1.0;
   const double beta = 0.0;
@@ -145,7 +145,7 @@ void DeviceImpham::compute_eri_impham(int nao_s, int nao_f, int blksize, int nau
 
   double * d_eri_unpacked = dd->jk.d_buf2;
 
-  ctx.owner->pack_eri(d_eri_unpacked, d_bPee, d_my_unpack_map_ptr, naux, nao_f, nao_f_pair);
+  pack_eri(d_eri_unpacked, d_bPee, d_my_unpack_map_ptr, naux, nao_f, nao_f_pair);
 
   if (return_4c2eeri){
     double beta_ = (count < ctx.num_devices) ? 0.0 : 1.0;
@@ -209,7 +209,7 @@ void DeviceImpham::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int 
 
   int * d_my_unpack_map_ptr = ctx.cache->dd_fetch_pumap(dd, nao_s, _PUMAP_2D_UNPACK);
 
-  ctx.owner->getjk_unpack_buf2(d_cderi_unpacked,d_cderi,d_my_unpack_map_ptr,naux, nao_s, nao_s_pair);
+  ctx.utils->getjk_unpack_buf2(d_cderi_unpacked,d_cderi,d_my_unpack_map_ptr,naux, nao_s, nao_s_pair);
 
   const double alpha = 1.0;
   const double beta = 0.0;
@@ -254,7 +254,7 @@ void DeviceImpham::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int 
   //TODO: add growing logic 
   //ctx.ml->gemm((char *) "T", (char *) "N", &nao_f_pair, &nao_f_pair, &naux, &alpha, dd->jk.d_buf2, &ldb, dd->jk.d_buf3, &lda, &beta, (dd->jk.d_vkk)+vk_offset, &ldc);
 
-  ctx.owner->pack_eri(d_cderi_out, d_bPee,d_my_unpack_map_ptr, naux, nao_f, nao_f_pair);
+  pack_eri(d_cderi_out, d_bPee,d_my_unpack_map_ptr, naux, nao_f, nao_f_pair);
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();

@@ -211,6 +211,60 @@ __global__ void _transpose_3210(double* in, double* out, int nmo, int ncas) {
 
 /* ---------------------------------------------------------------------- */
 
+__global__ void _transpose_120(double * in, double * out, int naux, int nao, int ncas) {
+    //Pum->muP
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int j = blockIdx.y * blockDim.y + threadIdx.y;
+    int k = blockIdx.z * blockDim.z + threadIdx.z;
+
+    if(i >= naux) return;
+    if(j >= ncas) return;
+    if(k >= nao) return;
+
+    int inputIndex = i*nao*ncas+j*nao+k;
+    int outputIndex = j*nao*naux  + k*naux + i;
+    out[outputIndex] = in[inputIndex];
+}
+
+/* ---------------------------------------------------------------------- */
+
+#if 1
+
+__global__ void _getjk_unpack_buf2(double * buf2, double * eri1, int * map, int naux, int nao, int nao_pair)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if(i >= naux) return;
+  if(j >= nao) return;
+
+  double * buf = &(buf2[i * nao * nao]);
+  double * tril = &(eri1[i * nao_pair]);
+
+  const int indx = j * nao;
+  for(int k=0; k<nao; ++k) buf[indx+k] = tril[ map[indx+k] ];  
+}
+
+#else
+
+__global__ void _getjk_unpack_buf2(double * buf2, double * eri1, int * map, int naux, int nao, int nao_pair)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if(i >= naux) return;
+  if(j >= nao*nao) return;
+
+  double * buf = &(buf2[i * nao * nao]);
+  double * tril = &(eri1[i * nao_pair]);
+
+  buf[j] = tril[ map[j] ];
+}
+
+#endif
+
+/* ---------------------------------------------------------------------- */
+
 void DeviceUtils::transpose(double * out, double * in, int nrow, int ncol)
 {
 #ifdef _DEBUG_DEVICE
@@ -368,6 +422,49 @@ void DeviceUtils::transpose_3210(double* in, double* out, int nmo, int ncas)
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- update_h2eff_sub::transpose_3210 :: ncas= %i  _DEFAULT_BLOCK_SIZE= %i  grid_size= %i %i %i  block_size= %i %i %i\n",
 	 ncas, _DEFAULT_BLOCK_SIZE, grid_size.x,grid_size.y,grid_size.z,block_size.x,block_size.y,block_size.z);
+  _HIP_CHECK_ERRORS();
+#endif
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
+{
+  hipStream_t s = *(ctx.pm->dev_get_queue());
+
+  int na = nao;
+  int nb = ncas;
+  
+  if(order == 1) {
+    na = ncas;
+    nb = nao;
+  }
+  
+  dim3 block_size (1, 1,1);
+  dim3 grid_size (_TILE(naux, block_size.x), na, nb); // originally nmo, nmo
+  
+  _transpose_120<<<grid_size, block_size, 0, s>>>(in, out, naux, nao, ncas);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
+{
+#if 1
+  dim3 grid_size(naux, _TILE(nao, _UNPACK_BLOCK_SIZE), 1);
+  dim3 block_size(1, _UNPACK_BLOCK_SIZE, 1);
+#else
+  dim3 grid_size(naux, _TILE(nao*nao, _UNPACK_BLOCK_SIZE), 1);
+  dim3 block_size(1, _UNPACK_BLOCK_SIZE, 1);
+#endif
+  
+  hipStream_t s = *(ctx.pm->dev_get_queue());
+  
+  _getjk_unpack_buf2<<<grid_size, block_size, 0, s>>>(buf2, eri, map, naux, nao, nao_pair);
+  
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- get_jk::_getjk_unpack_buf2 :: naux= %i  nao= %i _UNPACK_BLOCK_SIZE= %i  grid_size= %i %i %i  block_size= %i %i %i\n",
+	 naux, nao, _UNPACK_BLOCK_SIZE, grid_size.x,grid_size.y,grid_size.z,block_size.x,block_size.y,block_size.z);
   _HIP_CHECK_ERRORS();
 #endif
 }

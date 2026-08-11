@@ -136,7 +136,7 @@ cuda/jk.o cuda/ao2mo.o cuda/h2eff.o cuda/impham.o cuda/pdft.o cuda/fci.o cuda/ut
 sycl/jk.o sycl/ao2mo.o sycl/h2eff.o sycl/impham.o sycl/pdft.o sycl/fci.o sycl/utilities.o : device/device.h device/device_utilities.h device/device_pdft.h device/device_jk.h device/device_impham.h device/device_h2eff.h device/device_ao2mo.h device/device_fci.h sycl/pm_sycl.o
 hip/jk.o hip/ao2mo.o hip/h2eff.o hip/impham.o hip/pdft.o hip/fci.o hip/utilities.o : device/device.h device/device_utilities.h device/device_pdft.h device/device_jk.h device/device_impham.h device/device_h2eff.h device/device_ao2mo.h device/device_fci.h hip/pm_hip.o
 openmp/jk.o : device/device.h device/device_pdft.h device/device_jk.h device/device_impham.h device/device_h2eff.h device/device_ao2mo.h device/device_fci.h openmp/pm_openmp.o
-host/jk.o host/ao2mo.o host/h2eff.o host/pdft.o host/fci.o host/utilities.o : device/device.h device/device_utilities.h device/device_pdft.h device/device_jk.h device/device_impham.h device/device_h2eff.h device/device_ao2mo.h device/device_fci.h host/pm_host.o
+host/jk.o host/ao2mo.o host/h2eff.o host/impham.o host/pdft.o host/fci.o host/utilities.o : device/device.h device/device_utilities.h device/device_pdft.h device/device_jk.h device/device_impham.h device/device_h2eff.h device/device_ao2mo.h device/device_fci.h host/pm_host.o
 
 mathlib_cublas.o : mathlib/mathlib_cublas.cpp mathlib/mathlib_cublas.h mathlib/mathlib.h cuda/pm_cuda.o
 mathlib_mkl.o : mathlib/mathlib_mkl.cpp mathlib/mathlib_mkl.h mathlib/mathlib.h cuda/pm_cuda.o sycl/pm_sycl.o

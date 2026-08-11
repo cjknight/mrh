@@ -24,8 +24,7 @@ using namespace MATHLIB_NS;
 // the multi-device pull/reduce lives here and is freed in the destructor.
 // The kernel launchers declared here are implemented per platform in
 // pm/<platform>/h2eff.cpp. The ERI cache / pumap services (ctx.cache->
-// dd_fetch_eri/dd_fetch_pumap) and the shared jk/ao2mo utilities are reached
-// through the Device facade (ctx.owner).
+// dd_fetch_eri/dd_fetch_pumap) are reached through ctx.cache.
 class DeviceH2eff {
 
 public:
@@ -49,6 +48,7 @@ public:
   void pack_h2eff_2d(double *, double *, int *, int, int, int);
   void pack_d_vuwM(const double *, double *, int *, int, int, int);
   void pack_d_vuwM_add(const double *, double *, int *, int, int, int);
+  void transpose_210(double *, double *, int, int, int);
 
 private:
 

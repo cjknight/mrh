@@ -361,7 +361,7 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
 
   // CHRIS :: Start chunking w/r naux
   
-  ctx.owner->getjk_unpack_buf2(d_cderi_unpacked, d_cderi, d_my_unpack_map_ptr, naux, nao, nao_pair);
+  ctx.utils->getjk_unpack_buf2(d_cderi_unpacked, d_cderi, d_my_unpack_map_ptr, naux, nao, nao_pair);
   
   #if 0 
     double * h_result = (double *)ctx.pm->dev_malloc_host(size_cderi_unpacked*sizeof(double)); 
@@ -405,7 +405,7 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
 
   double * d_bumP = dd->jk.d_buf1;
 
-  ctx.owner->transpose_120(d_bPmu, d_bumP, naux, ncas, nao, 1); // this call distributes work items differently 
+  ctx.utils->transpose_120(d_bPmu, d_bumP, naux, ncas, nao, 1); // this call distributes work items differently 
 
   double * d_buvP = dd->jk.d_buf1 + naux*ncas*nao;
 
@@ -414,7 +414,7 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
   
   //transpose bPvu
 
-  ctx.owner->transpose_210(d_bPvu, d_buvP, naux, ncas, ncas);
+  transpose_210(d_bPvu, d_buvP, naux, ncas, ncas);
 
   // printf("size_buf2= %i  _size_mwvu= %i\n",dd->size_buf, size_vuwm);
   

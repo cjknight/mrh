@@ -1392,7 +1392,7 @@ void DeviceFci::transpose_jikl(double * tdm, double * buf, int norb)
 #endif  
   }
   
-  ctx.owner->veccopy(buf, tdm, norb2 * norb2);
+  ctx.utils->veccopy(buf, tdm, norb2 * norb2);
   ctx.pm->dev_check_errors();
 }
 
@@ -1400,7 +1400,7 @@ void DeviceFci::transpose_jikl(double * tdm, double * buf, int norb)
 
 void DeviceFci::reduce_buf3_to_rdm(const double * buf3, double * dm2, int size_tdm2, int num_gemm_batches)
 {  
-  ctx.owner->vecadd_batch(buf3, dm2, size_tdm2, num_gemm_batches);
+  ctx.utils->vecadd_batch(buf3, dm2, size_tdm2, num_gemm_batches);
   ctx.pm->dev_check_errors();
 }
 

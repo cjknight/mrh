@@ -16,10 +16,11 @@ using namespace MATHLIB_NS;
 // the DeviceContext provided by the Device facade. It used to live on Device
 // and was reached from subdomains via ctx.owner->vecadd/... ; it is now an
 // owned subdomain reachable via ctx.utils->vecadd/...
+// The former ctx.owner back-reference no longer exists.
 //
 // These are the last remaining generic kernels; the domain-specific kernels
-// (getjk_unpack_buf2, pack_eri, transpose_120/210) stay on their owning
-// domains as transitional Device shims.
+// (transpose_120/210, pack_eri) have been migrated to their owning domains
+// (DeviceAo2mo, DeviceH2eff, DeviceImpham respectively).
 class DeviceUtils {
 
 public:
@@ -37,6 +38,8 @@ public:
   void transpose_102(double *, double *, int, int, int);
   void transpose_2130(const double *, double *, int, int, int, int);
   void transpose_3210(double *, double *, int, int);
+  void transpose_120(double *, double *, int, int, int, int order = 0);
+  void getjk_unpack_buf2(double *, double *, int *, int, int, int);
 
 private:
 

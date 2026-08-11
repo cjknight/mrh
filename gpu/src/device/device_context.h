@@ -9,7 +9,6 @@
 #include "../pm/pm.h"
 #include "../mathlib/mathlib.h"
 
-class Device; // forward decl for DeviceContext::owner (facade back-reference)
 class DeviceComm; // forward decl for DeviceContext::comm (owned multi-GPU comm subdomain)
 class DeviceCache; // forward decl for DeviceContext::cache (owned ERI cache subdomain)
 class DeviceUtils; // forward decl for DeviceContext::utils (owned generic vector/transpose subdomain)
@@ -133,11 +132,6 @@ struct my_device_data {
 // Subdomains access PM/MATHLIB/per-device state through this instead of owning
 // copies of the pointers.
 struct DeviceContext {
-  Device * owner;        // Device facade. Temporary back-reference for the
-                         // remaining domain-owned shims still reached through it
-                         // (getjk_unpack_buf2, pack_eri, transpose_120/210);
-                         // the shared generic kernels now live in DeviceUtils
-                         // (ctx.utils) and get_mo_cas is on DeviceAo2mo directly.
   PM_NS::PM * pm;
   MATHLIB_NS::MATHLIB * ml;
   DeviceComm * comm;     // multi-GPU bcast/reduce (owned by the Device facade)

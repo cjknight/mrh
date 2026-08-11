@@ -52,6 +52,20 @@ void DeviceH2eff::transpose_2310(double * in, double * out, int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
+void DeviceH2eff::transpose_210(double * in, double * out, int naux, int nao, int ncas)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<naux; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<nao; ++k) {
+        int inputIndex = i*nao*ncas + j*nao + k;
+        int outputIndex = k*ncas*naux + j*naux + i;
+        out[outputIndex] = in[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
 void DeviceH2eff::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int ncas, int ncas_pair)
 {
 #pragma omp parallel for collapse(3) schedule(static)

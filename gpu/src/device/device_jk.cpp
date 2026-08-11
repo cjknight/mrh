@@ -239,7 +239,7 @@ void DeviceJk::get_jk(int naux, int nao, int nset,
     
   ctx.pm->dev_profile_start("get_jk :: with_k");
 
-  getjk_unpack_buf2(dd->jk.d_buf2, d_eri, dd->fci.d_pumap_ptr, naux, nao, nao_pair);
+  ctx.utils->getjk_unpack_buf2(dd->jk.d_buf2, d_eri, dd->fci.d_pumap_ptr, naux, nao, nao_pair);
 
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- finished\n");
@@ -530,7 +530,3 @@ void Device::get_jk(int naux, int nao, int nset,
 
 void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int nao, int nset, int with_k)
 { _jk->pull_get_jk(_vj, _vk, nao, nset, with_k); }
-
-// transitional shim: getjk_unpack_buf2 is still used by DeviceAo2mo/H2eff/Impham
-void Device::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
-{ _jk->getjk_unpack_buf2(buf2, eri, map, naux, nao, nao_pair); }

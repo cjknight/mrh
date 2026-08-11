@@ -23,8 +23,8 @@ using namespace MATHLIB_NS;
 // h_bravecs/h_ketvecs/h_dm1_full/h_dm2_full/h_dm2_p_full for the multi-device
 // pull/reduce live here and are freed in the destructor. The inner kernel
 // launchers declared here are implemented per platform in pm/<platform>/fci.cpp.
-// Generic vector helpers (set_to_zero, veccopy, transpose_021, ...) stay on
-// the Device facade and are reached through ctx.owner.
+// Generic vector helpers (set_to_zero, veccopy, transpose_021, ...) are
+// reached through ctx.utils (DeviceUtils).
 class DeviceFci {
 
 public:

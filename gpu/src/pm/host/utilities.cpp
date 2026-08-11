@@ -125,5 +125,34 @@ void DeviceUtils::transpose_3210(double* in, double* out, int nmo, int ncas)
         }
 }
 
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
+{
+#pragma omp parallel for collapse(3) schedule(static)
+  for(int i=0; i<naux; ++i)
+    for(int j=0; j<ncas; ++j)
+      for(int k=0; k<nao; ++k) {
+        int inputIndex = i*nao*ncas + j*nao + k;
+        int outputIndex = j*nao*naux + k*naux + i;
+        out[outputIndex] = in[inputIndex];
+      }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
+{
+#pragma omp parallel for collapse(2) schedule(static)
+  for(int i=0; i<naux; ++i) {
+    for(int j=0; j<nao; ++j) {
+      double * buf = &(buf2[i*nao*nao]);
+      double * tril = &(eri[i*nao_pair]);
+      const int indx = j*nao;
+      for(int k=0; k<nao; ++k) buf[indx+k] = tril[map[indx+k]];
+    }
+  }
+}
+
 
 #endif

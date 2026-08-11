@@ -254,6 +254,68 @@ void _transpose_3210(double* in, double* out, int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
+void _transpose_120(double * in, double * out, int naux, int nao, int ncas)
+{
+    //Pum->muP
+    auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
+    int i = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
+            item_ct1.get_local_id(2);
+    int j = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
+            item_ct1.get_local_id(1);
+    int k = item_ct1.get_group(0) * item_ct1.get_local_range(0) +
+            item_ct1.get_local_id(0);
+
+    if(i >= naux) return;
+    if(j >= ncas) return;
+    if(k >= nao) return;
+
+    int inputIndex = i*nao*ncas+j*nao+k;
+    int outputIndex = j*nao*naux  + k*naux + i;
+    out[outputIndex] = in[inputIndex];
+}
+
+/* ---------------------------------------------------------------------- */
+
+#if 1
+
+void _getjk_unpack_buf2(double * buf2, double * eri1, int * map, int naux, int nao, int nao_pair)
+{
+  auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
+  const int i = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
+                item_ct1.get_local_id(2);
+  const int j = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
+                item_ct1.get_local_id(1);
+
+  if(i >= naux) return;
+  if(j >= nao) return;
+
+  double * buf = &(buf2[i * nao * nao]);
+  double * tril = &(eri1[i * nao_pair]);
+
+  const int indx = j * nao;
+  for(int k=0; k<nao; ++k) buf[indx+k] = tril[ map[indx+k] ];  
+}
+
+#else
+
+__global__ void _getjk_unpack_buf2(double * buf2, double * eri1, int * map, int naux, int nao, int nao_pair)
+{
+  const int i = blockIdx.x * blockDim.x + threadIdx.x;
+  const int j = blockIdx.y * blockDim.y + threadIdx.y;
+
+  if(i >= naux) return;
+  if(j >= nao*nao) return;
+
+  double * buf = &(buf2[i * nao * nao]);
+  double * tril = &(eri1[i * nao_pair]);
+
+  buf[j] = tril[ map[j] ];
+}
+
+#endif
+
+/* ---------------------------------------------------------------------- */
+
 void DeviceUtils::transpose(double * out, double * in, int nrow, int ncol)
 {
 #ifdef _DEBUG_DEVICE
@@ -549,6 +611,66 @@ void DeviceUtils::transpose_3210(double* in, double* out, int nmo, int ncas)
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- update_h2eff_sub::transpose_3210 :: ncas= %i  _DEFAULT_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 ncas, _DEFAULT_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
+  ctx.pm->dev_check_errors();
+#endif
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::transpose_120(double * in, double * out, int naux, int nao, int ncas, int order)
+{
+  sycl::queue * s = ctx.pm->dev_get_queue();
+
+  int na = nao;
+  int nb = ncas;
+  
+  if(order == 1) {
+    na = ncas;
+    nb = nao;
+  }
+
+  sycl::range<3> block_size(1, 1, 1);
+  sycl::range<3> grid_size(nb, na, _TILE(naux, block_size[2])); // originally nmo, nmo
+  
+  {
+    s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
+                    [=](sycl::nd_item<3> item_ct1) {
+                      _transpose_120(in, out, naux, nao, ncas);
+                    });
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceUtils::getjk_unpack_buf2(double * buf2, double * eri, int * map, int naux, int nao, int nao_pair)
+{
+#if 1
+  sycl::range<3> grid_size(1, _TILE(nao, _UNPACK_BLOCK_SIZE), naux);
+  sycl::range<3> block_size(1, _UNPACK_BLOCK_SIZE, 1);
+#else
+  dim3 grid_size(naux, _TILE(nao*nao, _UNPACK_BLOCK_SIZE), 1);
+  dim3 block_size(1, _UNPACK_BLOCK_SIZE, 1);
+#endif
+
+  sycl::queue * s = ctx.pm->dev_get_queue();
+  
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- get_jk::_getjk_unpack_buf2 :: naux= %i  nao= %i _UNPACK_BLOCK_SIZE= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
+	 naux, nao, _UNPACK_BLOCK_SIZE, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
+#endif
+
+  {
+    //dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
+
+    s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
+                    [=](sycl::nd_item<3> item_ct1) {
+                      _getjk_unpack_buf2(buf2, eri, map, naux, nao, nao_pair);
+                    });
+  }
+
+#ifdef _DEBUG_DEVICE
+  ctx.pm->dev_stream_wait();
+  printf("LIBGPU ::  -- get_jk::_getjk_vj :: finished\n");
   ctx.pm->dev_check_errors();
 #endif
 }
