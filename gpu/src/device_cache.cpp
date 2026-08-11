@@ -20,18 +20,18 @@ int * Device::dd_fetch_pumap(my_device_data * dd, int size_pumap_, int type_puma
   // search if pack/unpack map already created
 
   int indx = -1;
-  for(int i=0; i<dd->size_pumap.size(); ++i)
-    if(dd->type_pumap[i] == type_pumap && dd->size_pumap[i] == size_pumap_) indx = i;
+  for(int i=0; i<dd->fci.size_pumap.size(); ++i)
+    if(dd->fci.type_pumap[i] == type_pumap && dd->fci.size_pumap[i] == size_pumap_) indx = i;
 
   // add unpack/pack map if not found
   
   if(indx < 0) {
-    dd->type_pumap.push_back(type_pumap);
-    dd->size_pumap.push_back(size_pumap_);
-    dd->pumap.push_back(nullptr);
-    dd->d_pumap.push_back(nullptr);
+    dd->fci.type_pumap.push_back(type_pumap);
+    dd->fci.size_pumap.push_back(size_pumap_);
+    dd->fci.pumap.push_back(nullptr);
+    dd->fci.d_pumap.push_back(nullptr);
 
-    indx = dd->type_pumap.size() - 1;
+    indx = dd->fci.type_pumap.size() - 1;
 
     int size_pumap = -1;
     
@@ -39,13 +39,13 @@ int * Device::dd_fetch_pumap(my_device_data * dd, int size_pumap_, int type_puma
       int nao = size_pumap_;
       size_pumap = nao * nao;
       
-      dd->pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
+      dd->fci.pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
 
       std::string name = "pumap-" + std::to_string(indx);
-      dd->d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
+      dd->fci.d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
       
       int _i, _j, _ij;
-      int * tm = dd->pumap[indx];
+      int * tm = dd->fci.pumap[indx];
       for(_ij = 0, _i = 0; _i < nao; _i++)
 	for(_j = 0; _j<=_i; _j++, _ij++) {
 	  tm[_i*nao + _j] = _ij;
@@ -58,12 +58,12 @@ int * Device::dd_fetch_pumap(my_device_data * dd, int size_pumap_, int type_puma
       int ncas = size_pumap_;
       size_pumap = ncas * ncas;
 
-      dd->pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
+      dd->fci.pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
       
       std::string name = "pumap-" + std::to_string(indx);
-      dd->d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
+      dd->fci.d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
 
-      int * tm = dd->pumap[indx];
+      int * tm = dd->fci.pumap[indx];
       int _ij, _i, _j;
       for(_ij = 0, _i = 0; _i < ncas; _i++)
 	for(_j = 0; _j<=_i; _j++, _ij++) {
@@ -75,12 +75,12 @@ int * Device::dd_fetch_pumap(my_device_data * dd, int size_pumap_, int type_puma
       int ncas_pair = ncas * (ncas+1)/2;
       size_pumap = ncas * ncas * ncas;
 
-      dd->pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
+      dd->fci.pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
       
       std::string name = "pumap-" + std::to_string(indx);
-      dd->d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
+      dd->fci.d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
 
-      int * tm = dd->pumap[indx];
+      int * tm = dd->fci.pumap[indx];
       for (int _i=0; _i<ncas;++_i) {
 	for (int _j=0, _jk=0; _j<ncas; ++_j) {
 	  for (int _k=0;_k<=_j;++_k,++_jk) {
@@ -96,12 +96,12 @@ int * Device::dd_fetch_pumap(my_device_data * dd, int size_pumap_, int type_puma
       int ncas_pair = ncas * (ncas+1)/2;
       size_pumap = ncas_pair;
 
-      dd->pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
+      dd->fci.pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
       
       std::string name = "pumap-" + std::to_string(indx);
-      dd->d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
+      dd->fci.d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
 
-      int * tm = dd->pumap[indx];
+      int * tm = dd->fci.pumap[indx];
       int _i, _j, _ij;
       for (_i=0, _ij=0; _i<ncas; ++_i) {
 	for (_j=0; _j<=_i; ++_j, ++_ij) {
@@ -113,12 +113,12 @@ int * Device::dd_fetch_pumap(my_device_data * dd, int size_pumap_, int type_puma
       int ncas_pair = ncas * (ncas+1)/2;
       size_pumap = ncas * ncas_pair;
 
-      dd->pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
+      dd->fci.pumap[indx] = (int *) pm->dev_malloc_host(size_pumap * sizeof(int));
       
       std::string name = "pumap-" + std::to_string(indx);
-      dd->d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
+      dd->fci.d_pumap[indx] = (int *) pm->dev_malloc_async(size_pumap * sizeof(int), name, FLERR);
 
-      int * tm = dd->pumap[indx];
+      int * tm = dd->fci.pumap[indx];
       int _i, _j, _k, _ijk;
       for (_ijk=0, _i=0; _i<ncas;++_i){
 	for (_j=0; _j<ncas; ++_j){
@@ -130,15 +130,15 @@ int * Device::dd_fetch_pumap(my_device_data * dd, int size_pumap_, int type_puma
 #endif
       
     } // if(type_pumap)
-    pm->dev_push_async(dd->d_pumap[indx], dd->pumap[indx], size_pumap*sizeof(int));
+    pm->dev_push_async(dd->fci.d_pumap[indx], dd->fci.pumap[indx], size_pumap*sizeof(int));
   } // if(map_not_found)
   
   // set pointers to current map
 
-  dd->pumap_ptr = dd->pumap[indx];
-  dd->d_pumap_ptr = dd->d_pumap[indx];
+  dd->fci.pumap_ptr = dd->fci.pumap[indx];
+  dd->fci.d_pumap_ptr = dd->fci.d_pumap[indx];
 
-  return dd->d_pumap_ptr;
+  return dd->fci.d_pumap_ptr;
 }
 
 /* ---------------------------------------------------------------------- */

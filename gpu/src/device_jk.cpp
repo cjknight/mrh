@@ -37,29 +37,29 @@ void Device::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtril,
   
   int _size_vj = nset * nao_pair;
 
-  grow_array(dd->d_vj, _size_vj, dd->size_vj, "vj", FLERR);
+  grow_array(dd->jk.d_vj, _size_vj, dd->jk.size_vj, "vj", FLERR);
   
   int _size_vk = nset * nao * nao;
 
-  grow_array(dd->d_vkk, _size_vk, dd->size_vk, "vkk", FLERR);
+  grow_array(dd->jk.d_vkk, _size_vk, dd->jk.size_vk, "vkk", FLERR);
 
   int _size_buf = blksize * nao * nao;
   if(_size_vj > _size_buf) _size_buf = _size_vj;
   if(_size_vk > _size_buf) _size_buf = _size_vk;
   
-  grow_array(dd->d_buf1, _size_buf, dd->size_buf1, "buf1", FLERR);
-  grow_array(dd->d_buf2, _size_buf, dd->size_buf2, "buf2", FLERR);
-  grow_array(dd->d_buf3, _size_buf, dd->size_buf3, "buf3", FLERR);
+  grow_array(dd->jk.d_buf1, _size_buf, dd->jk.size_buf1, "buf1", FLERR);
+  grow_array(dd->jk.d_buf2, _size_buf, dd->jk.size_buf2, "buf2", FLERR);
+  grow_array(dd->jk.d_buf3, _size_buf, dd->jk.size_buf3, "buf3", FLERR);
   
   int _size_dms = nset * nao * nao;
-  grow_array(dd->d_dms, _size_dms, dd->size_dms, "dms", FLERR);
+  grow_array(dd->jk.d_dms, _size_dms, dd->jk.size_dms, "dms", FLERR);
 
   int _size_dmtril = nset * nao_pair;
-  grow_array(dd->d_dmtril, _size_dmtril, dd->size_dmtril, "dmtril", FLERR);
+  grow_array(dd->jk.d_dmtril, _size_dmtril, dd->jk.size_dmtril, "dmtril", FLERR);
 
   if(!use_eri_cache) {
     int _size_eri1 = naux * nao_pair;
-    grow_array(dd->d_eri1, _size_eri1, dd->size_eri1, "eri1", FLERR);
+    grow_array(dd->jk.d_eri1, _size_eri1, dd->jk.size_eri1, "eri1", FLERR);
   }
   
   int _size_buf_vj = num_devices * nset * nao_pair;
@@ -134,8 +134,8 @@ void Device::get_jk(int naux, int nao, int nset,
   if(!use_eri_cache) {
     // if not caching, then eri block always transferred
     
-    pm->dev_push_async(dd->d_eri1, eri1, naux * nao_pair * sizeof(double));
-    d_eri = dd->d_eri1;
+    pm->dev_push_async(dd->jk.d_eri1, eri1, naux * nao_pair * sizeof(double));
+    d_eri = dd->jk.d_eri1;
   }
 
   // Bcast() from master device ; make sure devices arrays allocated
@@ -146,29 +146,29 @@ void Device::get_jk(int naux, int nao, int nset,
 
     std::vector<double *> dmtril_vec(num_devices); // array of device addresses 
 
-    dmtril_vec[0] = dd->d_dmtril;
+    dmtril_vec[0] = dd->jk.d_dmtril;
     
     for(int i=1; i<num_devices; ++i) {
       my_device_data * dest = &(device_data[i]);
 
       // ensure memory allocated ; duplicating what's in init_get_jk()
       
-      if(size > dest->size_dmtril) {
-	dest->size_dmtril = size;
+      if(size > dest->jk.size_dmtril) {
+	dest->jk.size_dmtril = size;
 
 	pm->dev_set_device(i);
-	if(dest->d_dmtril) pm->dev_free(dest->d_dmtril, "dmtril");
-	dest->d_dmtril = (double *) pm->dev_malloc(size * sizeof(double), "dmtril", FLERR); // why is this not async?
+	if(dest->jk.d_dmtril) pm->dev_free(dest->jk.d_dmtril, "dmtril");
+	dest->jk.d_dmtril = (double *) pm->dev_malloc(size * sizeof(double), "dmtril", FLERR); // why is this not async?
       }
       
-      dmtril_vec[i] = dest->d_dmtril;
+      dmtril_vec[i] = dest->jk.d_dmtril;
     }
     
     mgpu_bcast(dmtril_vec, dmtril, size);  // host -> gpu 0, then Bcast to all gpu
   }
 #else
   if(count < num_devices) {
-    int err = pm->dev_push_async(dd->d_dmtril, dmtril, nset * nao_pair * sizeof(double));
+    int err = pm->dev_push_async(dd->jk.d_dmtril, dmtril, nset * nao_pair * sizeof(double));
     if(err) {
       printf("LIBGPU:: dev_push_async(d_dmtril) failed on count= %i\n",count);
       exit(1);
@@ -177,7 +177,7 @@ void Device::get_jk(int naux, int nao, int nset,
 #endif
     
   int _size_rho = nset * naux;
-  grow_array(dd->d_rho, _size_rho, dd->size_rho, "rho", FLERR);
+  grow_array(dd->jk.d_rho, _size_rho, dd->jk.size_rho, "rho", FLERR);
     
 #if 0
   py::buffer_info info_vj = _vj.request(); // 2D array (nset, nao_pair)
@@ -215,13 +215,13 @@ void Device::get_jk(int naux, int nao, int nset,
     
     // rho = numpy.einsum('ix,px->ip', dmtril, eri1)
     
-    getjk_rho(dd->d_rho, dd->d_dmtril, d_eri, nset, naux, nao_pair);
+    getjk_rho(dd->jk.d_rho, dd->jk.d_dmtril, d_eri, nset, naux, nao_pair);
     
     // vj += numpy.einsum('ip,px->ix', rho, eri1)
    
     int init = (count < num_devices) ? 1 : 0;
   
-    getjk_vj(dd->d_vj, dd->d_rho, d_eri, nset, nao_pair, naux, init);
+    getjk_vj(dd->jk.d_vj, dd->jk.d_rho, d_eri, nset, nao_pair, naux, init);
     
     pm->dev_profile_stop();
   }
@@ -243,7 +243,7 @@ void Device::get_jk(int naux, int nao, int nset,
     
   pm->dev_profile_start("get_jk :: with_k");
 
-  getjk_unpack_buf2(dd->d_buf2, d_eri, dd->d_pumap_ptr, naux, nao, nao_pair);
+  getjk_unpack_buf2(dd->jk.d_buf2, d_eri, dd->fci.d_pumap_ptr, naux, nao, nao_pair);
 
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- finished\n");
@@ -259,7 +259,7 @@ void Device::get_jk(int naux, int nao, int nset,
 
     double * dms = static_cast<double*>(info_dms.ptr);
 
-    double * d_dms = &(dd->d_dms[indxK*nao*nao]);
+    double * d_dms = &(dd->jk.d_dms[indxK*nao*nao]);
 
     if(count < num_devices) {
 #ifdef _DEBUG_DEVICE
@@ -282,7 +282,7 @@ void Device::get_jk(int naux, int nao, int nset,
 
       ml->set_handle();
       ml->gemm_batch((char *) "T", (char *) "T", &nao, &nao, &nao,
-		     &alpha, dd->d_buf2, &nao, &nao2, d_dms, &nao, &zero, &beta, dd->d_buf1, &nao, &nao2, &naux);
+		     &alpha, dd->jk.d_buf2, &nao, &nao2, d_dms, &nao, &zero, &beta, dd->jk.d_buf1, &nao, &nao2, &naux);
     }
     
     // dgemm of (nao X blksize*nao) and (blksize*nao X nao) matrices - can refactor later...
@@ -291,7 +291,7 @@ void Device::get_jk(int naux, int nao, int nset,
     // buf3 = buf1.reshape(-1,nao).T
     // buf4 = buf2.reshape(-1,nao)
     
-    transpose(dd->d_buf3, dd->d_buf1, naux*nao, nao);
+    transpose(dd->jk.d_buf3, dd->jk.d_buf1, naux*nao, nao);
     
     // vk[k] += lib.dot(buf3, buf4)
     // gemm(A,B,C) : C = alpha * A.B + beta * C
@@ -315,7 +315,7 @@ void Device::get_jk(int naux, int nao, int nset,
       const int vk_offset = indxK * nao*nao;
       
       ml->set_handle();
-      ml->gemm((char *) "N", (char *) "N", &m, &n, &k, &alpha, dd->d_buf2, &ldb, dd->d_buf3, &lda, &beta, (dd->d_vkk)+vk_offset, &ldc);
+      ml->gemm((char *) "N", (char *) "N", &m, &n, &k, &alpha, dd->jk.d_buf2, &ldb, dd->jk.d_buf3, &lda, &beta, (dd->jk.d_vkk)+vk_offset, &ldc);
     }
   
   } // for(nset)
@@ -359,8 +359,8 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
   
   for(int i=0; i<num_devices; ++i) {
     my_device_data * dd = &(device_data[i]);
-    v_vec[i] = dd->d_vj;
-    buf_vec[i] = dd->d_buf3;
+    v_vec[i] = dd->jk.d_vj;
+    buf_vec[i] = dd->jk.d_buf3;
     active[i] = dd->active;
   }
   
@@ -391,7 +391,7 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
   
   for(int i=0; i<num_devices; ++i) {
     my_device_data * dd = &(device_data[i]);
-    v_vec[i] = dd->d_vkk;
+    v_vec[i] = dd->jk.d_vkk;
   }
   
   if(v_vec[0]) {
@@ -442,7 +442,7 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
     if(i == 0) tmp = vj;
     else tmp = &(buf_vj[i * nset * nao_pair]);
     
-    if(dd->active) pm->dev_pull_async(dd->d_vj, tmp, size);
+    if(dd->active) pm->dev_pull_async(dd->jk.d_vj, tmp, size);
   }
   
   for(int i=0; i<num_devices; ++i) {
@@ -487,7 +487,7 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int n
     if(i == 0) tmp = vk;
     else tmp = &(buf_vk[i * nset * nao * nao]);
 
-    if(dd->active) pm->dev_pull_async(dd->d_vkk, tmp, size);
+    if(dd->active) pm->dev_pull_async(dd->jk.d_vkk, tmp, size);
   }
 
   for(int i=0; i<num_devices; ++i) {

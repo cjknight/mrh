@@ -14,6 +14,7 @@ namespace py = pybind11;
 #include "pm/pm.h"
 #include "mathlib/mathlib.h"
 #include "pm/dev_array.h"
+#include "device_context.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -420,128 +421,6 @@ private:
     //        CINTOpt *cintopt;
     //        CVHFOpt *vhfopt;
   };
-    struct my_device_data {
-    int device_id;
-    int active; // was device used in calculation and has result to be accumulated?
-
-    int size_rho;
-    int size_vj;
-    int size_vk;
-    //    int size_buf;
-    int size_buf1;
-    int size_buf2;
-    int size_buf3;
-    int size_dms;
-    int size_dmtril;
-    int size_eri1;
-    int size_ucas;
-    int size_umat;
-    int size_h2eff;
-    int size_mo_coeff; 
-    int size_mo_cas; 
-    //ao2mo
-    int size_j_pc;
-    int size_k_cp;
-    int size_k_pc;
-    int size_bufd;
-    int size_bufpa;
-    int size_bufaa;
-    // eri_h2eff
-    int size_eri_unpacked;
-    int size_eri_h2eff;
-
-    //pdft
-    int size_mo_grid;
-    int size_ao_grid;
-    int size_cascm2;
-    int size_Pi;
-    int size_buf_pdft;
-
-    //fci
-    int size_clinka;
-    int size_clinkb;
-    int size_cibra;
-    int size_ciket;
-    int size_tdm1;
-    int size_tdm2;
-    int size_tdm2_p;
-    int size_pdm1;//do we need this anymore?
-    int size_pdm2;//do we need this anymore?
-
-
-    double * d_rho;
-    double * d_vj;
-    double * d_buf1;
-    double * d_buf2;
-    double * d_buf3;
-    double * d_vkk;
-    double * d_dms;
-    double * d_dmtril;
-    double * d_eri1;
-    double * d_ucas;
-    double * d_umat;
-    double * d_h2eff;
-    double * d_mo_coeff;
-    double * d_mo_cas;
-    //ao2mo
-    double * d_j_pc;
-    double * d_k_pc;
-    double * d_bufd;
-    double * d_bufpa;
-    double * d_bufaa;
-    double * d_ppaa;
-    double * d_papa;
-    // eri_h2eff
-    double * d_eri_h2eff;
-    //pdft
-    double * d_ao_grid;
-    double * d_cascm2;
-    double * d_mo_grid;
-    double * d_Pi;
-    double * d_buf_pdft1;
-    double * d_buf_pdft2;
-    //fci 
-    
-    int * d_clinka;
-    int * d_clinkb;
-    double * d_cibra;
-    double * d_ciket;
-    double * d_tdm2;
-    double * d_tdm2_p;
-    double * d_tdm1;
-    double * d_tdm1h;
-    double * d_tdm3ha;
-    double * d_tdm3hb;
-    double * d_pdm2; //do we need these anymore
-    double * d_pdm1; //do we need these anymore
-    
-    std::vector<int> type_pumap;
-    std::vector<int> size_pumap;
-    std::vector<int *> pumap;
-    std::vector<int *> d_pumap;
-    int * d_pumap_ptr; // no explicit allocation
-    int * pumap_ptr; // no explicit allocation
-
-    // we keep the following for now, but we don't explicitly use them anymore
-    // besides, pm.h should defined a queue_t and mathlib.h a handle_t...
-    
-#if defined (_USE_GPU)
-#if defined _GPU_CUBLAS
-    cublasHandle_t handle;
-    cudaStream_t stream;
-#elif defined _GPU_HIPBLAS
-    hipblasHandle_t handle;
-    hipStream_t stream;
-#elif defined _GPU_MKL
-    int * handle;
-    sycl::queue * stream;
-#endif
-#else
-    int * handle;
-    int * stream;
-#endif
-  };
-
   my_device_data * device_data;
   
   int * dd_fetch_pumap(my_device_data *, int, int);

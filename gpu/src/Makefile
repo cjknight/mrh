@@ -118,7 +118,9 @@ pm_hip.o : pm/pm_hip.cpp pm/pm_hip.h pm/pm.h
 pm_openmp.o : pm/pm_openmp.cpp pm/pm_openmp.h pm/pm.h
 pm_host.o : pm/pm_host.cpp pm/pm_host.h pm/pm.h
 
-device.o : device.cpp device.h
+device.o : device.cpp device.h device_context.h
+
+device_jk.o device_ao2mo.o device_h2eff.o device_impham.o device_pdft.o device_fci.o device_lassi.o device_comm.o device_cache.o : device.h device_context.h
 
 pm_cuda.o : pm/pm_cuda.cpp pm/pm_cuda.h pm/pm.h
 pm_sycl.o : pm/pm_sycl.cpp pm/pm_sycl.h pm/pm.h

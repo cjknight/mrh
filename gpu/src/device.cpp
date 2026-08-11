@@ -103,89 +103,89 @@ Device::Device()
     device_data[i].device_id = i;
     device_data[i].active = 0;
     
-    device_data[i].size_rho = 0;
-    device_data[i].size_vj = 0;
-    device_data[i].size_vk = 0;
-    device_data[i].size_buf1 = 0;
-    device_data[i].size_buf2 = 0;
-    device_data[i].size_buf3 = 0;
-    device_data[i].size_dms = 0;
-    device_data[i].size_dmtril = 0;
-    device_data[i].size_eri1 = 0;
+    device_data[i].jk.size_rho = 0;
+    device_data[i].jk.size_vj = 0;
+    device_data[i].jk.size_vk = 0;
+    device_data[i].jk.size_buf1 = 0;
+    device_data[i].jk.size_buf2 = 0;
+    device_data[i].jk.size_buf3 = 0;
+    device_data[i].jk.size_dms = 0;
+    device_data[i].jk.size_dmtril = 0;
+    device_data[i].jk.size_eri1 = 0;
     device_data[i].size_ucas = 0;
     device_data[i].size_umat = 0;
     device_data[i].size_h2eff = 0;
     device_data[i].size_mo_coeff = 0;
     device_data[i].size_mo_cas = 0;
-    device_data[i].size_eri_unpacked = 0; // this variable is not needed
-    device_data[i].size_j_pc = 0;
-    device_data[i].size_k_pc = 0;
-    device_data[i].size_bufd = 0;
-    device_data[i].size_bufpa = 0;
-    device_data[i].size_bufaa = 0;
-    device_data[i].size_eri_h2eff=0;
+    device_data[i].h2eff.size_eri_unpacked = 0; // this variable is not needed
+    device_data[i].ao2mo.size_j_pc = 0;
+    device_data[i].ao2mo.size_k_pc = 0;
+    device_data[i].ao2mo.size_bufd = 0;
+    device_data[i].ao2mo.size_bufpa = 0;
+    device_data[i].ao2mo.size_bufaa = 0;
+    device_data[i].h2eff.size_eri_h2eff=0;
     //pdft
-    device_data[i].size_mo_grid=0;
-    device_data[i].size_ao_grid=0;
-    device_data[i].size_buf_pdft=0;
-    device_data[i].size_cascm2=0;
-    device_data[i].size_Pi=0;
-    device_data[i].size_rho=0;
+    device_data[i].pdft.size_mo_grid=0;
+    device_data[i].pdft.size_ao_grid=0;
+    device_data[i].pdft.size_buf_pdft=0;
+    device_data[i].pdft.size_cascm2=0;
+    device_data[i].pdft.size_Pi=0;
+    device_data[i].jk.size_rho=0;
     //fci
-    device_data[i].size_clinka=0;
-    device_data[i].size_clinkb=0;
-    device_data[i].size_cibra=0;
-    device_data[i].size_ciket=0;
-    device_data[i].size_tdm1=0;
-    device_data[i].size_tdm2=0;
-    device_data[i].size_tdm2_p=0;
+    device_data[i].fci.size_clinka=0;
+    device_data[i].fci.size_clinkb=0;
+    device_data[i].fci.size_cibra=0;
+    device_data[i].fci.size_ciket=0;
+    device_data[i].fci.size_tdm1=0;
+    device_data[i].fci.size_tdm2=0;
+    device_data[i].fci.size_tdm2_p=0;
     //matvecs
     
     
-    device_data[i].d_rho = nullptr;
-    device_data[i].d_vj = nullptr;
-    device_data[i].d_buf1 = nullptr;
-    device_data[i].d_buf2 = nullptr;
-    device_data[i].d_buf3 = nullptr;
-    device_data[i].d_vkk = nullptr;
-    device_data[i].d_dms = nullptr;
+    device_data[i].jk.d_rho = nullptr;
+    device_data[i].jk.d_vj = nullptr;
+    device_data[i].jk.d_buf1 = nullptr;
+    device_data[i].jk.d_buf2 = nullptr;
+    device_data[i].jk.d_buf3 = nullptr;
+    device_data[i].jk.d_vkk = nullptr;
+    device_data[i].jk.d_dms = nullptr;
     device_data[i].d_mo_coeff=nullptr;
     device_data[i].d_mo_cas=nullptr;
-    device_data[i].d_dmtril = nullptr;
-    device_data[i].d_dms = nullptr;
+    device_data[i].jk.d_dmtril = nullptr;
+    device_data[i].jk.d_dms = nullptr;
     device_data[i].d_mo_coeff=nullptr;
     device_data[i].d_mo_cas=nullptr;
-    device_data[i].d_dmtril = nullptr;
-    device_data[i].d_eri1 = nullptr; // when not using eri cache
+    device_data[i].jk.d_dmtril = nullptr;
+    device_data[i].jk.d_eri1 = nullptr; // when not using eri cache
     device_data[i].d_ucas = nullptr;
     device_data[i].d_umat = nullptr;
     device_data[i].d_h2eff = nullptr;
-    device_data[i].d_eri_h2eff = nullptr; //for h2eff_df_v2
+    device_data[i].h2eff.d_eri_h2eff = nullptr; //for h2eff_df_v2
     
-    device_data[i].d_pumap_ptr = nullptr;
+    device_data[i].fci.d_pumap_ptr = nullptr;
     
-    device_data[i].d_j_pc = nullptr;
-    device_data[i].d_k_pc = nullptr;
-    device_data[i].d_bufd = nullptr;
-    device_data[i].d_bufpa = nullptr;
-    device_data[i].d_bufaa = nullptr;
-    device_data[i].d_papa = nullptr;//initialized, but not allocated (used dd->d_buf3)
+    device_data[i].ao2mo.d_j_pc = nullptr;
+    device_data[i].ao2mo.d_k_pc = nullptr;
+    device_data[i].ao2mo.d_bufd = nullptr;
+    device_data[i].ao2mo.d_bufpa = nullptr;
+    device_data[i].ao2mo.d_bufaa = nullptr;
+    device_data[i].ao2mo.d_papa = nullptr;//initialized, but not allocated (used dd->jk.d_buf3)
 
     // pdft
-    device_data[i].d_ao_grid=nullptr;
-    device_data[i].d_mo_grid=nullptr;
-    device_data[i].d_cascm2=nullptr;
-    device_data[i].d_Pi=nullptr;
-    device_data[i].d_buf_pdft1=nullptr;
-    device_data[i].d_buf_pdft2=nullptr;
+    device_data[i].pdft.d_ao_grid=nullptr;
+    device_data[i].pdft.d_mo_grid=nullptr;
+    device_data[i].pdft.d_cascm2=nullptr;
+    device_data[i].pdft.d_Pi=nullptr;
+    device_data[i].pdft.d_buf_pdft1=nullptr;
+    device_data[i].pdft.d_buf_pdft2=nullptr;
     //fci
-    device_data[i].d_clinka=nullptr;
-    device_data[i].d_clinkb=nullptr;
-    device_data[i].d_cibra=nullptr;
-    device_data[i].d_ciket=nullptr;
-    device_data[i].d_tdm1=nullptr;
-    device_data[i].d_tdm2=nullptr;
-    device_data[i].d_tdm2_p=nullptr;
+    device_data[i].fci.d_clinka=nullptr;
+    device_data[i].fci.d_clinkb=nullptr;
+    device_data[i].fci.d_cibra=nullptr;
+    device_data[i].fci.d_ciket=nullptr;
+    device_data[i].fci.d_tdm1=nullptr;
+    device_data[i].fci.d_tdm2=nullptr;
+    device_data[i].fci.d_tdm2_p=nullptr;
 
 #if defined (_USE_GPU)
     device_data[i].handle = nullptr;
@@ -392,55 +392,55 @@ Device::~Device()
     
     my_device_data * dd = &(device_data[i]);
     
-    pm->dev_free(dd->d_rho, "rho");
-    pm->dev_free(dd->d_vj, "vj");
-    pm->dev_free(dd->d_buf1, "buf1");
-    pm->dev_free(dd->d_buf2, "buf2");
-    pm->dev_free(dd->d_buf3, "buf3");
-    pm->dev_free(dd->d_vkk, "vkk");
-    pm->dev_free(dd->d_dms, "dms");
+    pm->dev_free(dd->jk.d_rho, "rho");
+    pm->dev_free(dd->jk.d_vj, "vj");
+    pm->dev_free(dd->jk.d_buf1, "buf1");
+    pm->dev_free(dd->jk.d_buf2, "buf2");
+    pm->dev_free(dd->jk.d_buf3, "buf3");
+    pm->dev_free(dd->jk.d_vkk, "vkk");
+    pm->dev_free(dd->jk.d_dms, "dms");
     pm->dev_free(dd->d_mo_coeff, "mo_coeff");
     pm->dev_free(dd->d_mo_cas, "mo_cas");
-    pm->dev_free(dd->d_dmtril, "dmtril");
-    pm->dev_free(dd->d_eri1, "eri1");
+    pm->dev_free(dd->jk.d_dmtril, "dmtril");
+    pm->dev_free(dd->jk.d_eri1, "eri1");
     pm->dev_free(dd->d_ucas, "ucas");
     pm->dev_free(dd->d_umat, "umat");
     pm->dev_free(dd->d_h2eff, "h2eff");
-    pm->dev_free(dd->d_eri_h2eff, "eri_h2eff");
+    pm->dev_free(dd->h2eff.d_eri_h2eff, "eri_h2eff");
     
-    pm->dev_free(dd->d_j_pc, "j_pc");
-    pm->dev_free(dd->d_k_pc, "k_pc");
+    pm->dev_free(dd->ao2mo.d_j_pc, "j_pc");
+    pm->dev_free(dd->ao2mo.d_k_pc, "k_pc");
 
-    pm->dev_free(dd->d_ao_grid, "ao_grid");
-    pm->dev_free(dd->d_mo_grid, "ao_grid");
-    pm->dev_free(dd->d_cascm2, "cascm2");
-    pm->dev_free(dd->d_Pi, "Pi");
-    pm->dev_free(dd->d_buf_pdft1, "buf_pdft1");
-    pm->dev_free(dd->d_buf_pdft2, "buf_pdft2");
+    pm->dev_free(dd->pdft.d_ao_grid, "ao_grid");
+    pm->dev_free(dd->pdft.d_mo_grid, "ao_grid");
+    pm->dev_free(dd->pdft.d_cascm2, "cascm2");
+    pm->dev_free(dd->pdft.d_Pi, "Pi");
+    pm->dev_free(dd->pdft.d_buf_pdft1, "buf_pdft1");
+    pm->dev_free(dd->pdft.d_buf_pdft2, "buf_pdft2");
 
-    pm->dev_free(dd->d_bufpa, "bufpa");
-    pm->dev_free(dd->d_bufd, "bufd");
-    pm->dev_free(dd->d_bufaa, "bufaa");
+    pm->dev_free(dd->ao2mo.d_bufpa, "bufpa");
+    pm->dev_free(dd->ao2mo.d_bufd, "bufd");
+    pm->dev_free(dd->ao2mo.d_bufaa, "bufaa");
 
-    pm->dev_free(dd->d_clinka, "clinka");
-    pm->dev_free(dd->d_clinkb, "clinkb");
-    pm->dev_free(dd->d_cibra, "cibra");
-    pm->dev_free(dd->d_ciket, "ciket");
-    pm->dev_free(dd->d_tdm1, "tdm1");
-    pm->dev_free(dd->d_tdm2, "tdm2");
-    pm->dev_free(dd->d_tdm2_p, "tdm2_p");
+    pm->dev_free(dd->fci.d_clinka, "clinka");
+    pm->dev_free(dd->fci.d_clinkb, "clinkb");
+    pm->dev_free(dd->fci.d_cibra, "cibra");
+    pm->dev_free(dd->fci.d_ciket, "ciket");
+    pm->dev_free(dd->fci.d_tdm1, "tdm1");
+    pm->dev_free(dd->fci.d_tdm2, "tdm2");
+    pm->dev_free(dd->fci.d_tdm2_p, "tdm2_p");
 
 
-    for(int i=0; i<dd->size_pumap.size(); ++i) {
-      pm->dev_free_host(dd->pumap[i]);
+    for(int i=0; i<dd->fci.size_pumap.size(); ++i) {
+      pm->dev_free_host(dd->fci.pumap[i]);
       
       std::string name = "pumap-" + std::to_string(i);
-      pm->dev_free(dd->d_pumap[i], name);
+      pm->dev_free(dd->fci.d_pumap[i], name);
     }
-    dd->type_pumap.clear();
-    dd->size_pumap.clear();
-    dd->pumap.clear();
-    dd->d_pumap.clear();
+    dd->fci.type_pumap.clear();
+    dd->fci.size_pumap.clear();
+    dd->fci.pumap.clear();
+    dd->fci.d_pumap.clear();
   }
 
   if(verbose_level) {

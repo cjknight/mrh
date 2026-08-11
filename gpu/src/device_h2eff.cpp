@@ -52,11 +52,11 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   int _size_h2eff_unpacked = nmo*ncas*ncas*ncas;
   int _size_h2eff_packed = nmo*ncas*ncas_pair;
 
-  grow_array(dd->d_buf1, _size_h2eff_unpacked, dd->size_buf1, "buf1", FLERR);
-  //  grow_array(dd->d_buf2, _size_h2eff_unpacked, dd->size_buf2, "buf2", FLERR);
-  //  grow_array(dd->d_buf3, _size_h2eff_unpacked, dd->size_buf3, "buf3", FLERR);
+  grow_array(dd->jk.d_buf1, _size_h2eff_unpacked, dd->jk.size_buf1, "buf1", FLERR);
+  //  grow_array(dd->jk.d_buf2, _size_h2eff_unpacked, dd->jk.size_buf2, "buf2", FLERR);
+  //  grow_array(dd->jk.d_buf3, _size_h2eff_unpacked, dd->jk.size_buf3, "buf3", FLERR);
   
-  double * d_h2eff_unpacked = dd->d_buf1;
+  double * d_h2eff_unpacked = dd->jk.d_buf1;
 
   grow_array(dd->d_ucas, ncas*ncas, dd->size_ucas, "ucas", FLERR);
 
@@ -113,7 +113,7 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   
   //h2eff_step1=([pi]jk,jJ->[pi]kJ)
 
-  double * d_h2eff_step1 = dd->d_buf2;
+  double * d_h2eff_step1 = dd->jk.d_buf2;
 
   int zero = 0;
   int ncas2 = ncas * ncas;
@@ -125,7 +125,7 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   
   //h2eff_step2=([pi]kJ,kK->[pi]JK
   
-  double * d_h2eff_step2 = dd->d_buf1;
+  double * d_h2eff_step2 = dd->jk.d_buf1;
 
   ml->gemm_batch((char *) "N", (char *) "T", &ncas, &ncas, &ncas,
 		 &alpha, d_h2eff_step1, &ncas, &ncas2, dd->d_ucas, &ncas, &zero, &beta, d_h2eff_step2, &ncas, &ncas2, &ncas_nmo);
@@ -138,7 +138,7 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   
   //h2eff_tranposed=(piJK->JKpi)
   
-  double * d_h2eff_transposed = dd->d_buf2;
+  double * d_h2eff_transposed = dd->jk.d_buf2;
 
   transpose_2310(d_h2eff_step2, d_h2eff_transposed, nmo, ncas);
   
@@ -148,7 +148,7 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   printf("LIBGPU :: Inside Device :: -- Finished transposing\n");
 #endif
   
-  double * d_h2eff_step3 = dd->d_buf1;
+  double * d_h2eff_step3 = dd->jk.d_buf1;
 
   //h2eff_sub=np.einsum('iI,JKip->JKIp',ucas,h2eff_sub) h2eff=ncas,ncas,ncas,nmo; ucas=ncas,ncas
 
@@ -157,7 +157,7 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   
   //h2eff_step4=([JK]Ip,pP->[JK]IP)
 
-  double * d_h2eff_step4 = dd->d_buf2;
+  double * d_h2eff_step4 = dd->jk.d_buf2;
 
   ml->gemm_batch((char *) "N", (char *) "N", &nmo, &ncas, &nmo,
 		 &alpha, dd->d_umat, &nmo, &zero, d_h2eff_step3, &nmo, &ncas_nmo, &beta, d_h2eff_step4, &nmo, &ncas_nmo, &ncas2);
@@ -168,7 +168,7 @@ void Device::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
   printf("LIBGPU :: Inside Device :: -- Finished last 2 cublasDgemmStridedBatched Functions \n");
 #endif
 
-  double * d_h2eff_transpose2 = dd->d_buf1;
+  double * d_h2eff_transpose2 = dd->jk.d_buf1;
   
   //h2eff_tranposed=(JKIP->PIJK) 3201
 
@@ -276,17 +276,17 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   if(size_vuwm > max_size_buf) max_size_buf = size_vuwm; 
   //printf("cderi_up: %i bump_buvP: %i vuWM:%i vuwm:%i size_buf%i\n",size_cderi_unpacked,size_bumP_buvP, size_vuwM, size_vuwm, max_size_buf);
   
-  grow_array(dd->d_buf1, max_size_buf, dd->size_buf1, "buf1", FLERR); // holds cderi_unpacked and bumP+buvP and vuwM
+  grow_array(dd->jk.d_buf1, max_size_buf, dd->jk.size_buf1, "buf1", FLERR); // holds cderi_unpacked and bumP+buvP and vuwM
 
   max_size_buf = size_bumP_buvP;
   if(size_vuwm > max_size_buf) max_size_buf = size_vuwm;
   
-  grow_array(dd->d_buf2, max_size_buf, dd->size_buf2, "buf2", FLERR); // holds bPmu+bPvu and vuwm
+  grow_array(dd->jk.d_buf2, max_size_buf, dd->jk.size_buf2, "buf2", FLERR); // holds bPmu+bPvu and vuwm
 
   max_size_buf = _size_eri_h2eff;
   if(size_vuwM > max_size_buf) max_size_buf = size_vuwM;
   
-  grow_array(dd->d_buf3, max_size_buf, dd->size_buf3, "buf3", FLERR); // holds eri_h2eff
+  grow_array(dd->jk.d_buf3, max_size_buf, dd->jk.size_buf3, "buf3", FLERR); // holds eri_h2eff
   
   double * eri = static_cast<double*>(info_eri.ptr);
   double * d_mo_coeff = dd->d_mo_coeff;
@@ -312,13 +312,13 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   if(use_eri_cache) {
     d_cderi = dd_fetch_eri(dd, cderi, naux, nao_pair, addr_dfobj, count);
   } else {
-    grow_array(dd->d_eri1, _size_eri, dd->size_eri1, "eri1", FLERR);
-    d_cderi = dd->d_eri1;
+    grow_array(dd->jk.d_eri1, _size_eri, dd->jk.size_eri1, "eri1", FLERR);
+    d_cderi = dd->jk.d_eri1;
 
     pm->dev_push_async(d_cderi, cderi, _size_eri * sizeof(double));
   }
 
-  double * d_cderi_unpacked = dd->d_buf1;
+  double * d_cderi_unpacked = dd->jk.d_buf1;
 
   int * d_my_unpack_map_ptr = dd_fetch_pumap(dd, nao, _PUMAP_2D_UNPACK);
 
@@ -348,7 +348,7 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   int ncas_nao = ncas * nao;
   int ncas2 = ncas * ncas;
 
-  double * d_bPmu = dd->d_buf2;
+  double * d_bPmu = dd->jk.d_buf2;
   
   ml->set_handle();
   ml->gemm_batch((char *) "N", (char *) "N", &nao, &ncas, &nao,
@@ -356,7 +356,7 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   
   //bPvu = np.einsum('mv,Pmu->Pvu',mo_cas.conjugate(),bPmu)
 
-  double * d_bPvu= dd->d_buf2 + naux*ncas*nao;
+  double * d_bPvu= dd->jk.d_buf2 + naux*ncas*nao;
 
   ml->set_handle();
   ml->gemm_batch((char *) "T", (char *) "N", &ncas, &ncas, &nao,
@@ -366,11 +366,11 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
   //transpose bPmu
 
-  double * d_bumP = dd->d_buf1;
+  double * d_bumP = dd->jk.d_buf1;
 
   transpose_120(d_bPmu, d_bumP, naux, ncas, nao, 1); // this call distributes work items differently 
 
-  double * d_buvP = dd->d_buf1 + naux*ncas*nao;
+  double * d_buvP = dd->jk.d_buf1 + naux*ncas*nao;
 
   // printf("size_buf1= %i  size_bumP= %i  size_buvP= %i  sum= %i\n",
   // 	 dd->size_buf, naux*ncas*nao, naux*ncas*ncas, naux*ncas*nao + naux*ncas*ncas);
@@ -381,7 +381,7 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
   // printf("size_buf2= %i  _size_mwvu= %i\n",dd->size_buf, size_vuwm);
   
-  double * d_vuwm = dd->d_buf2; 
+  double * d_vuwm = dd->jk.d_buf2; 
 
   ml->set_handle();
   ml->gemm((char *) "T", (char *) "N", &ncas_nao, &ncas2, &naux,
@@ -389,7 +389,7 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
 
   // CHRIS :: Stop chunking w/r naux
   
-  double * d_vuwM = dd->d_buf1;
+  double * d_vuwM = dd->jk.d_buf1;
 
   ml->set_handle();
   ml->gemm_batch((char *) "T", (char *) "T", &ncas, &nao, &nao,
@@ -398,18 +398,18 @@ void Device::get_h2eff_df_v2(py::array_t<double> _cderi,
   int * my_d_tril_map_ptr = dd_fetch_pumap(dd, ncas, _PUMAP_2D_UNPACK);
   
   if (count < num_devices) {
-    pack_d_vuwM(d_vuwM, dd->d_eri_h2eff, my_d_tril_map_ptr, nmo, ncas, ncas_pair);
+    pack_d_vuwM(d_vuwM, dd->h2eff.d_eri_h2eff, my_d_tril_map_ptr, nmo, ncas, ncas_pair);
   } else {
-    pack_d_vuwM(d_vuwM, dd->d_buf3, my_d_tril_map_ptr, nmo, ncas, ncas_pair);
-    vecadd(dd->d_buf3, dd->d_eri_h2eff, _size_eri_h2eff);
+    pack_d_vuwM(d_vuwM, dd->jk.d_buf3, my_d_tril_map_ptr, nmo, ncas, ncas_pair);
+    vecadd(dd->jk.d_buf3, dd->h2eff.d_eri_h2eff, _size_eri_h2eff);
   }
 
   #if 0
     double * h_result = (double *)pm->dev_malloc_host(size_vuwM*sizeof(double)); 
     if (count < num_devices) {
-       pm->dev_pull_async(dd->d_eri_h2eff, h_result, size_vuwM*sizeof(double));}
+       pm->dev_pull_async(dd->h2eff.d_eri_h2eff, h_result, size_vuwM*sizeof(double));}
     else{
-       pm->dev_pull_async(dd->d_buf3, h_result, size_vuwM*sizeof(double));}
+       pm->dev_pull_async(dd->jk.d_buf3, h_result, size_vuwM*sizeof(double));}
     pm->dev_barrier();
     printf("printing from h2eff results");
     for (int i=0; i<3; ++i){
@@ -451,8 +451,8 @@ void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
   
   for(int i=0; i<num_devices; ++i) {
     my_device_data * dd = &(device_data[i]);
-    e_vec[i] = dd->d_eri_h2eff;
-    buf_vec[i] = dd->d_buf3;
+    e_vec[i] = dd->h2eff.d_eri_h2eff;
+    buf_vec[i] = dd->jk.d_buf3;
     active[i] = dd->active;
   }
 
@@ -488,7 +488,7 @@ void Device::pull_eri_h2eff(py::array_t<double> _eri, int nmo, int ncas)
 
     tmp = &(buf_eri_h2eff[i*size_eri_h2eff]);
     
-    if(dd->active) pm->dev_pull_async(dd->d_eri_h2eff, tmp, size_eri_h2eff*sizeof(double));
+    if(dd->active) pm->dev_pull_async(dd->h2eff.d_eri_h2eff, tmp, size_eri_h2eff*sizeof(double));
   }
   
   // Adding eri from all devices

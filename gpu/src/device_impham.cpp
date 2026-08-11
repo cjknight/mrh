@@ -84,7 +84,7 @@ void Device::compute_eri_impham(int nao_s, int nao_f, int blksize, int naux, int
 
   double * d_cderi = dd_fetch_eri(dd, nullptr, naux, nao_s_pair, addr_dfobj, count);
 
-  double * d_cderi_unpacked = dd->d_buf1;
+  double * d_cderi_unpacked = dd->jk.d_buf1;
 
   int * d_my_unpack_map_ptr = dd_fetch_pumap(dd, nao_s, _PUMAP_2D_UNPACK);
 
@@ -98,7 +98,7 @@ void Device::compute_eri_impham(int nao_s, int nao_f, int blksize, int naux, int
   int nao_f2 = nao_f * nao_f;
   int nao_f_pair = nao_f * (nao_f+1)/2;
   
-  double * d_bPeu = dd->d_buf2;
+  double * d_bPeu = dd->jk.d_buf2;
 
   // b^P_ue = b^P_uu * M_ue
   
@@ -114,7 +114,7 @@ void Device::compute_eri_impham(int nao_s, int nao_f, int blksize, int naux, int
 
   // b^P_ee = b^P_ue * M_ue
   
-  double * d_bPee = dd->d_buf1;
+  double * d_bPee = dd->jk.d_buf1;
   
   ml->gemm_batch((char *) "N", (char *) "N", 
                &nao_f, &nao_f, &nao_s,
@@ -129,7 +129,7 @@ void Device::compute_eri_impham(int nao_s, int nao_f, int blksize, int naux, int
  
   d_my_unpack_map_ptr = dd_fetch_pumap(dd, nao_f, _PUMAP_2D_UNPACK);
 
-  double * d_eri_unpacked = dd->d_buf2;
+  double * d_eri_unpacked = dd->jk.d_buf2;
 
   pack_eri(d_eri_unpacked, d_bPee, d_my_unpack_map_ptr, naux, nao_f, nao_f_pair);
 
@@ -141,7 +141,7 @@ void Device::compute_eri_impham(int nao_s, int nao_f, int blksize, int naux, int
 #endif
     
     ml->gemm((char *) "N", (char *) "T", &nao_f_pair, &nao_f_pair, &naux,
-	     &alpha, d_eri_unpacked, &nao_f_pair, d_eri_unpacked, &nao_f_pair, &beta_, dd->d_buf3, &nao_f_pair);
+	     &alpha, d_eri_unpacked, &nao_f_pair, d_eri_unpacked, &nao_f_pair, &beta_, dd->jk.d_buf3, &nao_f_pair);
 
   } else {
 #ifdef _DEBUG_DEVICE
@@ -155,7 +155,7 @@ void Device::compute_eri_impham(int nao_s, int nao_f, int blksize, int naux, int
   
 #if 0
   double * h_eri_impham = (double *)pm->dev_malloc_host(nao_f_pair*nao_f_pair*sizeof(double));
-  pm->dev_pull_async(dd->d_buf3, h_eri_impham, nao_f_pair*nao_f_pair*sizeof(double));
+  pm->dev_pull_async(dd->jk.d_buf3, h_eri_impham, nao_f_pair*nao_f_pair*sizeof(double));
   pm->dev_stream_wait();
   for (int i =0;i<nao_f_pair;++i){ for (int j=0;j<nao_f_pair;++j){printf("%f\t",h_eri_impham[i*nao_f_pair+j]); }printf("\n");}
   pm->dev_free_host(h_eri_impham);
@@ -191,7 +191,7 @@ void Device::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int naux, 
   int nao_s_pair = nao_s * (nao_s + 1)/2;
   d_cderi = dd_fetch_eri(dd, nullptr, naux, nao_s_pair, addr_dfobj_in, count);
   
-  double * d_cderi_unpacked = dd->d_buf1;
+  double * d_cderi_unpacked = dd->jk.d_buf1;
 
   int * d_my_unpack_map_ptr = dd_fetch_pumap(dd, nao_s, _PUMAP_2D_UNPACK);
 
@@ -205,7 +205,7 @@ void Device::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int naux, 
   int nao_f2 = nao_f * nao_f;
   int nao_f_pair = nao_f * (nao_f+1)/2;
   
-  double * d_bPeu = dd->d_buf2;
+  double * d_bPeu = dd->jk.d_buf2;
   
   // b^P_ue = b^P_uu * M_ue
   
@@ -221,7 +221,7 @@ void Device::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int naux, 
   
   // b^P_ee = b^P_ue * M_ue
   
-  double * d_bPee = dd->d_buf1;
+  double * d_bPee = dd->jk.d_buf1;
   
   ml->gemm_batch((char *) "N", (char *) "N", 
                &nao_f, &nao_f, &nao_s,
@@ -238,7 +238,7 @@ void Device::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int naux, 
   // new (transfer to exisiting smaller cholesky vector)
   double * d_cderi_out = dd_fetch_eri(dd, nullptr, naux, nao_f_pair, addr_dfobj_out, count);
   //TODO: add growing logic 
-  //ml->gemm((char *) "T", (char *) "N", &nao_f_pair, &nao_f_pair, &naux, &alpha, dd->d_buf2, &ldb, dd->d_buf3, &lda, &beta, (dd->d_vkk)+vk_offset, &ldc);
+  //ml->gemm((char *) "T", (char *) "N", &nao_f_pair, &nao_f_pair, &naux, &alpha, dd->jk.d_buf2, &ldb, dd->jk.d_buf3, &lda, &beta, (dd->jk.d_vkk)+vk_offset, &ldc);
 
   pack_eri(d_cderi_out, d_bPee,d_my_unpack_map_ptr, naux, nao_f, nao_f_pair);
   pm->dev_profile_stop();
@@ -281,8 +281,8 @@ void Device::pull_eri_impham(py::array_t<double> _eri, int naoaux, int nao_f, in
   
     for(int i=0; i<num_devices; ++i) {
       my_device_data * dd = &(device_data[i]);
-      e_vec[i] = dd->d_buf3; // this has the result
-      buf_vec[i] = dd->d_buf2; // this is a temp buffer
+      e_vec[i] = dd->jk.d_buf3; // this has the result
+      buf_vec[i] = dd->jk.d_buf2; // this is a temp buffer
       active[i] = dd->active;
     }
 
@@ -344,7 +344,7 @@ void Device::pull_eri_impham(py::array_t<double> _eri, int naoaux, int nao_f, in
       pm->dev_set_device(i); 
       my_device_data * dd = &(device_data[i]);
       double * eri_impham =&pin_eri_impham[i * nao_f_pair*nao_f_pair];
-      if (dd->active) pm->dev_pull_async(dd->d_buf3, eri_impham, nao_f_pair*nao_f_pair*sizeof(double));
+      if (dd->active) pm->dev_pull_async(dd->jk.d_buf3, eri_impham, nao_f_pair*nao_f_pair*sizeof(double));
     }
 
 #ifdef _DEBUG_DEVICE
@@ -353,7 +353,7 @@ void Device::pull_eri_impham(py::array_t<double> _eri, int naoaux, int nao_f, in
       pm->dev_set_device(i); 
       my_device_data * dd = &(device_data[i]);
       pm->dev_stream_wait();
-      if (dd->d_buf3){
+      if (dd->jk.d_buf3){
 	for (int j=0;j <nao_f_pair;++j){
 	  for (int k=0;k <nao_f_pair;++k){
 	    printf("%f\t",pin_eri_impham[i*nao_f_pair*nao_f_pair+j*nao_f_pair+k]);
