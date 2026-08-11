@@ -230,7 +230,7 @@ void _transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3,
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose(double * out, double * in, int nrow, int ncol)
+void DeviceUtils::transpose(double * out, double * in, int nrow, int ncol)
 {
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- calling _transpose()\n");
@@ -245,7 +245,7 @@ void Device::transpose(double * out, double * in, int nrow, int ncol)
   dim3 block_size(1, _TRANSPOSE_BLOCK_SIZE, 1);
 #endif
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   {
     //    dpct::has_capability_or_fail(s->get_device(), {sycl::aspect::fp64});
@@ -266,18 +266,18 @@ void Device::transpose(double * out, double * in, int nrow, int ncol)
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- transpose :: nrow= %i  ncol= %i _TRANSPOSE_BLOCK_SIZE= %i  _TRANSPOSE_NUM_ROWS= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
 	 nrow, ncol, _TRANSPOSE_BLOCK_SIZE, _TRANSPOSE_NUM_ROWS, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::vecadd(const double * in, double * out, int N)
+void DeviceUtils::vecadd(const double * in, double * out, int N)
 {
   sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, 1, _TILE(N, block_size[2]));
                       
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
                     
   /*
   DPCT1049:13: The work-group size passed to the SYCL kernel may exceed the
@@ -294,21 +294,21 @@ void Device::vecadd(const double * in, double * out, int N)
   }
 
 #ifdef _DEBUG_DEVICE
-  pm->dev_stream_wait();
+  ctx.pm->dev_stream_wait();
   printf("LIBGPU ::  -- general::vecadd :: N= %i  grid_size= %zu %zu %zu  block_size= %zu %zu %zu\n",
          N, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::vecadd_batch(const double * in, double * out, int N, int num_batches)
+void DeviceUtils::vecadd_batch(const double * in, double * out, int N, int num_batches)
 {
   sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, 1, _TILE(N, block_size[2]));
 
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
 
   /*
   DPCT1049:14: The work-group size passed to the SYCL kernel may exceed the
@@ -325,29 +325,29 @@ void Device::vecadd_batch(const double * in, double * out, int N, int num_batche
   }
 
 #ifdef _DEBUG_DEVICE
-  pm->dev_stream_wait();
+  ctx.pm->dev_stream_wait();
   printf("LIBGPU ::  -- general::vecadd_batch :: N= %i  num_batches= %i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 N, num_batches, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::memset_zero_batch_stride(double * inout, int stride, int offset, int N, int num_batches)
+void DeviceUtils::memset_zero_batch_stride(double * inout, int stride, int offset, int N, int num_batches)
 {
  
   sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, 1, _TILE(N, block_size[2]));
 
 #ifdef _DEBUG_DEVICE
-  pm->dev_stream_wait();
+  ctx.pm->dev_stream_wait();
   printf("LIBGPU ::  -- Inside general::memset_zero_batch_stride :: stride= %i  offset= %i  N= %i  num_batches= %i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 stride, offset, N, num_batches, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
   
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
  
   /*
   DPCT1049:15: The work-group size passed to the SYCL kernel may exceed the
@@ -365,18 +365,18 @@ void Device::memset_zero_batch_stride(double * inout, int stride, int offset, in
   }
 
 #ifdef _DEBUG_DEVICE
-  pm->dev_stream_wait();
+  ctx.pm->dev_stream_wait();
   printf("LIBGPU ::  -- Leaving general::memset_zero_batch_stride :: stride= %i  offset= %i  N= %i  num_batches= %i  grid_size= %lu %lu %lu  block_size= %lu %lu %lu\n",
 	 stride, offset, N, num_batches, grid_size[0],grid_size[1],grid_size[2],block_size[0],block_size[1],block_size[2]);
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #endif
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::set_to_zero(double * array, int size)
+void DeviceUtils::set_to_zero(double * array, int size)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
 #if 1
   sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
@@ -394,7 +394,7 @@ void Device::set_to_zero(double * array, int size)
                       _set_to_zero(array, size);
                     });
   }
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 #else
   cudaMemSet(array,0, size*sizeof(double), s); //Is this better?
 #endif
@@ -402,9 +402,9 @@ void Device::set_to_zero(double * array, int size)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::veccopy(const double * src, double *dest, int size)
+void DeviceUtils::veccopy(const double * src, double *dest, int size)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   sycl::range<3> block_size(1, 1, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> grid_size(1, 1, _TILE(size, block_size[2]));
   /*
@@ -420,14 +420,14 @@ void Device::veccopy(const double * src, double *dest, int size)
                       _veccopy(src, dest, size);
                     });
   }
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_021( double * in, double * out, int ax1, int ax2, int ax3)
+void DeviceUtils::transpose_021( double * in, double * out, int ax1, int ax2, int ax3)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> block_size(1, 1, 1);
@@ -448,14 +448,14 @@ void Device::transpose_021( double * in, double * out, int ax1, int ax2, int ax3
                     });
   }
 
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_102( double * in, double * out, int ax1, int ax2, int ax3)
+void DeviceUtils::transpose_102( double * in, double * out, int ax1, int ax2, int ax3)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   sycl::range<3> block_size(1, 1, 1);
@@ -476,14 +476,14 @@ void Device::transpose_102( double * in, double * out, int ax1, int ax2, int ax3
                     });
   }
 
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
+void DeviceUtils::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
 {
-  sycl::queue * s = pm->dev_get_queue();
+  sycl::queue * s = ctx.pm->dev_get_queue();
   
   sycl::range<3> block_size(1, 1, 1);
   sycl::range<3> grid_size(_TILE(ax3, block_size[0]), _TILE(ax2, block_size[1]),
@@ -494,7 +494,7 @@ void Device::transpose_2130(const double * in, double * out, int ax1, int ax2, i
                       _transpose_2130(in, out, ax1, ax2, ax3, ax4);
                     });
   }
-  pm->dev_check_errors();
+  ctx.pm->dev_check_errors();
 }
 
 

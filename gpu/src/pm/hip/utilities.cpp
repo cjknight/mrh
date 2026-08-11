@@ -192,7 +192,7 @@ __global__ void _transpose_2130(const double * in, double * out, int ax1, int ax
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose(double * out, double * in, int nrow, int ncol)
+void DeviceUtils::transpose(double * out, double * in, int nrow, int ncol)
 {
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- calling _transpose()\n");
@@ -206,7 +206,7 @@ void Device::transpose(double * out, double * in, int nrow, int ncol)
   dim3 block_size(1, _TRANSPOSE_BLOCK_SIZE, 1);
 #endif
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _transpose<<<grid_size, block_size, 0, s>>>(out, in, nrow, ncol);
 
@@ -219,12 +219,12 @@ void Device::transpose(double * out, double * in, int nrow, int ncol)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::vecadd(const double * in, double * out, int N)
+void DeviceUtils::vecadd(const double * in, double * out, int N)
 {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   dim3 grid_size(_TILE(N,block_size.x));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _vecadd<<<grid_size,block_size, 0, s>>>(in, out, N);
   
@@ -237,12 +237,12 @@ void Device::vecadd(const double * in, double * out, int N)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::vecadd_batch(const double * in, double * out, int N, int num_batches)
+void DeviceUtils::vecadd_batch(const double * in, double * out, int N, int num_batches)
 {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   dim3 grid_size(_TILE(N,block_size.x));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _vecadd_batch<<<grid_size, block_size, 0, s>>>(in, out, N, num_batches);
   
@@ -255,12 +255,12 @@ void Device::vecadd_batch(const double * in, double * out, int N, int num_batche
 
 /* ---------------------------------------------------------------------- */
 
-void Device::memset_zero_batch_stride(double * inout, int stride, int offset, int N, int num_batches)
+void DeviceUtils::memset_zero_batch_stride(double * inout, int stride, int offset, int N, int num_batches)
 {
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   dim3 grid_size(_TILE(N,block_size.x));
   
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   
   _memset_zero_batch_stride<<<grid_size, block_size, 0, s>>>(inout, stride, offset, N, num_batches);
   
@@ -273,9 +273,9 @@ void Device::memset_zero_batch_stride(double * inout, int stride, int offset, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::set_to_zero(double * array, int size)
+void DeviceUtils::set_to_zero(double * array, int size)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   #if 1
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   dim3 grid_size(_TILE(size, block_size.x),1,1);
@@ -288,9 +288,9 @@ void Device::set_to_zero(double * array, int size)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::veccopy(const double * src, double *dest, int size)
+void DeviceUtils::veccopy(const double * src, double *dest, int size)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   dim3 block_size(_DEFAULT_BLOCK_SIZE, 1, 1);
   dim3 grid_size(_TILE(size, block_size.x), 1, 1);
   _veccopy<<<grid_size, block_size, 0, s>>>(src, dest, size);
@@ -299,9 +299,9 @@ void Device::veccopy(const double * src, double *dest, int size)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_021( double * in, double * out, int ax1, int ax2, int ax3)
+void DeviceUtils::transpose_021( double * in, double * out, int ax1, int ax2, int ax3)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   dim3 block_size(1,1,1);
   dim3 grid_size(_TILE(ax1, block_size.x),_TILE(ax2, block_size.y),_TILE(ax3, block_size.z));
@@ -313,9 +313,9 @@ void Device::transpose_021( double * in, double * out, int ax1, int ax2, int ax3
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_102( double * in, double * out, int ax1, int ax2, int ax3)
+void DeviceUtils::transpose_102( double * in, double * out, int ax1, int ax2, int ax3)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   //dim3 block_size(_DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE, _DEFAULT_BLOCK_SIZE);
   dim3 block_size(1,1,1);
   dim3 grid_size(_TILE(ax1, block_size.x),_TILE(ax2, block_size.y),_TILE(ax3, block_size.z));
@@ -327,9 +327,9 @@ void Device::transpose_102( double * in, double * out, int ax1, int ax2, int ax3
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
+void DeviceUtils::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
 {
-  hipStream_t s = *(pm->dev_get_queue());
+  hipStream_t s = *(ctx.pm->dev_get_queue());
   dim3 block_size(1, 1,1);
   dim3 grid_size(_TILE(ax1, block_size.x),_TILE(ax2, block_size.y),_TILE(ax3,block_size.z));
   _transpose_2130<<<grid_size, block_size, 0, s>>>(in, out, ax1, ax2, ax3, ax4);

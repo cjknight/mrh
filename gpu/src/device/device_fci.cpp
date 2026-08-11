@@ -262,7 +262,7 @@ void DeviceFci::compute_trans_rdm1a(int na, int nb, int nlinka, int nlinkb, int 
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
   ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ctx.utils->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   if (nlinka>0){
     compute_FCItrans_rdm1a(dd->fci.d_cibra, dd->fci.d_ciket, dd->fci.d_tdm1, norb, na, nb, nlinka, dd->fci.d_clinka);
   }
@@ -283,7 +283,7 @@ void DeviceFci::compute_trans_rdm1b(int na, int nb, int nlinka, int nlinkb, int 
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
   ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ctx.utils->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   if (nlinkb>0){
     compute_FCItrans_rdm1b(dd->fci.d_cibra, dd->fci.d_ciket, dd->fci.d_tdm1, norb, na, nb, nlinkb, dd->fci.d_clinkb);
   }
@@ -304,7 +304,7 @@ void DeviceFci::compute_make_rdm1a(int na, int nb, int nlinka, int nlinkb, int n
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
   ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ctx.utils->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   if (nlinka>0){
   compute_FCImake_rdm1a(dd->fci.d_cibra, dd->fci.d_ciket, dd->fci.d_tdm1, norb, na, nb, nlinka, dd->fci.d_clinka);
   }
@@ -325,7 +325,7 @@ void DeviceFci::compute_make_rdm1b(int na, int nb, int nlinka, int nlinkb, int n
   int norb2 = norb*norb;
   int size_tdm1 = norb2;
   ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ctx.utils->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   if (nlinkb>0){
   compute_FCImake_rdm1b(dd->fci.d_cibra, dd->fci.d_ciket, dd->fci.d_tdm1, norb, na, nb, nlinkb, dd->fci.d_clinkb);
   }
@@ -1318,8 +1318,8 @@ void DeviceFci::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, in
             &beta, dd->jk.d_buf3, &norb2, &size_tdm2, &num_gemm_batches); 
           reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
           }
-	ctx.owner->memset_zero_batch_stride(dd->jk.d_buf1, size_buf, ib_ket*norb2, nb_ket*norb2, num_buf_batches);
-	ctx.owner->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
+	ctx.utils->memset_zero_batch_stride(dd->jk.d_buf1, size_buf, ib_ket*norb2, nb_ket*norb2, num_buf_batches);
+	ctx.utils->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
         }
       }
     else if (spin==1) { 
@@ -1339,7 +1339,7 @@ void DeviceFci::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, in
             reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
             }
           ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
-	  ctx.owner->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
+	  ctx.utils->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
           }
         } 
     else if (spin==2){
@@ -1452,7 +1452,7 @@ void DeviceFci::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int nor
        reduce_buf3_to_rdm(dd->jk.d_buf3, dd->fci.d_tdm2, size_tdm2, num_gemm_batches);
       }
       ctx.ml->memset(dd->jk.d_buf1, &zero, &bits_buf);
-      ctx.owner->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
+      ctx.utils->memset_zero_batch_stride(dd->jk.d_buf2, size_buf, ib_bra*norb2, nb_bra*norb2, num_buf_batches);
     }
   transpose_jikl(dd->fci.d_tdm2, dd->jk.d_buf1, norb);
 
@@ -1482,7 +1482,7 @@ void DeviceFci::compute_tdm1h_spin( int na, int nb, int nlinka, int nlinkb, int 
   int size_tdm1 = norb2;
 
   ::grow_array(ctx.pm, dd->fci.d_tdm1,size_tdm1, dd->fci.size_tdm1, "tdm1", FLERR); //actual returned
-  ctx.owner->set_to_zero(dd->fci.d_tdm1, size_tdm1);
+  ctx.utils->set_to_zero(dd->fci.d_tdm1, size_tdm1);
   /* 
      spin = 0: 
        trans_rdm1a: cibra, ciket -> tdm1
@@ -1536,7 +1536,7 @@ void DeviceFci::transpose_tdm2(int norb, int count)
   //get buffer array
   int size_tdm2 = norb*norb*norb*norb;
   ctx.owner->transpose_3210(dd->fci.d_tdm2, dd->jk.d_buf2, norb, norb);
-  ctx.owner->veccopy(dd->jk.d_buf2, dd->fci.d_tdm2, size_tdm2);
+  ctx.utils->veccopy(dd->jk.d_buf2, dd->fci.d_tdm2, size_tdm2);
   
   double t1 = omp_get_wtime();
   //ctx.t_array[30] += t1-t0;
@@ -1701,8 +1701,8 @@ void DeviceFci::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> 
   filter_tdm3h(dd->fci.d_tdm2, &(dd->jk.d_buf3[norb]), norb);
   
   if (cre==0){
-    ctx.owner->transpose_021(&(dd->jk.d_buf3[norb]),dd->fci.d_tdm2, norb, norb, norb);
-    ctx.owner->transpose_021(&(dd->jk.d_buf3[norb+norb*norb2]),dd->fci.d_tdm2_p, norb, norb, norb);
+    ctx.utils->transpose_021(&(dd->jk.d_buf3[norb]),dd->fci.d_tdm2, norb, norb, norb);
+    ctx.utils->transpose_021(&(dd->jk.d_buf3[norb+norb*norb2]),dd->fci.d_tdm2_p, norb, norb, norb);
     ctx.pm->dev_pull_async(dd->fci.d_tdm2, tdm3ha, norb*norb2*sizeof(double));
     ctx.pm->dev_pull_async(dd->fci.d_tdm2_p, tdm3hb, norb*norb2*sizeof(double));
     }
@@ -1755,8 +1755,8 @@ void DeviceFci::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int nor
     }
   
   if (cre==0){
-    ctx.owner->transpose_021(&(dd->jk.d_buf3[norb]),dd->fci.d_tdm2, norb, norb, norb);
-    ctx.owner->transpose_021(&(dd->jk.d_buf3[norb+norb*norb2]),dd->fci.d_tdm2_p, norb, norb, norb);
+    ctx.utils->transpose_021(&(dd->jk.d_buf3[norb]),dd->fci.d_tdm2, norb, norb, norb);
+    ctx.utils->transpose_021(&(dd->jk.d_buf3[norb+norb*norb2]),dd->fci.d_tdm2_p, norb, norb, norb);
     ctx.pm->dev_pull_async(dd->fci.d_tdm2, h_dm3ha_loc, norb*norb2*sizeof(double));
     ctx.pm->dev_pull_async(dd->fci.d_tdm2_p, h_dm3hb_loc, norb*norb2*sizeof(double));
     }

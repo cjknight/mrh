@@ -14,7 +14,7 @@
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose(double * out, double * in, int nrow, int ncol)
+void DeviceUtils::transpose(double * out, double * in, int nrow, int ncol)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<nrow; ++i)
@@ -24,7 +24,7 @@ void Device::transpose(double * out, double * in, int nrow, int ncol)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::vecadd(const double * in, double * out, int N)
+void DeviceUtils::vecadd(const double * in, double * out, int N)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<N; ++i) out[i] += in[i];
@@ -32,7 +32,7 @@ void Device::vecadd(const double * in, double * out, int N)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::vecadd_batch(const double * in, double * out, int N, int num_batches)
+void DeviceUtils::vecadd_batch(const double * in, double * out, int N, int num_batches)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<N; ++i) {
@@ -44,7 +44,7 @@ void Device::vecadd_batch(const double * in, double * out, int N, int num_batche
 
 /* ---------------------------------------------------------------------- */
 
-void Device::memset_zero_batch_stride(double * inout, int stride, int offset, int N, int num_batches)
+void DeviceUtils::memset_zero_batch_stride(double * inout, int stride, int offset, int N, int num_batches)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<N; ++i)
@@ -53,7 +53,7 @@ void Device::memset_zero_batch_stride(double * inout, int stride, int offset, in
 
 /* ---------------------------------------------------------------------- */
 
-void Device::set_to_zero(double * array, int size)
+void DeviceUtils::set_to_zero(double * array, int size)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<size; ++i) array[i] = 0.0;
@@ -61,7 +61,7 @@ void Device::set_to_zero(double * array, int size)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::veccopy(const double * src, double *dest, int size)
+void DeviceUtils::veccopy(const double * src, double *dest, int size)
 {
 #pragma omp parallel for schedule(static)
   for(int i=0; i<size; ++i) dest[i] = src[i];
@@ -69,7 +69,7 @@ void Device::veccopy(const double * src, double *dest, int size)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_021(double * in, double * out, int ax1, int ax2, int ax3)
+void DeviceUtils::transpose_021(double * in, double * out, int ax1, int ax2, int ax3)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<ax1; ++i)
@@ -83,7 +83,7 @@ void Device::transpose_021(double * in, double * out, int ax1, int ax2, int ax3)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_102(double * in, double * out, int ax1, int ax2, int ax3)
+void DeviceUtils::transpose_102(double * in, double * out, int ax1, int ax2, int ax3)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int i=0; i<ax1; ++i)
@@ -97,7 +97,7 @@ void Device::transpose_102(double * in, double * out, int ax1, int ax2, int ax3)
 
 /* ---------------------------------------------------------------------- */
 
-void Device::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
+void DeviceUtils::transpose_2130(const double * in, double * out, int ax1, int ax2, int ax3, int ax4)
 {
 #pragma omp parallel for collapse(3) schedule(static)
   for(int idx1=0; idx1<ax1; ++idx1)

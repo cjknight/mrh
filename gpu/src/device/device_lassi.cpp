@@ -173,7 +173,7 @@ void DeviceLassi::init_ox1_pinned(int size)
     ::grow_array(ctx.pm, dd->jk.d_buf1, overall_max_size_buf, dd->jk.size_buf1, "buf1", FLERR);
     ::grow_array(ctx.pm, dd->jk.d_buf2, overall_max_size_buf, dd->jk.size_buf2, "buf2", FLERR);
     ::grow_array(ctx.pm, dd->jk.d_buf3, overall_max_size_buf, dd->jk.size_buf3, "buf3", FLERR);
-    if (ox1_on_gpu){ ctx.owner->set_to_zero(dd->jk.d_buf3, size); } 
+    if (ox1_on_gpu){ ctx.utils->set_to_zero(dd->jk.d_buf3, size); } 
     } 
   double t1 = omp_get_wtime();
   ctx.t_array[34] += t1-t0;
@@ -581,14 +581,14 @@ void DeviceLassi::compute_4frag_matvec( int i, int j, int k, int l,
   double * buf_d2 = &(dd->jk.d_buf1[loc_C]); //buffer to store transposed d2, will copy it back to it's original position after done. 
   printf("Inside op_t branch\n");
   //transpose d[2] kcr->ckr
-  ctx.owner->transpose_102(d_d2, buf_d2, c,k,r);
-  ctx.owner->veccopy(buf_d2, d_d2, size_d2);
+  ctx.utils->transpose_102(d_d2, buf_d2, c,k,r);
+  ctx.utils->veccopy(buf_d2, d_d2, size_d2);
   //transpose d[3] lds->dls
-  ctx.owner->transpose_102(d_d3, buf_d2, d,l,s);
-  ctx.owner->veccopy(buf_d2, d_d3, size_d3);
+  ctx.utils->transpose_102(d_d3, buf_d2, d,l,s);
+  ctx.utils->veccopy(buf_d2, d_d3, size_d3);
   //transpose op rsjiba -> rsbaji
-  ctx.owner->transpose_021(d_op, buf_d2, r*s, j*i, b*a);
-  ctx.owner->veccopy(buf_d2, d_op, size_op);
+  ctx.utils->transpose_021(d_op, buf_d2, r*s, j*i, b*a);
+  ctx.utils->veccopy(buf_d2, d_op, size_op);
   }
 
   #if 0
@@ -627,7 +627,7 @@ void DeviceLassi::compute_4frag_matvec( int i, int j, int k, int l,
   //rsbazlk->bazlskr
 
   double * matC_T = &(matC[size_tmp_result1]); //buf1 after matC
-  ctx.owner->transpose_2130(matC, matC_T, r, s, b*a*z*l, k); 
+  ctx.utils->transpose_2130(matC, matC_T, r, s, b*a*z*l, k); 
   
   //original: ox = lib.einsum ('ckr,rsbazlk->scbazl', self.d[2], ox)
   //post transpose: ox = lib.einsum('ckr, bazlskr->cbazlk',self.d[2],ox)

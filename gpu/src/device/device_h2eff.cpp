@@ -438,7 +438,7 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
     pack_d_vuwM(d_vuwM, dd->h2eff.d_eri_h2eff, my_d_tril_map_ptr, nmo, ncas, ncas_pair);
   } else {
     pack_d_vuwM(d_vuwM, dd->jk.d_buf3, my_d_tril_map_ptr, nmo, ncas, ncas_pair);
-    ctx.owner->vecadd(dd->jk.d_buf3, dd->h2eff.d_eri_h2eff, _size_eri_h2eff);
+    ctx.utils->vecadd(dd->jk.d_buf3, dd->h2eff.d_eri_h2eff, _size_eri_h2eff);
   }
 
   #if 0

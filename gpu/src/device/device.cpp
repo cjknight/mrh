@@ -36,6 +36,7 @@ Device::Device()
   _fci = nullptr;
   _comm = nullptr;
   _cache = nullptr;
+  _utils = nullptr;
 
   // DEPRECATED: legacy integral engine state (orbital_response/fdrv)
   //buf_fdrv = nullptr;
@@ -178,6 +179,9 @@ Device::Device()
   _cache = new DeviceCache(dev_ctx);
   dev_ctx.cache = _cache;
 
+  _utils = new DeviceUtils(dev_ctx);
+  dev_ctx.utils = _utils;
+
   _pdft = new DevicePdft(dev_ctx);
   _jk = new DeviceJk(dev_ctx);
   _impham = new DeviceImpham(dev_ctx);
@@ -225,6 +229,9 @@ Device::~Device()
 
   delete _cache;
   _cache = nullptr;
+
+  delete _utils;
+  _utils = nullptr;
 
   pm->dev_free_host(rho);
   //pm->dev_free_host(vj);

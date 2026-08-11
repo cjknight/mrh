@@ -104,7 +104,7 @@ void DeviceComm::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N,
 	
 	ctx.pm->dev_set_device(dest); 
 	
-	ctx.owner->vecadd(buf_ptr[dest], d_ptr[dest], N);
+	ctx.utils->vecadd(buf_ptr[dest], d_ptr[dest], N);
       }
       
       nactive--;
@@ -149,7 +149,7 @@ void DeviceComm::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N,
 	  
 	  ctx.pm->dev_set_device(dest); 
 	  
-	  ctx.owner->vecadd(buf_ptr[dest], d_ptr[dest], N);
+	  ctx.utils->vecadd(buf_ptr[dest], d_ptr[dest], N);
 	}
       }
 
@@ -188,7 +188,7 @@ void DeviceComm::mgpu_reduce(std::vector<double *> d_ptr, double * h_ptr, int N,
 	  
 	  ctx.pm->dev_set_device(dest); 
 	  
-	  ctx.owner->vecadd(buf_ptr[dest], d_ptr[dest], N);
+	  ctx.utils->vecadd(buf_ptr[dest], d_ptr[dest], N);
 	}
 
 	nrecv--;

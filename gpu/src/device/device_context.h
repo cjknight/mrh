@@ -12,6 +12,7 @@
 class Device; // forward decl for DeviceContext::owner (facade back-reference)
 class DeviceComm; // forward decl for DeviceContext::comm (owned multi-GPU comm subdomain)
 class DeviceCache; // forward decl for DeviceContext::cache (owned ERI cache subdomain)
+class DeviceUtils; // forward decl for DeviceContext::utils (owned generic vector/transpose subdomain)
 
 // Buffer growth helpers shared by all subdomains. These used to be private
 // Device templates; promoting them to free functions lets DeviceJk/DevicePdft/
@@ -132,13 +133,16 @@ struct my_device_data {
 // Subdomains access PM/MATHLIB/per-device state through this instead of owning
 // copies of the pointers.
 struct DeviceContext {
-  Device * owner;        // Device facade. Temporary back-reference for the shared
-                         // utility services (vecadd, getjk_unpack_buf2, ...)
-                         // until those are extracted as DeviceUtils.
+  Device * owner;        // Device facade. Temporary back-reference for the
+                         // remaining domain-owned shims still reached through it
+                         // (getjk_unpack_buf2, pack_eri, get_mo_cas,
+                         // transpose_120/210/3210); the shared generic kernels
+                         // now live in DeviceUtils (ctx.utils).
   PM_NS::PM * pm;
   MATHLIB_NS::MATHLIB * ml;
   DeviceComm * comm;     // multi-GPU bcast/reduce (owned by the Device facade)
   DeviceCache * cache;   // ERI-block + pumap cache (owned by the Device facade)
+  DeviceUtils * utils;   // generic vector/transpose kernels (owned by the Device facade)
   int num_devices;
   int verbose_level;
   int grid_size, block_size;

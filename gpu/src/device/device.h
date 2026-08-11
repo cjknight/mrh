@@ -17,6 +17,7 @@ namespace py = pybind11;
 #include "device_context.h"
 #include "device_comm.h"
 #include "device_cache.h"
+#include "device_utilities.h"
 #include "device_pdft.h"
 #include "device_jk.h"
 #include "device_impham.h"
@@ -95,7 +96,6 @@ public :
   void pull_get_jk(py::array_t<double>, py::array_t<double>, int, int, int);
 
   void getjk_unpack_buf2(double *, double *, int *, int, int, int); // transitional shim -> DeviceJk
-  void transpose(double*, double*, int, int);
   
   void set_update_dfobj_(int); // forwarder -> DeviceCache
   void get_dfobj_status(size_t, py::array_t<int>); // forwarder -> DeviceCache
@@ -240,15 +240,7 @@ public :
 
   void push_mo_coeff(py::array_t<double>, int);
 
-  void vecadd(const double *, double *, int); // replace with ml->daxpy()
-  void vecadd_batch(const double *, double *, int, int);
-  void memset_zero_batch_stride(double *, int, int, int, int);
-  //FCI (inner kernels moved to DeviceFci; generic vector helpers stay)
-  void set_to_zero(double *, int);
-  void veccopy(const double *, double *, int);
-  void transpose_021(double *, double *, int, int, int);
-  void transpose_102(double *, double *, int, int, int);
-  void transpose_2130(const double*, double *, int, int, int, int);
+  // generic vector/transpose kernels moved to DeviceUtils (ctx.utils->)
 
 private:
 
@@ -345,6 +337,7 @@ private:
   DeviceContext dev_ctx;
   DeviceComm * _comm;
   DeviceCache * _cache;
+  DeviceUtils * _utils;
   DevicePdft * _pdft;
   DeviceJk * _jk;
   DeviceImpham * _impham;

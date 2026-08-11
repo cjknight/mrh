@@ -287,7 +287,7 @@ void DeviceJk::get_jk(int naux, int nao, int nset,
     // buf3 = buf1.reshape(-1,nao).T
     // buf4 = buf2.reshape(-1,nao)
     
-    ctx.owner->transpose(dd->jk.d_buf3, dd->jk.d_buf1, naux*nao, nao);
+    ctx.utils->transpose(dd->jk.d_buf3, dd->jk.d_buf1, naux*nao, nao);
     
     // vk[k] += lib.dot(buf3, buf4)
     // gemm(A,B,C) : C = alpha * A.B + beta * C
