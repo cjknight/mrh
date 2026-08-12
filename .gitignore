@@ -44,6 +44,7 @@ test_all.sh
 *.ods
 *.tab
 *.txt
+!**/CMakeLists.txt
 
 # Integral files
 *.gdf
