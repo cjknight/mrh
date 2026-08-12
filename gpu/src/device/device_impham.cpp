@@ -4,8 +4,6 @@
 
 #include "device.h"
 
-#define _NUM_SIMPLE_TIMER 40
-#define _NUM_SIMPLE_COUNTER 30
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>
@@ -60,7 +58,7 @@ void DeviceImpham::init_eri_impham(int naoaux, int nao_f, int return_4c2eeri)
   }
   
   double t1 = omp_get_wtime();
-  ctx.t_array[11] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   
   ctx.pm->dev_profile_stop();
   
@@ -176,7 +174,7 @@ void DeviceImpham::compute_eri_impham(int nao_s, int nao_f, int blksize, int nau
 #endif
   
   double t1 = omp_get_wtime();
-  ctx.t_array[12] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   
   ctx.pm->dev_profile_stop();
   
@@ -258,8 +256,7 @@ void DeviceImpham::compute_eri_impham_v2(int nao_s, int nao_f, int blksize, int 
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  ctx.t_array[12] += t1 - t0;
-  ctx.count_array[7]+=1; // just doing this addition in pull, not in init or compute
+  LIBGPU_PROFILE(ctx, t1 - t0); // just doing this addition in pull, not in init or compute
   // counts in pull eri_impham
 
 }
@@ -319,8 +316,7 @@ void DeviceImpham::pull_eri_impham(py::array_t<double> _eri, int naoaux, int nao
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  ctx.t_array[13] += t1 - t0;
-  ctx.count_array[7]+=1; // just doing this addition in pull, not in init or compute
+  LIBGPU_PROFILE(ctx, t1 - t0); // just doing this addition in pull, not in init or compute
     
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: -- Leaving Device::pull_eri_impham()\n");
@@ -405,8 +401,7 @@ void DeviceImpham::pull_eri_impham(py::array_t<double> _eri, int naoaux, int nao
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  ctx.t_array[13] += t1 - t0;
-  ctx.count_array[7]+=1; // just doing this addition in pull, not in init or compute
+  LIBGPU_PROFILE(ctx, t1 - t0); // just doing this addition in pull, not in init or compute
     
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: -- Leaving Device::pull_eri_impham()\n");

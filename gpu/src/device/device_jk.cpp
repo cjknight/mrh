@@ -92,7 +92,7 @@ void DeviceJk::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtri
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  ctx.t_array[0] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
  //counts in pull_get_jk
 
 #ifdef _DEBUG_DEVICE
@@ -225,7 +225,7 @@ void DeviceJk::get_jk(int naux, int nao, int nset,
   if(!with_k) {
     
     double t1 = omp_get_wtime();
-    ctx.t_array[2] += t1 - t0;
+    LIBGPU_PROFILE(ctx, t1 - t0);
 // counts in pull_jk
     
 #ifdef _DEBUG_DEVICE
@@ -319,7 +319,7 @@ void DeviceJk::get_jk(int naux, int nao, int nset,
   ctx.pm->dev_profile_stop();
     
   double t1 = omp_get_wtime();
-  ctx.t_array[2] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   // counts in pull jk
     
 #ifdef _DEBUG_DEVICE
@@ -400,8 +400,7 @@ void DeviceJk::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  ctx.t_array[1] += t1 - t0;
-  ctx.count_array[0]+=1; // just doing this addition in pull, not in init or compute
+  LIBGPU_PROFILE(ctx, t1 - t0); // just doing this addition in pull, not in init or compute
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: -- Leaving Device::pull_get_jk()\n");
@@ -506,8 +505,7 @@ void DeviceJk::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk, int
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  ctx.t_array[1] += t1 - t0;
-  ctx.count_array[0]+=1; // just doing this addition in pull, not in init or compute
+  LIBGPU_PROFILE(ctx, t1 - t0); // just doing this addition in pull, not in init or compute
     
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: -- Leaving Device::pull_get_jk()\n");

@@ -105,7 +105,7 @@ void Device::init_get_jk(py::array_t<double> _eri1, py::array_t<double> _dmtril,
 
 #ifdef _SIMPLE_TIMER
   double t1 = omp_get_wtime();
-  t_array[0] += t1 - t0;
+  LIBGPU_PROFILE(dev_ctx, t1 - t0);
 #endif
   
   //pm->dev_barrier();
@@ -135,7 +135,7 @@ void Device::pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk)
   
 #ifdef _SIMPLE_TIMER
   double t1 = omp_get_wtime();
-  t_array[1] += t1 - t0;
+  LIBGPU_PROFILE(dev_ctx, t1 - t0);
 #endif
 }
 
@@ -335,7 +335,7 @@ void Device::get_jk(int naux,
    
 #ifdef _SIMPLE_TIMER
     double t1 = omp_get_wtime();
-    t_array[2] += t1 - t0;
+    LIBGPU_PROFILE(dev_ctx, t1 - t0);
 #endif 
   }
   

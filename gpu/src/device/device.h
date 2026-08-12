@@ -320,8 +320,6 @@ private:
   //void NPdsymm_triu(int, double *, int);
   //void NPdunpack_tril(int, double *, double *, int);
 /*--------------------------------------------*/
-  double * t_array;
-  int * count_array;
 
   int num_threads;
   int num_devices;

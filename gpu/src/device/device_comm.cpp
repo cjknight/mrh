@@ -4,8 +4,6 @@
 
 #include "device.h"
 
-#define _NUM_SIMPLE_TIMER 40
-#define _NUM_SIMPLE_COUNTER 30
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>

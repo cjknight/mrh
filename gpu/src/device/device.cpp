@@ -4,8 +4,9 @@
 
 #include "device.h"
 
-#define _NUM_SIMPLE_TIMER 40
-#define _NUM_SIMPLE_COUNTER 30
+#include <string>
+#include <vector>
+#include <algorithm>
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>
@@ -155,12 +156,6 @@ Device::Device()
     ml->create_handle();
   }
 
-  t_array = (double* ) malloc(_NUM_SIMPLE_TIMER * sizeof(double));
-  for(int i=0; i<_NUM_SIMPLE_TIMER; ++i) t_array[i] = 0.0;
-  
-  count_array = (int* ) malloc(_NUM_SIMPLE_COUNTER * sizeof(int));
-  for(int i=0; i<_NUM_SIMPLE_COUNTER; ++i) count_array[i] = 0;
-
   // subdomains borrow shared infrastructure through the DeviceContext
   dev_ctx.pm = pm;
   dev_ctx.ml = ml;
@@ -168,8 +163,6 @@ Device::Device()
   dev_ctx.verbose_level = verbose_level;
   dev_ctx.grid_size = grid_size;
   dev_ctx.block_size = block_size;
-  dev_ctx.t_array = t_array;
-  dev_ctx.count_array = count_array;
   dev_ctx.device_data = device_data;
 
   _comm = new DeviceComm(dev_ctx);
@@ -243,131 +236,55 @@ Device::~Device()
   pm->dev_free_host(pin_bufpa);//remove when ao2mo_v3 is running
   if(verbose_level) get_dev_properties(num_devices);
 
-  if(verbose_level) { // this needs to be cleaned up and generalized...
+  if(verbose_level) {
     double total = 0.0;
-    for(int i=0; i<_NUM_SIMPLE_TIMER; ++i) total += t_array[i];
-  
-    printf("\nLIBGPU :: SIMPLE_TIMER\n");
-    printf("\nLIBGPU :: SIMPLE_TIMER :: get_jk\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_get_jk()            time= %f s\n",0,t_array[0]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_get_jk()            time= %f s\n",1,t_array[1]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= get_jk()                 time= %f s\n",2,t_array[2]);
-    
-    printf("\nLIBGPU :: SIMPLE_TIMER :: hessop\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= hessop_get_veff()        time= %f s\n",3,t_array[3]);
-    
-    // DEPRECATED: legacy integral engine -- orbital_response commented out.
-    //printf("\nLIBGPU :: SIMPLE_TIMER :: orbital_response\n");
-    //printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= orbital_response()       time= %f s\n",4,t_array[4]);
-    
-    
-    printf("\nLIBGPU :: SIMPLE_TIMER :: _update_h2eff\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= update_h2eff_sub()       time= %f s\n",5,t_array[5]);
-    
-    printf("\nLIBGPU :: SIMPLE_TIMER :: _h2eff_df \n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= h2eff_df()               time= %f s\n",6,t_array[6]);
-    
-    printf("\nLIBGPU :: SIMPLE_TIMER :: transfer_mo_coeff \n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= transfer_mo_coeff()      time= %f s\n",7,t_array[7]);
-    
-    printf("\nLIBGPU :: SIMPLE_TIMER :: df_ao2mo_pass1\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_ints_and_jkpc()     time= %f s\n",8,t_array[8]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= compute_ints_and_jkpc()  time= %f s\n",9,t_array[9]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_ints_and_jkpc()     time= %f s\n",10,t_array[10]);
+    for(size_t k=0; k<dev_ctx.profile_sites.size(); ++k)
+      total += dev_ctx.profile_sites[k].time;
 
-    printf("\nLIBGPU :: SIMPLE_TIMER :: eri_impham\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_eri_impham()     time= %f s\n",11,t_array[11]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= compute_eri_impham()  time= %f s\n",12,t_array[12]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_eri_impham()     time= %f s\n",13,t_array[13]);
-
-    printf("\nLIBGPU :: SIMPLE_TIMER :: fci_related\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_tdm1()               time= %f s\n",14,t_array[14]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_tdm2()               time= %f s\n",15,t_array[15]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= push_ci()                 time= %f s\n",16,t_array[16]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= push_link_index()         time= %f s\n",17,t_array[17]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= trans_rdm1a()             time= %f s\n",18,t_array[18]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= trans_rdm1b()             time= %f s\n",19,t_array[19]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= make_rdm1a()              time= %f s\n",20,t_array[20]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= make_rdm1b()              time= %f s\n",21,t_array[21]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= tdm12kern_a()             time= %f s\n",22,t_array[22]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= tdm12kern_b()             time= %f s\n",23,t_array[23]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= tdm12kern_ab()            time= %f s\n",24,t_array[24]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= rdm12kern_sf()            time= %f s\n",25,t_array[25]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= tdm13h_spin()             time= %f s\n",26,t_array[26]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= tdm1h_spin()              time= %f s\n",27,t_array[27]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= sfudm_spin()              time= %f s\n",28,t_array[28]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pptdm_spin()              time= %f s\n",29,t_array[29]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_tdm1()               time= %f s\n",30,t_array[30]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_tdm2()               time= %f s\n",31,t_array[31]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= pull_tdm13h()             time= %f s\n",32,t_array[32]);
-    printf("LIBGPU :: SIMPLE_TIMER :: total= %f s\n",total);
-
-    printf("\nLIBGPU :: SIMPLE_TIMER :: op_vecs\n");
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= push_op()            time= %f s\n",33,t_array[33]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_ox1()           time= %f s\n",34,t_array[34]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= init_vecs()          time= %f s\n",35,t_array[35]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= push_vecs()          time= %f s\n",36,t_array[36]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= compute_sivecs()     time= %f s\n",37,t_array[37]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= add_sivecs()         time= %f s\n",38,t_array[38]);
-    printf("LIBGPU :: SIMPLE_TIMER :: i= %i  name= finalize_sivecs()    time= %f s\n",39,t_array[39]);
-
-    free(t_array);
-    
-    
-    printf("\nLIBGPU :: SIMPLE_COUNTER\n");
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: get_jk\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= get_jk()             counts= %i \n",0,count_array[0]);
-    
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: hessop\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= hessop_get_veff()    counts= %i \n",1,count_array[1]);
-    
-    // DEPRECATED: legacy integral engine -- orbital_response commented out.
-    //printf("\nLIBGPU :: SIMPLE_COUNTER :: orbital_response\n");
-    //printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= orbital_response()   counts= %i \n",2,count_array[2]);
-    
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: update_h2eff_sub\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= update_h2eff_sub()   counts= %i \n",3,count_array[3]);
-    
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: _h2eff_df\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= h2eff_df()           counts= %i \n",4,count_array[4]);
-    
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: transfer_mo_coeff\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= transfer_mo_coeff()  counts= %i \n",5,count_array[5]);
-    
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: ao2mo\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name=ao2mo_pass_v3()       counts= %i \n",6,count_array[6]);
-    
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: eri_impham\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name=eri_impham()          counts= %i \n",7,count_array[7]);
-
-    
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: fci_kernels\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= trans_rdm1a()        counts= %i \n",8,count_array[8]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= trans_rdm1b()        counts= %i \n",9,count_array[9]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= make_rdm1a()         counts= %i \n",10,count_array[10]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= make_rdm1b()         counts= %i \n",11,count_array[11]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= tdm12kern_a()        counts= %i \n",12,count_array[12]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= tdm12kern_b()        counts= %i \n",13,count_array[13]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= tdm12kern_ab()       counts= %i \n",14,count_array[14]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= rdm12kern_sf()       counts= %i \n",15,count_array[15]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= tdm13h_spin()        counts= %i \n",16,count_array[16]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= tdm1h_spin()         counts= %i \n",17,count_array[17]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= sfudm_spin()         counts= %i \n",18,count_array[18]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= ppdm_spin()          counts= %i \n",19,count_array[19]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= pull_tdm1()          counts= %i \n",20,count_array[20]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= pull_tdm2()          counts= %i \n",21,count_array[21]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= pull_tdm13h()        counts= %i \n",22,count_array[22]);
-
-    printf("\nLIBGPU :: SIMPLE_COUNTER :: op_vec kernels\n");
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= push_op()            counts= %i \n",23,count_array[23]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= init_ox1()           counts= %i \n",24,count_array[24]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= init_vecs()          counts= %i \n",25,count_array[25]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= push_vecs()          counts= %i \n",26,count_array[26]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= compute_sivecs()     counts= %i \n",27,count_array[27]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= add_sivecs()         counts= %i \n",28,count_array[28]);
-    printf("LIBGPU :: SIMPLE_COUNTER :: i= %i  name= finalize_sivecs()    counts= %i \n",29,count_array[29]);
- 
-    free(count_array);
+    // The report is driven by the accumulation sites themselves: every
+    // LIBGPU_PROFILE call registers its class + function (via __PRETTY_FUNCTION__)
+    // on first use, so the report and the increment sites cannot disagree on
+    // which timer/counter a method owns. Every timed site is also counted.
+    printf("\nLIBGPU :: SIMPLE_TIMER / SIMPLE_COUNTER\n");
+    // Collect non-empty sites, sizing the name column to the longest method name
+    // so it never truncates.
+    std::vector<ProfileSite> rows;
+    size_t wname = 22;
+    for(size_t k=0; k<dev_ctx.profile_sites.size(); ++k) {
+      const ProfileSite & s = dev_ctx.profile_sites[k];
+      if(s.time == 0.0 && s.count == 0) continue; // site never touched
+      rows.push_back(s);
+      if(s.name.size() > wname) wname = s.name.size();
+    }
+    // Group all rows from the same class together (stable: within a class, keep
+    // first-use order). A blank line separates the class groups.
+    std::stable_sort(rows.begin(), rows.end(),
+                     [](const ProfileSite & a, const ProfileSite & b) { return a.cls < b.cls; });
+    printf("%-*s %-18s %14s %10s %14s\n", (int)wname, "name", "class", "time (s)", "count", "avg (s/call)");
+    printf("\n");
+    std::string prev_cls = "\x01"; // sentinel: cannot equal a real class name
+    double cls_time = 0.0;
+    size_t cls_count = 0;
+    for(size_t k=0; k<rows.size(); ++k) {
+      const ProfileSite & s = rows[k];
+      if(s.cls != prev_cls) {
+        if(prev_cls != "\x01") // subtotal for the completed class group
+          printf("%-*s %-18s %14.6f %10zu\n", (int)wname, "", prev_cls.c_str(), cls_time, cls_count);
+        if(k) printf("\n");
+        cls_time = 0.0;
+        cls_count = 0;
+      }
+      prev_cls = s.cls;
+      cls_time += s.time;
+      cls_count += s.count;
+      if(s.count > 0)
+        printf("%-*s %-18s %14.6f %10zu %14.6f\n", (int)wname, s.name.c_str(), s.cls.c_str(), s.time, s.count, s.time / s.count);
+      else
+        printf("%-*s %-18s %14.6f %10s %14s\n", (int)wname, s.name.c_str(), s.cls.c_str(), s.time, "-", "-");
+    }
+    if(prev_cls != "\x01") // subtotal for the final class group
+      printf("%-*s %-18s %14.6f %10zu\n", (int)wname, "", prev_cls.c_str(), cls_time, cls_count);
+    printf("%-*s %-18s %14.6f\n", (int)wname, "TOTAL", "", total);
   }
 
   for(int i=0; i<num_devices; ++i) {
@@ -600,8 +517,7 @@ void Device::push_mo_coeff(py::array_t<double> _mo_coeff, int _size_mo_coeff)
 #endif
   
   double t1 = omp_get_wtime();
-  t_array[7] += t1 - t0;
-  count_array[5] +=1;
+  LIBGPU_PROFILE(dev_ctx, t1 - t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -970,8 +886,7 @@ void Device::orbital_response(py::array_t<double> _f1_prime,
   for(int i=0; i<nmo*nmo; ++i) res[i] = g_f1_prime[i];
 
   double t1 = omp_get_wtime();
-  t_array[4]  += t1  - t0;
-  count_array[2] += 1; 
+  LIBGPU_PROFILE(dev_ctx, t1  - t0);
   
 #if 0
   pm->dev_free_host(ar_global);

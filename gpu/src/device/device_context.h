@@ -5,6 +5,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "../pm/pm.h"
 #include "../mathlib/mathlib.h"
@@ -128,6 +129,34 @@ struct my_device_data {
 #endif
 };
 
+// One profiled accumulation site, registered on first use by DeviceContext::profile.
+// Sites are keyed by their identity (class + function, parsed from __PRETTY_FUNCTION__
+// at the call site), so the report and the increment sites cannot disagree on which
+// timer/counter a method owns.
+struct ProfileSite {
+  std::string cls;
+  std::string name;
+  double time;
+  size_t count;
+};
+
+// "void DeviceFci::compute_sivecs(int)" -> cls="DeviceFci", name="compute_sivecs"
+static inline void parse_site(const char * pretty, std::string & cls, std::string & name)
+{
+  std::string s(pretty);
+  size_t paren = s.find('(');
+  if(paren != std::string::npos) s = s.substr(0, paren);
+  size_t sc = s.rfind("::");
+  if(sc == std::string::npos) {
+    name = s;
+    cls.clear();
+  } else {
+    name = s.substr(sc + 2);
+    size_t sp = s.find(' ');
+    cls = (sp == std::string::npos) ? s.substr(0, sc) : s.substr(sp + 1, sc - sp - 1);
+  }
+}
+
 // Shared resources borrowed by every subdomain (owned by the Device facade).
 // Subdomains access PM/MATHLIB/per-device state through this instead of owning
 // copies of the pointers.
@@ -140,9 +169,43 @@ struct DeviceContext {
   int num_devices;
   int verbose_level;
   int grid_size, block_size;
-  double * t_array;   // shared simple-timer slots (indexed per method)
-  int * count_array;  // shared simple-counter slots (indexed per method)
   my_device_data * device_data;
+
+  // Profiling: ordered by first use (report order), with a name -> index map for
+  // O(1) find-or-insert. Every timed site is also counted. NOT mutex-guarded:
+  // every LIBGPU_PROFILE call site sits on the host thread after its OpenMP
+  // parallel region has joined, and the pybind entry points are GIL-serialized,
+  // so profile() is never reached concurrently. If a future call path can run
+  // concurrently (async host threads, callbacks), accumulate on a single thread
+  // at the call site rather than locking here.
+  std::vector<ProfileSite> profile_sites;
+  std::unordered_map<std::string, size_t> site_index;
+
+  // Accumulate one profiling sample. Every timed site is also counted. Call through
+  // the LIBGPU_PROFILE macro so the call site's identity (class + function via
+  // __PRETTY_FUNCTION__) is recorded.
+  void profile(double dt, const char * fn)
+  {
+    std::string cls, name;
+    parse_site(fn, cls, name);
+    std::string key = cls + "::" + name;
+    size_t idx;
+    auto it = site_index.find(key);
+    if(it == site_index.end()) {
+      idx = profile_sites.size();
+      profile_sites.push_back({cls, name, 0.0, 0});
+      site_index[key] = idx;
+    } else {
+      idx = it->second;
+    }
+    profile_sites[idx].time += dt;
+    profile_sites[idx].count += 1;
+  }
 };
+
+// Accumulate one profiling sample at the call site, recording the enclosing
+// function's identity (class + method via __PRETTY_FUNCTION__) in ctx.profile_sites.
+#define LIBGPU_PROFILE(ctx, dt) \
+  (ctx).profile((dt), __PRETTY_FUNCTION__)
 
 #endif

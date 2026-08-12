@@ -4,8 +4,6 @@
 
 #include "device.h"
 
-#define _NUM_SIMPLE_TIMER 40
-#define _NUM_SIMPLE_COUNTER 30
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>
@@ -76,7 +74,7 @@ void DeviceAo2mo::init_jk_ao2mo(int ncore, int nmo)
   ::grow_array_host(ctx.pm, buf_k_pc, _size_buf_k_pc, size_buf_k_pc, "h:buf_k_pc");
   
   double t1 = omp_get_wtime();
-  ctx.t_array[8] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   // counts in pull ppaa
 }
 
@@ -95,7 +93,7 @@ void DeviceAo2mo::init_ppaa_papa_ao2mo( int nmo, int ncas)
   ::grow_array_host(ctx.pm, buf_papa, _size_buf_papa, size_buf_papa, "h:buf_papa");
 
   double t1 = omp_get_wtime();
-  ctx.t_array[8] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   // counts in pull ppaa_papa
 }
 
@@ -123,7 +121,7 @@ void DeviceAo2mo::extract_mo_cas(int ncas, int ncore, int nao)
   }
   
   double t1 = omp_get_wtime();
-  ctx.t_array[7] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -171,7 +169,7 @@ void DeviceAo2mo::pull_jk_ao2mo_v4(py::array_t<double> _j_pc, py::array_t<double
   for(int i=0; i<nmo*ncore; ++i) k_pc[i] = buf_k_pc[i];
   
   double t1 = omp_get_wtime();
-  ctx.t_array[10] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   // counts in pull ppaa
 }
 
@@ -263,7 +261,7 @@ void DeviceAo2mo::pull_jk_ao2mo_v4(py::array_t<double> _j_pc, py::array_t<double
   //copy buf_k_pc[first nmo*ncore] to k_pc
   std::memcpy(k_pc,buf_k_pc,nmo*ncore*sizeof(double));
   double t1 = omp_get_wtime();
-  ctx.t_array[10] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   // counts in pull ppaa
 }
 #endif
@@ -315,8 +313,7 @@ void DeviceAo2mo::pull_ppaa_papa_ao2mo_v4(py::array_t<double> _ppaa, py::array_t
   for(int i=0; i<N; ++i) papa[i] = buf_papa[i];
 
   double t1 = omp_get_wtime();
-  ctx.t_array[10] += t1 - t0;
-  ctx.count_array[6] += 1; //doing this in ppaa pull, not in any inits or computes
+  LIBGPU_PROFILE(ctx, t1 - t0); //doing this in ppaa pull, not in any inits or computes
 }
 
 #else
@@ -392,8 +389,7 @@ void DeviceAo2mo::pull_ppaa_papa_ao2mo_v4(py::array_t<double> _ppaa, py::array_t
   //copy buf_papa[first nmo*nmo*ncas*ncas] to papa
   std::memcpy(papa,buf_papa,_size_papa*sizeof(double));
   double t1 = omp_get_wtime();
-  ctx.t_array[10] += t1 - t0;
-  ctx.count_array[6] += 1; //doing this in ppaa pull, not in any inits or computes
+  LIBGPU_PROFILE(ctx, t1 - t0); //doing this in ppaa pull, not in any inits or computes
 }
 #endif
 
@@ -543,7 +539,7 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  ctx.t_array[9] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   // counts in pull ppaa
 }
 

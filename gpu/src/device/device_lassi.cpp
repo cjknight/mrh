@@ -4,8 +4,6 @@
 
 #include "device.h"
 
-#define _NUM_SIMPLE_TIMER 40
-#define _NUM_SIMPLE_COUNTER 30
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>
@@ -67,8 +65,7 @@ void DeviceLassi::push_op(py::array_t<double> _op, int m, int k, int counts)
   }
   #endif
   double t1 = omp_get_wtime();
-  ctx.t_array[33] += t1-t0;
-  ctx.count_array[23]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::push_op_4frag(py::array_t<double> _op, int size_op, int size_req, int counts)
@@ -92,8 +89,7 @@ void DeviceLassi::push_op_4frag(py::array_t<double> _op, int size_op, int size_r
   ctx.comm->mgpu_bcast(op_vec, op, _size_op*sizeof(double));
 
   double t1 = omp_get_wtime();
-  ctx.t_array[33] += t1-t0;
-  ctx.count_array[23]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::push_d2(py::array_t<double> _d2, int size_d2, int loc_d2, int counts)
@@ -113,8 +109,7 @@ void DeviceLassi::push_d2(py::array_t<double> _d2, int size_d2, int loc_d2, int 
   ctx.comm->mgpu_bcast(d2_vec, d2, size_d2*sizeof(double));
 
   double t1 = omp_get_wtime();
-  ctx.t_array[33] += t1-t0;
-  ctx.count_array[23]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::push_d3(py::array_t<double> _d3, int size_d3, int loc_d3, int counts)
@@ -134,8 +129,7 @@ void DeviceLassi::push_d3(py::array_t<double> _d3, int size_d3, int loc_d3, int 
   ctx.comm->mgpu_bcast(d3_vec, d3, size_d3*sizeof(double));
 
   double t1 = omp_get_wtime();
-  ctx.t_array[33] += t1-t0;
-  ctx.count_array[23]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 
 
@@ -176,8 +170,7 @@ void DeviceLassi::init_ox1_pinned(int size)
     if (ox1_on_gpu){ ctx.utils->set_to_zero(dd->jk.d_buf3, size); } 
     } 
   double t1 = omp_get_wtime();
-  ctx.t_array[34] += t1-t0;
-  ctx.count_array[24]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -193,8 +186,7 @@ void DeviceLassi::init_old_sivecs_host(int k, int n)
 
   ::grow_array_host(ctx.pm, h_old_sivecs, _size_sivecs, size_old_sivecs, "h:old_sivecs");
   double t1 = omp_get_wtime();
-  ctx.t_array[35] += t1-t0;
-  ctx.count_array[25]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::push_sivecs_to_host(py::array_t<double> _vec, int loc, int size)
@@ -206,8 +198,7 @@ void DeviceLassi::push_sivecs_to_host(py::array_t<double> _vec, int loc, int siz
 #pragma omp parallel for
   for (int i=0;i<size;++i){h_old_sivecs_loc[i] = vec[i];}
   double t1 = omp_get_wtime();
-  ctx.t_array[36] += t1-t0;
-  ctx.count_array[26]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::push_sivecs_to_device(py::array_t<double> _vec, int loc, int size, int count)
@@ -221,8 +212,7 @@ void DeviceLassi::push_sivecs_to_device(py::array_t<double> _vec, int loc, int s
   my_device_data * dd = &(ctx.device_data[device_id]);
   ctx.pm->dev_push_async(&(dd->jk.d_buf2[loc]), vec, size*sizeof(double)); 
   double t1 = omp_get_wtime();
-  ctx.t_array[36] += t1-t0;
-  ctx.count_array[26]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::bcast_vec(int size, int counts)
@@ -244,8 +234,7 @@ void DeviceLassi::bcast_vec(int size, int counts)
     ctx.pm->dev_set_device(id);
     ctx.pm->dev_barrier();}
   double t1 = omp_get_wtime();
-  ctx.t_array[33] += t1-t0;
-  ctx.count_array[23]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 
 }
 /* ---------------------------------------------------------------------- */
@@ -259,8 +248,7 @@ void DeviceLassi::push_instruction_list(py::array_t<int> _instruction_list, int 
 #pragma omp parallel for
   for (int i=0;i<_size_list; ++i){h_instruction_list[i] = instruction_list[i];}
   double t1 = omp_get_wtime();
-  ctx.t_array[37] += t1-t0;
-  ctx.count_array[27]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::compute_sivecs (int m, int n, int k)
@@ -378,8 +366,7 @@ void DeviceLassi::compute_sivecs_full (int _m, int _k, int counts, int op_t)
       ctx.pm->dev_barrier();}
     }
   double t1 = omp_get_wtime();
-  ctx.t_array[37] += t1-t0;
-  ctx.count_array[27]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::compute_sivecs_full_v2 (int _m, int _k, int counts, int op_t)
@@ -449,8 +436,7 @@ void DeviceLassi::compute_sivecs_full_v2 (int _m, int _k, int counts, int op_t)
       ctx.pm->dev_barrier();}
     }
   double t1 = omp_get_wtime();
-  ctx.t_array[37] += t1-t0;
-  ctx.count_array[27]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::compute_sivecs_full_v3 (int _m, int _k, int n, int vec_loc, int ox1_loc, int fac, int op_t, int count)
@@ -516,8 +502,7 @@ void DeviceLassi::compute_sivecs_full_v3 (int _m, int _k, int n, int vec_loc, in
   #endif
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[37] += t1-t0;
-  ctx.count_array[27]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -699,8 +684,7 @@ void DeviceLassi::compute_4frag_matvec( int i, int j, int k, int l,
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[37] += t1-t0;
-  ctx.count_array[27]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 
 
@@ -735,8 +719,7 @@ void DeviceLassi::add_ox1_pinned(py::array_t<double> _ox1, int size)
   for (int i=0; i<size; ++i){h_ox1[i] = 0.0;}
   }
   double t1 = omp_get_wtime();
-  ctx.t_array[38] += t1-t0;
-  ctx.count_array[28]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceLassi::finalize_ox1_pinned(py::array_t<double> _ox1, int size)
@@ -769,8 +752,7 @@ void DeviceLassi::finalize_ox1_pinned(py::array_t<double> _ox1, int size)
   
   }
   double t1 = omp_get_wtime();
-  ctx.t_array[39] += t1-t0;
-  ctx.count_array[29]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 

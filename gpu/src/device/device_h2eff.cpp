@@ -4,8 +4,6 @@
 
 #include "device.h"
 
-#define _NUM_SIMPLE_TIMER 40
-#define _NUM_SIMPLE_COUNTER 30
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>
@@ -56,7 +54,7 @@ void DeviceH2eff::init_eri_h2eff(int nmo, int ncas)
   ::grow_array_host(ctx.pm, buf_eri_h2eff, _size_buf_eri_h2eff, size_buf_eri_h2eff, "h:buf_eri_h2eff");
 
   double t1 = omp_get_wtime();
-  ctx.t_array[8] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   // counts in pull ppaa
 }
 
@@ -256,8 +254,7 @@ void DeviceH2eff::update_h2eff_sub(int ncore, int ncas, int nocc, int nmo,
 #endif
   
   double t1 = omp_get_wtime();
-  ctx.t_array[5] += t1 - t0;
-  ctx.count_array[3] += 1;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -458,8 +455,7 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
   ctx.pm->dev_profile_stop();
   
   double t1 = omp_get_wtime();
-  ctx.t_array[6] += t1 - t0;//TODO: add the array size
-  ctx.count_array[4] += 1; // see v1 comment
+  LIBGPU_PROFILE(ctx, t1 - t0); //TODO: add the array size // see v1 comment
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::get_h2eff_df_v2()\n");

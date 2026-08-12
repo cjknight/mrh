@@ -4,8 +4,6 @@
 
 #include "device.h"
 
-#define _NUM_SIMPLE_TIMER 40
-#define _NUM_SIMPLE_COUNTER 30
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>
@@ -63,7 +61,7 @@ void DeviceFci::init_tdm1(int norb)
   //ctx.pm->dev_profile_stop();
   }
   double t1 = omp_get_wtime();
-  ctx.t_array[14] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 } 
 /* ---------------------------------------------------------------------- */
 void DeviceFci::init_tdm2(int norb)
@@ -78,7 +76,7 @@ void DeviceFci::init_tdm2(int norb)
   //ctx.pm->dev_profile_stop();
   }
   double t1 = omp_get_wtime();
-  ctx.t_array[15] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 } 
 /* ---------------------------------------------------------------------- */
 void DeviceFci::init_tdm3hab(int norb)
@@ -138,7 +136,7 @@ void DeviceFci::push_cibra(py::array_t<double> _cibra, int na, int nb, int count
   ctx.pm->dev_push_async(dd->fci.d_cibra, cibra, size_cibra*sizeof(double));
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[16] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   
 } 
  /* ---------------------------------------------------------------------- */
@@ -157,7 +155,7 @@ void DeviceFci::push_ciket(py::array_t<double> _ciket, int na, int nb, int count
   ctx.pm->dev_push_async(dd->fci.d_ciket, ciket, size_ciket*sizeof(double));
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[16] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 } 
 /* ---------------------------------------------------------------------- */
 void DeviceFci::copy_bravecs_host(py::array_t<double> _bravecs, int nvecs, int na, int nb)
@@ -230,7 +228,7 @@ void DeviceFci::push_link_indexa(int na, int nlinka, py::array_t<int> _link_inde
     }
   }
   double t1 = omp_get_wtime();
-  ctx.t_array[17] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::push_link_indexb(int nb, int nlinkb, py::array_t<int> _link_indexb)
@@ -248,7 +246,7 @@ void DeviceFci::push_link_indexb(int nb, int nlinkb, py::array_t<int> _link_inde
     } 
   }
   double t1 = omp_get_wtime();
-  ctx.t_array[17] += t1 - t0;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::compute_trans_rdm1a(int na, int nb, int nlinka, int nlinkb, int norb, int count)
@@ -268,8 +266,7 @@ void DeviceFci::compute_trans_rdm1a(int na, int nb, int nlinka, int nlinkb, int 
   }
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[18] += t1 - t0;
-  ctx.count_array[8]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::compute_trans_rdm1b(int na, int nb, int nlinka, int nlinkb, int norb, int count)
@@ -289,8 +286,7 @@ void DeviceFci::compute_trans_rdm1b(int na, int nb, int nlinka, int nlinkb, int 
   }
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[19] += t1 - t0;
-  ctx.count_array[9]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::compute_make_rdm1a(int na, int nb, int nlinka, int nlinkb, int norb, int count)
@@ -310,8 +306,7 @@ void DeviceFci::compute_make_rdm1a(int na, int nb, int nlinka, int nlinkb, int n
   }
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[20] += t1 - t0;
-  ctx.count_array[10]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::compute_make_rdm1b(int na, int nb, int nlinka, int nlinkb, int norb, int count)
@@ -331,8 +326,7 @@ void DeviceFci::compute_make_rdm1b(int na, int nb, int nlinka, int nlinkb, int n
   }
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[21] += t1 - t0;
-  ctx.count_array[11]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -413,8 +407,7 @@ void DeviceFci::compute_tdm12kern_a_v2(int na, int nb, int nlinka, int nlinkb, i
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[22] += t1 - t0;
-  ctx.count_array[12]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -496,8 +489,7 @@ void DeviceFci::compute_tdm12kern_b_v2(int na, int nb, int nlinka, int nlinkb, i
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[23] += t1 - t0;
-  ctx.count_array[13]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -571,8 +563,7 @@ void DeviceFci::compute_tdm12kern_ab_v2(int na, int nb, int nlinka, int nlinkb, 
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[24] += t1 - t0;
-  ctx.count_array[14]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: -- Leaving Device::compute_tdm12kern_ab_v2()\n");
@@ -663,8 +654,7 @@ void DeviceFci::compute_rdm12kern_sf_v2(int na, int nb, int nlinka, int nlinkb, 
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[25] += t1 - t0;
-  ctx.count_array[15]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_rdm12kern_sf_v2()\n");
@@ -852,8 +842,7 @@ void DeviceFci::compute_tdm13h_spin_v4(int na, int nb,
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[26] += t1-t0;//TODO: fix this
-  ctx.count_array[16]++;//TODO: fix this
+  LIBGPU_PROFILE(ctx, t1-t0); //TODO: fix this
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_tdm13h_spin_v4()\n");
@@ -1208,8 +1197,7 @@ void DeviceFci::compute_tdm13h_spin_v5(int na, int nb,
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[26] += t1-t0;//TODO: fix this
-  ctx.count_array[16]++;//TODO: fix this
+  LIBGPU_PROFILE(ctx, t1-t0); //TODO: fix this
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_tdm13h_spin_v5()\n");
@@ -1367,8 +1355,7 @@ void DeviceFci::compute_tdmpp_spin_v4(int na, int nb, int nlinka, int nlinkb, in
   filter_tdmpp (dd->fci.d_tdm2, dd->fci.d_tdm1, norb, spin);
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[29] += t1-t0;//TODO: fix this
-  ctx.count_array[19]++;//TODO: fix this
+  LIBGPU_PROFILE(ctx, t1-t0); //TODO: fix this
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_tdmpp_spin_v4()\n");
@@ -1460,8 +1447,7 @@ void DeviceFci::compute_sfudm_v2(int na, int nb, int nlinka, int nlinkb, int nor
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[28] += t1-t0;//TODO: fix this
-  ctx.count_array[18]++;//TODO: fix this
+  LIBGPU_PROFILE(ctx, t1-t0); //TODO: fix this
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU :: Leaving Device::compute_sfudm_v2()\n");
@@ -1507,8 +1493,7 @@ void DeviceFci::compute_tdm1h_spin( int na, int nb, int nlinka, int nlinkb, int 
   }
 
   double t1 = omp_get_wtime();
-  ctx.t_array[27] += t1 - t0;
-  ctx.count_array[17]++;
+  LIBGPU_PROFILE(ctx, t1 - t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::reorder_rdm(int norb, int count)
@@ -1558,8 +1543,7 @@ void DeviceFci::pull_tdm1(py::array_t<double> _tdm1, int norb, int count)
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[30] += t1-t0;
-  ctx.count_array[20]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 
 }
 /* ---------------------------------------------------------------------- */
@@ -1576,8 +1560,7 @@ void DeviceFci::pull_tdm2(py::array_t<double> _tdm2, int norb, int count)
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[31] += t1-t0;
-  ctx.count_array[21]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::pull_tdm1_host(int i, int j, int n_bra, int n_ket, int size_tdm1, int factor, int count)
@@ -1599,8 +1582,7 @@ void DeviceFci::pull_tdm1_host(int i, int j, int n_bra, int n_ket, int size_tdm1
       }
     }
   double t1 = omp_get_wtime();
-  ctx.t_array[30] += t1-t0;
-  ctx.count_array[20]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::pull_tdm2_host(int i, int j, int n_bra, int n_ket, int size_tdm2, int factor, int count)
@@ -1623,8 +1605,7 @@ void DeviceFci::pull_tdm2_host(int i, int j, int n_bra, int n_ket, int size_tdm2
     }
 
   double t1 = omp_get_wtime();
-  ctx.t_array[31] += t1-t0;
-  ctx.count_array[21]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::pull_tdm3h_host(int loc, int size_tdm2, int count)
@@ -1638,8 +1619,7 @@ void DeviceFci::pull_tdm3h_host(int loc, int size_tdm2, int count)
   ctx.pm->dev_pull_async(dd->fci.d_tdm2_p, &h_dm2_p_full[loc], size_tdm2*sizeof(double));
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[31] += t1-t0;
-  ctx.count_array[21]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1659,8 +1639,7 @@ void DeviceFci::pull_tdm3hab(py::array_t<double> _tdm3ha, py::array_t<double> _t
 
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[32] += t1-t0;
-  ctx.count_array[22]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> _tdm3ha, py::array_t<double> _tdm3hb, int norb, int cre, int spin, int count)
@@ -1717,8 +1696,7 @@ void DeviceFci::pull_tdm3hab_v2(py::array_t<double> _tdm1h, py::array_t<double> 
   //for (int i=0; i<norb; ++i){for (int j=0;j<norb2;++j){printf("%f\t",tdm3hb[i*norb2+j]);}printf("\n");}
   ctx.pm->dev_profile_stop();
   double t1 = omp_get_wtime();
-  ctx.t_array[32] += t1-t0;
-  ctx.count_array[22]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 /* ---------------------------------------------------------------------- */
 void DeviceFci::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int norb, int cre, int spin, int count)
@@ -1773,8 +1751,7 @@ void DeviceFci::pull_tdm3hab_v2_host(int i, int j, int n_bra, int n_ket, int nor
     }
   //printf("i:%i j:%i\n",i,j);
   double t1 = omp_get_wtime();
-  ctx.t_array[32] += t1-t0;
-  ctx.count_array[22]++;
+  LIBGPU_PROFILE(ctx, t1-t0);
 }
 
 /* ---------------------------------------------------------------------- */
