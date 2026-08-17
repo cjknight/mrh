@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from pyscf.gto.mole import *
+from pyscf import lib
 
 from gpu4mrh.lib.utils import patch_cpu_kernel
 
@@ -26,5 +27,8 @@ def _M(self, use_gpu=None, **kwargs):
     
     add_gpu = {"use_gpu":use_gpu}
     mol.__dict__.update(add_gpu)
+
+    # Set param.use_gpu so FCI/LASSI paths get the handle too
+    lib.param.use_gpu = use_gpu
 
     return mol
