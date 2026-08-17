@@ -7,6 +7,11 @@ def get_h2eff_df (las, mo_coeff):
     # Store intermediate with one contracted ao index for faster calculation of exchange!
     log = lib.logger.new_logger (las, las.verbose)
     gpu=las.use_gpu
+    if gpu is not None and getattr(las, 'with_df', None) is None:
+        raise RuntimeError(
+            "GPU acceleration requires density fitting. "
+            "Call mf.density_fit() before running LASSCF."
+        )
     nao, nmo = mo_coeff.shape
     ncore, ncas = las.ncore, las.ncas
     nocc = ncore + ncas

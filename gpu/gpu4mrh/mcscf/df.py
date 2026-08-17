@@ -17,6 +17,11 @@ class _ERIS:
         ncore = casscf.ncore
         ncas = casscf.ncas
         nocc = ncore + ncas
+        if with_df is None:
+            raise RuntimeError(
+                "GPU acceleration requires density fitting. "
+                "Call mf.density_fit() before running CASSCF/LASSCF."
+            )
         naoaux = with_df.get_naoaux()
         mem_incore, mem_outcore, mem_basic = _mem_usage(ncore, ncas, nmo)
         mem_now = lib.current_memory()[0]

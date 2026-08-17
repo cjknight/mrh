@@ -40,6 +40,11 @@ def kernel (las, mo_coeff=None, ci0=None, casdm0_fr=None, conv_tol_grad=1e-4,
     t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
     log.debug('Start LASSCF')
     gpu=las.use_gpu
+    if gpu is not None and getattr(las, 'with_df', None) is None:
+        raise RuntimeError(
+            "GPU acceleration requires density fitting. "
+            "Call mf.density_fit() before running LASSCF."
+        )
     h2eff_sub = las.get_h2eff (mo_coeff)
     t1 = log.timer('integral transformation to LAS space', *t0)
 
@@ -1428,6 +1433,12 @@ class LASSCF_HessianOperator (sparse_linalg.LinearOperator):
         ci1 = self._update_ci (dci)
         t0=log.timer('update_ci',*t0)
         gpu=self.las.use_gpu
+        has_df = getattr(self.las, 'with_df', None) is not None
+        if gpu is not None and not has_df:
+            raise RuntimeError(
+                "GPU acceleration requires density fitting. "
+                "Call mf.density_fit() before running LASSCF."
+            )
         if self.las.verbose>=lib.logger.DEBUG and gpu:
             h2eff_sub_c = h2eff_sub.copy()
             h2eff_sub2 = self._update_h2eff_sub_debug (mo1, umat, h2eff_sub_c) 
@@ -1437,7 +1448,7 @@ class LASSCF_HessianOperator (sparse_linalg.LinearOperator):
                 #print('H2eff test passed')
             else:
                 log.debug('H2eff gpu kernel is not working')
-                lib.logger.debug(np.max((h2eff_sub-h2eff_sub2)*(h2eff_sub-h2eff_sub2)))
+                log.debug('H2eff diff: %s', np.max((h2eff_sub-h2eff_sub2)*(h2eff_sub-h2eff_sub2)))
                 exit()
         elif gpu:
             h2eff_sub = self._update_h2eff_sub_gpu (gpu, mo1, umat, h2eff_sub)
