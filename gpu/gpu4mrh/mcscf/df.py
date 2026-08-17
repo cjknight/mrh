@@ -31,7 +31,7 @@ class _ERIS:
         self.j_pc = numpy.zeros((nmo,ncore))
         self.k_pc = numpy.zeros((nmo,ncore))
         k_cp = numpy.zeros((ncore,nmo))
-        gpu=casscf.mol.use_gpu
+        gpu=lib.param.use_gpu
         
         mo = numpy.asarray(mo, order='F')
         #fxpp = lib.H5TmpFile()
