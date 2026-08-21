@@ -381,6 +381,7 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
   int nao2 = nao * nao;
   int ncas_nao = ncas * nao;
   int ncas2 = ncas * ncas;
+  int ncas_nmo = ncas * nmo;
 
   double * d_bPmu = dd->jk.d_buf2;
   
@@ -426,8 +427,8 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
   double * d_vuwM = dd->jk.d_buf1;
 
   ctx.ml->set_handle();
-  ctx.ml->gemm_batch((char *) "T", (char *) "T", &ncas, &nao, &nao,
-		 &alpha, d_vuwm, &nao, &ncas_nao, d_mo_coeff, &nao, &zero, &beta, d_vuwM, &ncas, &ncas_nao, &ncas2);
+  ctx.ml->gemm_batch((char *) "T", (char *) "T", &ncas, &nmo, &nao,
+		 &alpha, d_vuwm, &nao, &ncas_nao, d_mo_coeff, &nmo, &zero, &beta, d_vuwM, &ncas, &ncas_nmo, &ncas2);
 
   int * my_d_tril_map_ptr = ctx.cache->dd_fetch_pumap(dd, ncas, _PUMAP_2D_UNPACK);
   
