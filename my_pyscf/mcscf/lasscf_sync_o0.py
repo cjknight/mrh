@@ -40,11 +40,9 @@ def kernel (las, mo_coeff=None, ci0=None, casdm0_fr=None, conv_tol_grad=1e-4,
     t0 = (lib.logger.process_clock(), lib.logger.perf_counter())
     log.debug('Start LASSCF')
     gpu=las.use_gpu
-    if gpu is not None and getattr(las, 'with_df', None) is None:
-        raise RuntimeError(
-            "GPU acceleration requires density fitting. "
-            "Call mf.density_fit() before running LASSCF."
-        )
+    # NB: no DF guard here. The active-active pair subproblem built by
+    # combine.combine_pair -> crunch.get_pair_laspscf (inherit_df=False) carries use_gpu
+    # but deliberately has no with_df; get_h2eff falls back to exact ERIs for it.
     h2eff_sub = las.get_h2eff (mo_coeff)
     t1 = log.timer('integral transformation to LAS space', *t0)
 
@@ -1431,12 +1429,8 @@ class LASSCF_HessianOperator (sparse_linalg.LinearOperator):
         ci1 = self._update_ci (dci)
         t0=log.timer('update_ci',*t0)
         gpu=self.las.use_gpu
-        has_df = getattr(self.las, 'with_df', None) is not None
-        if gpu is not None and not has_df:
-            raise RuntimeError(
-                "GPU acceleration requires density fitting. "
-                "Call mf.density_fit() before running LASSCF."
-            )
+        # NB: no DF guard here. update_h2eff_sub only rotates an already-built h2eff_sub
+        # by umat, so it is valid whether h2eff_sub came from DF or exact ERIs.
         if self.las.verbose>=lib.logger.DEBUG and gpu:
             h2eff_sub_c = h2eff_sub.copy()
             h2eff_sub2 = self._update_h2eff_sub_debug (mo1, umat, h2eff_sub_c) 
