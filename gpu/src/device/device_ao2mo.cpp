@@ -99,7 +99,10 @@ void DeviceAo2mo::init_ppaa_papa_ao2mo( int nmo, int ncas)
 
 /* ---------------------------------------------------------------------- */
 
-void DeviceAo2mo::extract_mo_cas(int ncas, int ncore, int nao)
+// d_mo_coeff holds mo_coeff as (nao,nmo) row-major, so its row stride is nmo, not
+// nao. nmo is passed in rather than inferred from dd->size_mo_coeff, which is a
+// high-water-mark capacity (grow_array never shrinks) and can outlive a larger push.
+void DeviceAo2mo::extract_mo_cas(int ncas, int ncore, int nao, int nmo)
 {
   double t0 = omp_get_wtime();
   
@@ -114,9 +117,9 @@ void DeviceAo2mo::extract_mo_cas(int ncas, int ncore, int nao)
 #if 0 
     dim3 block_size(1,1,1);
     dim3 grid_size(_TILE(ncas, block_size.x), _TILE(nao, block_size.y));
-    get_mo_cas<<<grid_size, block_size, 0, dd->stream>>>(dd->d_mo_coeff, dd->d_mo_cas, ncas, ncore, nao);
+    get_mo_cas<<<grid_size, block_size, 0, dd->stream>>>(dd->d_mo_coeff, dd->d_mo_cas, ncas, ncore, nao, nmo);
 #else
-    get_mo_cas(dd->d_mo_coeff,dd->d_mo_cas, ncas, ncore, nao);
+    get_mo_cas(dd->d_mo_coeff,dd->d_mo_cas, ncas, ncore, nao, nmo);
 #endif
   }
   
@@ -560,5 +563,5 @@ void Device::pull_jk_ao2mo_v4(py::array_t<double> _j_pc, py::array_t<double> _k_
 void Device::pull_ppaa_papa_ao2mo_v4(py::array_t<double> _ppaa, py::array_t<double> _papa, int nmo, int ncas)
 { _ao2mo->pull_ppaa_papa_ao2mo_v4(_ppaa, _papa, nmo, ncas); }
 
-void Device::extract_mo_cas(int ncas, int ncore, int nao)
-{ _ao2mo->extract_mo_cas(ncas, ncore, nao); }
+void Device::extract_mo_cas(int ncas, int ncore, int nao, int nmo)
+{ _ao2mo->extract_mo_cas(ncas, ncore, nao, nmo); }

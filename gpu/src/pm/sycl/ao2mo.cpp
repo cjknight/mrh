@@ -43,7 +43,7 @@ void _get_bufd( const double* bufpp, double* bufd, int naux, int nmo)
 
 /* ---------------------------------------------------------------------- */
 
-void _get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+void _get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao, int nmo)
 {
     auto item_ct1 = sycl::ext::oneapi::this_work_item::get_nd_item<3>();
     const int j = item_ct1.get_group(1) * item_ct1.get_local_range(1) +
@@ -51,7 +51,7 @@ void _get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, 
     const int i = item_ct1.get_group(2) * item_ct1.get_local_range(2) +
                   item_ct1.get_local_id(2);
     if (i < ncas && j < nao) {
-        small_mat[i * nao + j] = big_mat[j*nao + i+ncore];
+        small_mat[i * nao + j] = big_mat[j*nmo + i+ncore];
     }
 }
 
@@ -148,7 +148,7 @@ void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nm
 
 /* ---------------------------------------------------------------------- */
 
-void DeviceAo2mo::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+void DeviceAo2mo::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao, int nmo)
 {
   sycl::range<3> block_size(1, 1, 1);
   sycl::range<3> grid_size(1, _TILE(nao, block_size[1]), _TILE(ncas, block_size[2]));
@@ -165,7 +165,7 @@ void DeviceAo2mo::get_mo_cas(const double* big_mat, double* small_mat, int ncas,
 
     s->parallel_for(sycl::nd_range<3>(grid_size * block_size, block_size),
                     [=](sycl::nd_item<3> item_ct1) {
-                      _get_mo_cas(big_mat, small_mat, ncas, ncore, nao);
+                      _get_mo_cas(big_mat, small_mat, ncas, ncore, nao, nmo);
                     });
   }
 

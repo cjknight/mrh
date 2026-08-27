@@ -38,13 +38,13 @@ public:
   void df_ao2mo_v4(int, int, int, int, int, int, int, size_t);
   void pull_jk_ao2mo_v4(py::array_t<double>, py::array_t<double>, int, int);
   void pull_ppaa_papa_ao2mo_v4(py::array_t<double>, py::array_t<double>, int, int);
-  void extract_mo_cas(int, int, int);
+  void extract_mo_cas(int, int, int, int);
 
   // kernel launchers (implemented in pm/<platform>/ao2mo.cpp)
   void get_bufpa(const double *, double *, int, int, int, int);
   void get_bufaa(const double *, double *, int, int, int, int);
   void get_bufd(const double *, double *, int, int);
-  void get_mo_cas(const double *, double *, int, int, int);
+  void get_mo_cas(const double *, double *, int, int, int, int);
 
 private:
 

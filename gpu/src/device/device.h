@@ -228,7 +228,7 @@ public :
   void finalize_ox1_pinned(py::array_t<double>, int);
 
   //inner functions
-  void extract_mo_cas(int, int, int);//TODO: fix the difference - changed slightly
+  void extract_mo_cas(int, int, int, int);
 
   void push_mo_coeff(py::array_t<double>, int);
 

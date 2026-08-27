@@ -42,12 +42,12 @@ void DeviceAo2mo::get_bufaa(const double* bufpp, double* bufaa, int naux, int nm
 
 /* ---------------------------------------------------------------------- */
 
-void DeviceAo2mo::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+void DeviceAo2mo::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao, int nmo)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<ncas; ++i)
     for(int j=0; j<nao; ++j)
-      small_mat[i*nao + j] = big_mat[j*nao + i+ncore];
+      small_mat[i*nao + j] = big_mat[j*nmo + i+ncore];
 }
 
 /* ---------------------------------------------------------------------- */

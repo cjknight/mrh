@@ -315,11 +315,11 @@ __global__ void _transpose_120(double * in, double * out, int naux, int nao, int
 
 /* ---------------------------------------------------------------------- */
 
-__global__ void _get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao) {
+__global__ void _get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao, int nmo) {
     const int j = blockIdx.y * blockDim.y + threadIdx.y;
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < ncas && j < nao) {
-        small_mat[i * nao + j] = big_mat[j*nao + i+ncore];
+        small_mat[i * nao + j] = big_mat[j*nmo + i+ncore];
     }
 }
 
@@ -1553,14 +1553,14 @@ void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int nc
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao, int nmo)
 {
   dim3 block_size(1,1,1);
   dim3 grid_size(_TILE(ncas, block_size.x), _TILE(nao, block_size.y));
   
   cudaStream_t s = *(pm->dev_get_queue());
   
-  _get_mo_cas<<<grid_size, block_size, 0, s>>>(big_mat, small_mat, ncas, ncore, nao);
+  _get_mo_cas<<<grid_size, block_size, 0, s>>>(big_mat, small_mat, ncas, ncore, nao, nmo);
   
 #ifdef _DEBUG_DEVICE
   printf("LIBGPU ::  -- get_h2eff_df::_get_mo_cas :: ncas= %i  nao= %i  grid_size= %i %i %i  block_size= %i %i %i\n",

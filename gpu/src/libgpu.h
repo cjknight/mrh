@@ -44,7 +44,7 @@ extern "C"
   void libgpu_push_mo_coeff(void *, 
 			    py::array_t<double>, int);
   void libgpu_extract_mo_cas(void *, 
-			    int, int, int);
+			    int, int, int, int);
   
   void libgpu_init_jk_ao2mo(void *, 
                             int, int);

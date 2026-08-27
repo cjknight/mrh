@@ -37,6 +37,9 @@ void DeviceH2eff::init_eri_h2eff(int nmo, int ncas)
   // host initializes on each device 
 
   int ncas_pair = ncas*(ncas+1)/2;
+  // pack_d_vuwM writes out[i*ncas_pair + map[j]] for i<nmo*ncas, j<ncas*ncas. map is
+  // the _PUMAP_2D_UNPACK map for ncas, whose entries are tril indices 0..ncas_pair-1,
+  // so the highest write is nmo*ncas*ncas_pair-1 and this size is exact.
   int size_eri_h2eff = nmo*ncas*ncas_pair;
 
   for(int id=0; id<ctx.num_devices; ++id) {
@@ -302,7 +305,9 @@ void DeviceH2eff::get_h2eff_df_v2(py::array_t<double> _cderi,
   const int _size_bPvu = naux*ncas*ncas;
   
   const int size_bumP_buvP = _size_bPmu + _size_bPvu;
-  const int size_vuwM = nmo * ncas * ncas_pair;
+  // d_vuwM is produced by a strided-batched GEMM (ncas*nmo strides) and consumed by
+  // pack_d_vuwM as in[j*ncas*nmo+i] for j<ncas^2, i<nmo*ncas, i.e. nmo*ncas^3 elements.
+  const int size_vuwM = nmo * ncas * ncas * ncas;
   
   // int max_size_buf = (_size_eri_unpacked > _size_eri_h2eff) ? _size_eri_unpacked : _size_eri_h2eff;
   // if(size_vuwm > max_size_buf) max_size_buf = size_vuwm;

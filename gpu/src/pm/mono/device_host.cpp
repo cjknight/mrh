@@ -234,12 +234,12 @@ void Device::pack_h2eff_2d(double * in, double * out, int * map, int nmo, int nc
 
 /* ---------------------------------------------------------------------- */
 
-void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao)
+void Device::get_mo_cas(const double* big_mat, double* small_mat, int ncas, int ncore, int nao, int nmo)
 {
 #pragma omp parallel for collapse(2) schedule(static)
   for(int i=0; i<ncas; ++i)
     for(int j=0; j<nao; ++j)
-      small_mat[i*nao + j] = big_mat[j*nao + i+ncore];
+      small_mat[i*nao + j] = big_mat[j*nmo + i+ncore];
 }
 
 /* ---------------------------------------------------------------------- */

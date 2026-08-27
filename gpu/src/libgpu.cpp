@@ -146,10 +146,10 @@ void libgpu_push_mo_coeff(void * ptr,
 
 /* ---------------------------------------------------------------------- */
 void libgpu_extract_mo_cas(void * ptr,
-			   int ncas, int ncore, int nao)
+			   int ncas, int ncore, int nao, int nmo)
 {
   Device * dev = (Device *) ptr;
-  dev->extract_mo_cas(ncas, ncore, nao);
+  dev->extract_mo_cas(ncas, ncore, nao, nmo);
 }
 
 /* ---------------------------------------------------------------------- */
