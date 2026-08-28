@@ -417,7 +417,9 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
   const int nao_pair = nao*(nao+1)/2;
   //  double * eri = static_cast<double*>(info_eri1.ptr);
   
-  int _size_eri_unpacked = naux * nao * nao; 
+  int _size_eri_unpacked = naux * nao * nao;   // buf2, stage 1
+  int _size_buf          = naux * nao * nmo;   // buf1: T = E.C
+  int _size_bufpp        = naux * nmo * nmo;   // buf2 stage 2; buf1 later as fxpp
   int _size_ppaa = nmo * nmo * ncas * ncas;
 
 #ifdef _DEBUG_DEVICE
@@ -431,6 +433,8 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
 
   int max_size_buf = 2 * _size_ppaa;
   if(_size_eri_unpacked > max_size_buf) max_size_buf = _size_eri_unpacked;
+  if(_size_buf          > max_size_buf) max_size_buf = _size_buf;
+  if(_size_bufpp        > max_size_buf) max_size_buf = _size_bufpp;
   
   ::grow_array(ctx.pm, dd->jk.d_buf1, max_size_buf, dd->jk.size_buf1, "buf1", FLERR);
   ::grow_array(ctx.pm, dd->jk.d_buf2, max_size_buf, dd->jk.size_buf2, "buf2", FLERR);
@@ -454,18 +458,20 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
   const double alpha = 1.0;
   const double beta = 0.0;
   const int nao2 = nao * nao;
+  const int nmo2 = nmo * nmo;
+  const int nao_nmo = nao * nmo;
   const int zero = 0;
   
   ctx.ml->set_handle();
-  ctx.ml->gemm_batch((char *) "N", (char *) "N", &nao, &nao, &nao,
-		 &alpha, d_eri_unpacked, &nao, &nao2, dd->d_mo_coeff, &nao, &zero, &beta, d_buf, &nao, &nao2, &naux);
+  ctx.ml->gemm_batch((char *) "N", (char *) "N", &nao, &nmo, &nao,
+		 &alpha, d_eri_unpacked, &nao, &nao2, dd->d_mo_coeff, &nao, &zero, &beta, d_buf, &nao, &nao_nmo, &naux);
   
   //bufpp = np.einsum('jk,ikl->ijl',mo_coeff.T,buf),i=naux,j=nao,l=nao
   
   double * d_bufpp = dd->jk.d_buf2;
 
-  ctx.ml->gemm_batch((char *) "T", (char *) "N", &nao, &nao, &nao,
-		 &alpha, dd->d_mo_coeff, &nao, &zero, d_buf, &nao, &nao2, &beta, d_bufpp, &nao, &nao2, &naux);
+  ctx.ml->gemm_batch((char *) "T", (char *) "N", &nmo, &nmo, &nao,
+		 &alpha, dd->d_mo_coeff, &nao, &zero, d_buf, &nao, &nao_nmo, &beta, d_bufpp, &nmo, &nmo2, &naux);
 
   int _size_bufpa = naux*nmo*ncas;
   ::grow_array(ctx.pm, dd->ao2mo.d_bufpa, _size_bufpa, dd->ao2mo.size_bufpa, "bufpa", FLERR);
@@ -523,7 +529,7 @@ void DeviceAo2mo::df_ao2mo_v4 (int blksize, int nmo, int nao, int ncore, int nca
 
   // calculate ppaa
   dd->ao2mo.d_ppaa = dd->jk.d_buf3;
-  ctx.ml->gemm ((char *) "N", (char *) "N", &ncas2, &nao2, &naux,  
+  ctx.ml->gemm ((char *) "N", (char *) "N", &ncas2, &nmo2, &naux,  
                    &alpha,  d_bufaa, &ncas2, d_fxpp, &naux, &beta_, dd->ao2mo.d_ppaa, &ncas2);                  
   
   // calculate papa
