@@ -161,7 +161,7 @@ def kernel (las, mo_coeff=None, ci0=None, casdm0_fr=None, conv_tol_grad=1e-4,
         # ^ This is down here to save time in case I am already converged at initialization
         t1 = log.timer ('LASSCF Hessian constructor', *t1)
         microit = [0]
-        last_x = [0]
+        last_x = [None]
         first_norm_x = [None]
         def my_callback (x):
             microit[0] += 1
@@ -188,7 +188,7 @@ def kernel (las, mo_coeff=None, ci0=None, casdm0_fr=None, conv_tol_grad=1e-4,
                 log.info ('LASSCF micro %d : |x_orb| = %.15g ; |x_ci| = %.15g', microit[0],
                           norm_xorb, norm_xci)
             if abs(x_max)>.5: # Nonphysical step vector element
-                if last_x[0] is 0:
+                if last_x[0] is None:
                     x[np.abs (x)>.5*np.pi] = 0
                     last_x[0] = x
                 raise MicroIterInstabilityException ("|x[i]| > pi/2")
