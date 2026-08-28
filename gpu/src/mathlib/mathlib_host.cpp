@@ -2,7 +2,9 @@
 
 #include <string.h>
 
-#include "mathlib_host.h"
+// via mathlib.h (not mathlib_host.h) so this TU sees the same _PROFILE_ML
+// setting as everything else -- otherwise MATHLIB has a different layout here
+#include "mathlib.h"
 
 using namespace MATHLIB_NS;
 
@@ -46,6 +48,15 @@ extern "C" {
 }
 #endif
 
+
+
+MATHLIB::~MATHLIB()
+{
+#if defined(_PROFILE_ML)
+  profile_.dump();
+#endif
+}
+
 MATHLIB::MATHLIB(class PM_NS::PM * pm) : pm_(pm)
 {
 }
@@ -75,6 +86,10 @@ void MATHLIB::gemv(const char * transa, const int * m, const int * n,
                    const double * x, const int * incx,
                    const double * beta, double * y, const int * incy)
 {
+#if defined(_PROFILE_ML)
+  profile_.record(ProfileML::gemv(transa, *m, *n, *lda, *incx, *beta, *incy));
+#endif
+
 #if defined(_SINGLE_PRECISION)
   sgemv_(transa, m, n, alpha, a, lda, x, incx, beta, y, incy);
 #else
@@ -88,6 +103,11 @@ void MATHLIB::gemv_batch(const char * transa, const int * m, const int * n,
                          const double * beta, double * y, const int * incy, const int * strideY,
                          const int * batchCount)
 {
+#if defined(_PROFILE_ML)
+  profile_.record(ProfileML::gemv_batch(transa, *m, *n, *lda, *strideA, *incx, *strideX, *beta, *incy, *strideY,
+					*batchCount));
+#endif
+
   const char trans = transa[0];
   for (int b = 0; b < *batchCount; ++b) {
     const double * ab = a + b * (*strideA);
@@ -98,6 +118,19 @@ void MATHLIB::gemv_batch(const char * transa, const int * m, const int * n,
 }
 
 void MATHLIB::gemm(const char * transa, const char * transb,
+                   const int * m, const int * n, const int * k,
+                   const double * alpha, const double * a, const int * lda,
+                   const double * b, const int * ldb,
+                   const double * beta, double * c, const int * ldc)
+{
+#if defined(_PROFILE_ML)
+  profile_.record(ProfileML::gemm(transa, transb, *m, *n, *k, *lda, *ldb, *ldc, *alpha, *beta));
+#endif
+
+  gemm_impl(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc);
+}
+
+void MATHLIB::gemm_impl(const char * transa, const char * transb,
                    const int * m, const int * n, const int * k,
                    const double * alpha, const double * a, const int * lda,
                    const double * b, const int * ldb,
@@ -132,13 +165,20 @@ void MATHLIB::gemm_batch(const char * transa, const char * transb,
                          const double * beta, double * c, const int * ldc, const int * strideC,
                          const int * batchCount)
 {
-  const char tA = transa[0];
-  const char tB = transb[0];
+#if defined(_PROFILE_ML)
+  profile_.record(ProfileML::gemm_batch(transa, transb, *m, *n, *k, *lda, *ldb, *ldc, *alpha, *beta,
+					*batchCount, *strideA, *strideB, *strideC));
+#endif
+
+  // NUL-terminate: these are passed as const char*, and anything that treats them
+  // as a C string (the PROFILE_ML name, for one) runs off the end of a bare char
+  const char tA[2] = { transa[0], '\0' };
+  const char tB[2] = { transb[0], '\0' };
   for (int i = 0; i < *batchCount; ++i) {
     const double * ai = a + i * (*strideA);
     const double * bi = b + i * (*strideB);
     double * ci = c + i * (*strideC);
-    gemm(&tA, &tB, m, n, k, alpha, ai, lda, bi, ldb, beta, ci, ldc);
+    gemm_impl(tA, tB, m, n, k, alpha, ai, lda, bi, ldb, beta, ci, ldc);
   }
 }
 

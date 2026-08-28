@@ -12,7 +12,7 @@ namespace MATHLIB_NS {
   public:
 
     MATHLIB(class PM_NS::PM * pm);
-    ~MATHLIB() {};
+    ~MATHLIB();
 
     int create_handle() {return 0;};
     void set_handle(int) {};
@@ -54,7 +54,19 @@ namespace MATHLIB_NS {
 		    const int * batchCount);
 
   private:
+    // shared by gemm() and gemm_batch()'s loop; does no PROFILE_ML accounting so a
+    // batched call is recorded once rather than once per batch member
+    void gemm_impl(const char * transa, const char * transb,
+		   const int * m, const int * n, const int * k,
+		   const double * alpha, const double * a, const int * lda,
+		   const double * b, const int * ldb,
+		   const double * beta, double * c, const int * ldc);
+
     class PM_NS::PM * pm_;
+
+#if defined(_PROFILE_ML)
+    ProfileML profile_;   // defined in mathlib.h, shared by every backend
+#endif
   };
 
 }

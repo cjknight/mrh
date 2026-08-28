@@ -5,11 +5,6 @@
 
 #include "../pm/pm.h"
 
-#if defined(_PROFILE_ML)
-#include <string>
-#include <sstream>
-#endif
-
 #if defined(_GPU_SYCL_CUDA)
 #include "oneapi/mkl.hpp"
 #else
@@ -69,8 +64,7 @@ namespace MATHLIB_NS {
     class PM_NS::PM * pm_;
 
 #if defined(_PROFILE_ML)
-    std::vector<std::string> profile_name;
-    std::vector<int> profile_count;
+    ProfileML profile_;   // defined in mathlib.h, shared by every backend
 #endif
   };
 

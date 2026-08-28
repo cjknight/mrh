@@ -14,6 +14,88 @@
 
 #if defined(_PROFILE_ML)
 #include <algorithm>
+#include <cstdio>
+#include <sstream>
+#include <string>
+#include <vector>
+
+namespace MATHLIB_NS {
+
+  // Single home for the PROFILE_ML tally and, more importantly, for the log format:
+  // every backend builds its name here, so cuda/hip/sycl/host cannot drift apart.
+  // The name string is verbatim `-replay` syntax for gemm/gemm_batch -- see
+  // mini-apps/math/benchmark_gemm (main.cpp parses it, replay_profile.py scrapes it).
+  class ProfileML {
+
+  public:
+
+    void record(const std::string & name)
+    {
+      auto it = std::find(name_.begin(), name_.end(), name);
+      size_t indx = it - name_.begin();
+      if(indx < name_.size()) count_[indx]++;
+      else { name_.push_back(name); count_.push_back(1); }
+    }
+
+    void dump() const
+    {
+      printf("\nLIBGPU :: PROFILE_ML\n");
+      for(size_t i=0; i<name_.size(); ++i)
+	printf("LIBGPU :: PROFILE_ML :: count= %i  name= %s\n", count_[i], name_[i].c_str());
+      fflush(stdout);
+    }
+
+    // -- name builders; trans args are read as single chars so a non-NUL-terminated
+    // -- char (as the host gemm_batch loop used to pass) cannot run off the end
+
+    static std::string gemm(const char * ta, const char * tb,
+			    int m, int n, int k, int lda, int ldb, int ldc,
+			    double alpha, double beta)
+    {
+      std::ostringstream s;
+      s << "gemm " << ta[0] << " " << tb[0] << " " << m << " " << n << " " << k
+	<< " " << lda << " " << ldb << " " << ldc << " " << alpha << " " << beta;
+      return s.str();
+    }
+
+    static std::string gemm_batch(const char * ta, const char * tb,
+				  int m, int n, int k, int lda, int ldb, int ldc,
+				  double alpha, double beta, int batchCount,
+				  int strideA, int strideB, int strideC)
+    {
+      std::ostringstream s;
+      s << gemm(ta, tb, m, n, k, lda, ldb, ldc, alpha, beta).substr(5)
+	<< " " << batchCount << " " << strideA << " " << strideB << " " << strideC;
+      return "gemm_batch " + s.str();
+    }
+
+    static std::string gemv(const char * ta, int m, int n, int lda,
+			    int incx, double beta, int incy)
+    {
+      std::ostringstream s;
+      s << "gemv " << ta[0] << " " << m << " " << n << " " << lda
+	<< " " << incx << " " << beta << " " << incy;
+      return s.str();
+    }
+
+    static std::string gemv_batch(const char * ta, int m, int n, int lda, int strideA,
+				  int incx, int strideX, double beta, int incy, int strideY,
+				  int batchCount)
+    {
+      std::ostringstream s;
+      s << "gemv_batch " << ta[0] << " " << m << " " << n << " " << lda << " " << strideA
+	<< " " << incx << " " << strideX << " " << beta << " " << incy << " " << strideY
+	<< " " << batchCount;
+      return s.str();
+    }
+
+  private:
+
+    std::vector<std::string> name_;
+    std::vector<int> count_;
+  };
+
+}
 #endif
 
 #if defined(_USE_GPU)

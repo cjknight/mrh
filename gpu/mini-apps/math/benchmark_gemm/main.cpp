@@ -63,6 +63,12 @@ struct input_t {
   double beta = 0.0;
   char * transa = (char *) "N";
   char * transb = (char *) "N";
+  // batched strides, in gemm_batch call order. -1 => not supplied, fall back to
+  // assuming each batch member is packed (which is often wrong: over half the
+  // device-layer gemm_batch calls broadcast an operand with stride 0).
+  int strideA = -1;
+  int strideB = -1;
+  int strideC = -1;
 };
 
 // ----------------------------------------------------------------
@@ -118,6 +124,13 @@ void parse_command_line(int argc, char * argv[], input_t & inp)
       inp.alpha = atof(argv[++indx]);
       inp.beta = atof(argv[++indx]);
       if(inp.do_batched) inp.num_batches = atoi(argv[++indx]);
+      // PROFILE_ML appends strideA strideB strideC for gemm_batch; older logs omit them
+      if(inp.do_batched && indx+3 < argc &&
+	 argv[indx+1][0] != '-' && argv[indx+2][0] != '-' && argv[indx+3][0] != '-') {
+	inp.strideA = atoi(argv[++indx]);
+	inp.strideB = atoi(argv[++indx]);
+	inp.strideC = atoi(argv[++indx]);
+      }
     }
     else if(strcmp(argv[indx], "-num_iter") == 0) inp.num_iter = atoi(argv[++indx]);
     else if(strcmp(argv[indx], "-batched") == 0) inp.do_batched = true;
@@ -137,6 +150,8 @@ void parse_command_line(int argc, char * argv[], input_t & inp)
   printf("num_iter= %i\n",inp.num_iter);
   printf("do_batched= %i\n",inp.do_batched);
   printf("num_batches= %i\n",inp.num_batches);
+  if(inp.strideA >= 0) printf("stride= %i %i %i\n",inp.strideA,inp.strideB,inp.strideC);
+  else if(inp.do_batched) printf("stride= (packed, not recorded in log)\n");
   printf("num_repeat= %i\n",inp.num_repeat);
   printf("fortran= %i\n",inp.fortran);
 }
@@ -273,43 +288,6 @@ int main( int argc, char* argv[] )
   input_t inp;
 
   parse_command_line(argc, argv, inp);
-  
-  real_t * a = (real_t*) malloc(inp.m * inp.k * inp.num_batches * sizeof(real_t));
-  real_t * b = (real_t*) malloc(inp.k * inp.n * inp.num_batches * sizeof(real_t));
-  
-  real_t * c = (real_t*) malloc(inp.m * inp.n * inp.num_batches * sizeof(real_t));
-  real_t * r = (real_t*) malloc(inp.m * inp.n * sizeof(real_t));
-
-  std::srand(time(nullptr));
-  
-  // Initialize host
-
-  for(int ib=0; ib<inp.num_batches; ++ib) {
-
-    int offset = ib * inp.m * inp.k;
-    for(int i=0; i<inp.m; ++i) {
-      for(int j=0; j<inp.k; ++j) {
-	a[offset + i * inp.k + j] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
-      }
-    }
-
-    offset = ib * inp.k * inp.n;
-    for(int i=0; i<inp.k; ++i) {
-      for(int j=0; j<inp.n; ++j) {
-	b[offset + i * inp.n + j] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
-      }
-    }
-    
-  }
-
-  // ----------------------------------------------------------------
-  // Naive CPU reference: Matrix Multiply
-  // ----------------------------------------------------------------
-
-  double t;
-
-  printf("\nMatrix Multiplication :: C(%i x %i) = A(%i x %i)^%s . B(%i x %i)^%s\n",
-	 inp.m, inp.n, inp.m, inp.k, inp.transa, inp.k, inp.n, inp.transb);
 
   // Resolve the gemm shape once, up front: the check_result reference below must
   // be issued with exactly the same shape/operand order as the device call.
@@ -349,6 +327,52 @@ int main( int argc, char* argv[] )
     strideC = inp.m * inp.n;
     
   }
+
+  // Supplied strides (from PROFILE_ML) override the packed guess. They are in
+  // gemm_batch call order, i.e. already after the -fortran-order operand swap.
+  if(inp.strideA >= 0) { strideA = inp.strideA; strideB = inp.strideB; strideC = inp.strideC; }
+
+  const bool transa_is_n = (strcmp(inp.transa, "N") == 0);
+  const bool transb_is_n = (strcmp(inp.transb, "N") == 0);
+
+  // Per-batch footprint of each operand, honouring ld and the trans flags, then the
+  // span the whole batch actually touches. A stride of 0 (broadcast) means one matrix.
+  const int fpA = (transa_is_n) ? lda*(k-1)+m : lda*(m-1)+k;
+  const int fpB = (transb_is_n) ? ldb*(n-1)+k : ldb*(k-1)+n;
+  const int fpC = ldc*(n-1)+m;
+  const int nb1 = inp.num_batches - 1;
+  const int sizeA = nb1*(strideA < 0 ? 0 : strideA) + fpA;
+  const int sizeB = nb1*(strideB < 0 ? 0 : strideB) + fpB;
+  const int sizeC = nb1*(strideC < 0 ? 0 : strideC) + fpC;
+
+  
+  real_t * a = (real_t*) malloc(sizeA * sizeof(real_t));
+  real_t * b = (real_t*) malloc(sizeB * sizeof(real_t));
+  
+  real_t * c = (real_t*) malloc(sizeC * sizeof(real_t));
+  real_t * r = (real_t*) malloc(fpC * sizeof(real_t));
+
+  std::srand(time(nullptr));
+  
+  // Initialize host
+
+  // Fill the full span rather than walking per-batch offsets: with an arbitrary
+  // stride (0 for a broadcast operand, or larger than the packed size when batch
+  // members are sub-blocks of a bigger slab) the packed offsets are simply wrong,
+  // and leaving the tail uninitialised puts denormals into the timing loop.
+
+  for(int i=0; i<sizeA; ++i) a[i] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
+  for(int i=0; i<sizeB; ++i) b[i] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
+
+  // ----------------------------------------------------------------
+  // Naive CPU reference: Matrix Multiply
+  // ----------------------------------------------------------------
+
+  double t;
+
+  printf("\nMatrix Multiplication :: C(%i x %i) = A(%i x %i)^%s . B(%i x %i)^%s\n",
+	 inp.m, inp.n, inp.m, inp.k, inp.transa, inp.k, inp.n, inp.transb);
+
 
   if(inp.check_result) {
     {
@@ -395,7 +419,7 @@ int main( int argc, char* argv[] )
 
   // overwrite c for next time
 
-  for(int i=0; i<inp.m*inp.n*inp.num_batches; ++i) c[i] = -1.0;
+  for(int i=0; i<sizeC; ++i) c[i] = -1.0;
   
   // ----------------------------------------------------------------
   // Optimized math library: Matrix Multiply
@@ -410,12 +434,12 @@ int main( int argc, char* argv[] )
   for(int i=0; i<num_devices; ++i) {
     pm->dev_set_device(i);
     
-    d_a[i] = (real_t *) pm->dev_malloc(inp.m * inp.k * inp.num_batches * sizeof(real_t), "d_a[i]", FLERR);
-    d_b[i] = (real_t *) pm->dev_malloc(inp.k * inp.n * inp.num_batches * sizeof(real_t), "d_b[i]", FLERR);
-    d_c[i] = (real_t *) pm->dev_malloc(inp.m * inp.n * inp.num_batches * sizeof(real_t), "d_c[i]", FLERR);
+    d_a[i] = (real_t *) pm->dev_malloc(sizeA * sizeof(real_t), "d_a[i]", FLERR);
+    d_b[i] = (real_t *) pm->dev_malloc(sizeB * sizeof(real_t), "d_b[i]", FLERR);
+    d_c[i] = (real_t *) pm->dev_malloc(sizeC * sizeof(real_t), "d_c[i]", FLERR);
 
-    pm->dev_push(d_a[i], a, inp.m * inp.k * inp.num_batches * sizeof(real_t));
-    pm->dev_push(d_b[i], b, inp.k * inp.n * inp.num_batches * sizeof(real_t));
+    pm->dev_push(d_a[i], a, sizeA * sizeof(real_t));
+    pm->dev_push(d_b[i], b, sizeB * sizeof(real_t));
   }
   
     
