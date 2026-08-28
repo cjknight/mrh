@@ -107,8 +107,8 @@ void MATHLIB::gemv_batch(const char * transa,
 #endif
   
 #if defined(_PROFILE_ML)
-  profile_.record(ProfileML::gemv_batch(transa, *m, *n, *lda, *strideA, *incx, *strideX, *beta, *incy, *strideY,
-					*batchCount));
+  profile_.record(ProfileML::gemv_batch(transa, *m, *n, *lda, *incx, *incy, *alpha, *beta,
+					*batchCount, *strideA, *strideX, *strideY));
 #endif
   
   sycl::queue * q = pm_->dev_get_queue();
@@ -148,7 +148,7 @@ void MATHLIB::gemv(const char * transa,
 #endif
 
 #if defined(_PROFILE_ML)
-  profile_.record(ProfileML::gemv(transa, *m, *n, *lda, *incx, *beta, *incy));
+  profile_.record(ProfileML::gemv(transa, *m, *n, *lda, *incx, *incy, *alpha, *beta));
 #endif
   
   sycl::queue * q = pm_->dev_get_queue();

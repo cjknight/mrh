@@ -25,6 +25,14 @@ TIME = re.compile(r"time=\s*([0-9.eE+-]+)\s*\[ms\]")
 GFLOPS = re.compile(r"flops=\s*([0-9.eE+-]+)\s*\[GFlops/s\]")
 
 
+# field layouts, mirroring ProfileML in mathlib/mathlib.h and -replay in main.cpp
+#   gemm        ta tb m n k lda ldb ldc alpha beta                          -> 11
+#   gemm_batch  ... batch [strideA strideB strideC]                         -> 12 or 15
+#   gemv        ta m n lda incx incy alpha beta                             -> 9
+#   gemv_batch  ... batch strideA strideX strideY                           -> 13
+LAYOUT = {"gemm": (11,), "gemm_batch": (12, 15), "gemv": (9,), "gemv_batch": (13,)}
+
+
 def valid_replay(name):
     """True if name is a well-formed -replay argument string.
 
@@ -32,22 +40,26 @@ def valid_replay(name):
     carry a count= field, MPI ranks interleaving mid-line, and truncated output.
     """
     f = name.split()
-    if not f or f[0] not in ("gemm", "gemm_batch"):
+    if not f or f[0] not in LAYOUT or len(f) not in LAYOUT[f[0]]:
         return False
-    # gemm: 11 fields. gemm_batch: 12, or 15 once PROFILE_ML appends the strides.
-    if f[0] == "gemm_batch":
-        if len(f) not in (12, 15):
-            return False
-    elif len(f) != 11:
+    gemv = f[0].startswith("gemv")
+    ntrans = 1 if gemv else 2
+    if any(t not in ("N", "T", "C") for t in f[1:1+ntrans]):
         return False
-    if f[1] not in ("N", "T", "C") or f[2] not in ("N", "T", "C"):
-        return False
-    pos = f[3:9] + (f[11:12] if f[0] == "gemm_batch" else [])   # dims, lds, batch
-    nonneg = f[12:15] if len(f) == 15 else []                    # strides (0 = broadcast)
+    if gemv:
+        pos, nz, scal, nonneg = f[2:5], f[5:7], f[7:9], []      # m n lda | incx incy | a b
+        if len(f) == 13:
+            pos, nonneg = pos + f[9:10], f[10:13]               # batch | strides
+    else:
+        pos, nz, scal = f[3:9], [], f[9:11]
+        nonneg = f[12:15] if len(f) == 15 else []
+        if len(f) >= 12:
+            pos = pos + f[11:12]
     try:
-        if any(int(v) <= 0 for v in pos) or any(int(v) < 0 for v in nonneg):
-            return False
-        float(f[9]), float(f[10])
+        if any(int(v) <= 0 for v in pos): return False
+        if any(int(v) == 0 for v in nz): return False           # inc may be negative
+        if any(int(v) < 0 for v in nonneg): return False        # stride 0 = broadcast
+        for v in scal: float(v)
     except ValueError:
         return False
     return True
@@ -68,9 +80,6 @@ def parse(stream):
             if not m:
                 continue
             count, name = int(m.group(1)), m.group(2)
-            if name.split()[:1] in (["gemv"], ["gemv_batch"]):
-                skipped += 1        # recorded by PROFILE_ML but benchmark_gemm has no -replay for gemv
-                continue
             if not valid_replay(name):
                 rejected.append((count, name))
                 continue
@@ -80,11 +89,15 @@ def parse(stream):
 
 
 def shape(name):
-    """(mode, m, n, k, batch) from a replay arg string; batch=1 when not batched."""
+    """(mode, m, n, k, batch); k=1 for gemv so the flop count works out as 2*m*n."""
     f = name.split()
     mode = f[0]
-    m, n, k = int(f[3]), int(f[4]), int(f[5])
-    batch = int(f[11]) if mode == "gemm_batch" and len(f) > 11 else 1
+    if mode.startswith("gemv"):
+        m, n, k = int(f[2]), int(f[3]), 1
+        batch = int(f[9]) if len(f) == 13 else 1
+    else:
+        m, n, k = int(f[3]), int(f[4]), int(f[5])
+        batch = int(f[11]) if len(f) > 11 else 1
     return mode, m, n, k, batch
 
 
@@ -143,7 +156,8 @@ def main():
         mode, m, n, k, batch = shape(name)
         rows.append({
             "name": name, "count": count, "mode": mode,
-            "mnk": f"{m}x{n}x{k}" + (f" x{batch}" if batch > 1 else ""),
+            "mnk": (f"{m}x{n}" if mode.startswith("gemv") else f"{m}x{n}x{k}")
+                   + (f" x{batch}" if batch > 1 else ""),
             "per_call_ms": per_call_ms,
             "total_s": per_call_ms * count / 1000.0,
             "gflops": gflops,

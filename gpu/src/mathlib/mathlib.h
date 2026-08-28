@@ -24,7 +24,7 @@ namespace MATHLIB_NS {
   // Single home for the PROFILE_ML tally and, more importantly, for the log format:
   // every backend builds its name here, so cuda/hip/sycl/host cannot drift apart.
   // The name string is verbatim `-replay` syntax for gemm/gemm_batch -- see
-  // mini-apps/math/benchmark_gemm (main.cpp parses it, replay_profile.py scrapes it).
+  // mini-apps/math/benchmark (main.cpp parses it, replay_profile.py scrapes it).
   class ProfileML {
 
   public:
@@ -69,24 +69,26 @@ namespace MATHLIB_NS {
       return "gemm_batch " + s.str();
     }
 
+    // gemv mirrors gemm's field order: shape, leading dim + increments, scalars,
+    // then (batched) count and strides. alpha is included so the record is a
+    // complete, replayable description of the call.
     static std::string gemv(const char * ta, int m, int n, int lda,
-			    int incx, double beta, int incy)
+			    int incx, int incy, double alpha, double beta)
     {
       std::ostringstream s;
       s << "gemv " << ta[0] << " " << m << " " << n << " " << lda
-	<< " " << incx << " " << beta << " " << incy;
+	<< " " << incx << " " << incy << " " << alpha << " " << beta;
       return s.str();
     }
 
-    static std::string gemv_batch(const char * ta, int m, int n, int lda, int strideA,
-				  int incx, int strideX, double beta, int incy, int strideY,
-				  int batchCount)
+    static std::string gemv_batch(const char * ta, int m, int n, int lda,
+				  int incx, int incy, double alpha, double beta,
+				  int batchCount, int strideA, int strideX, int strideY)
     {
       std::ostringstream s;
-      s << "gemv_batch " << ta[0] << " " << m << " " << n << " " << lda << " " << strideA
-	<< " " << incx << " " << strideX << " " << beta << " " << incy << " " << strideY
-	<< " " << batchCount;
-      return s.str();
+      s << gemv(ta, m, n, lda, incx, incy, alpha, beta).substr(5)
+	<< " " << batchCount << " " << strideA << " " << strideX << " " << strideY;
+      return "gemv_batch " + s.str();
     }
 
   private:

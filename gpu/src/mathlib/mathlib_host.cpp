@@ -87,7 +87,7 @@ void MATHLIB::gemv(const char * transa, const int * m, const int * n,
                    const double * beta, double * y, const int * incy)
 {
 #if defined(_PROFILE_ML)
-  profile_.record(ProfileML::gemv(transa, *m, *n, *lda, *incx, *beta, *incy));
+  profile_.record(ProfileML::gemv(transa, *m, *n, *lda, *incx, *incy, *alpha, *beta));
 #endif
 
 #if defined(_SINGLE_PRECISION)
@@ -104,8 +104,8 @@ void MATHLIB::gemv_batch(const char * transa, const int * m, const int * n,
                          const int * batchCount)
 {
 #if defined(_PROFILE_ML)
-  profile_.record(ProfileML::gemv_batch(transa, *m, *n, *lda, *strideA, *incx, *strideX, *beta, *incy, *strideY,
-					*batchCount));
+  profile_.record(ProfileML::gemv_batch(transa, *m, *n, *lda, *incx, *incy, *alpha, *beta,
+					*batchCount, *strideA, *strideX, *strideY));
 #endif
 
   const char trans = transa[0];

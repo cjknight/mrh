@@ -21,6 +21,10 @@ using namespace PM_NS;
 using namespace MATHLIB_NS;
 
 extern "C" {
+  void dgemv_(const char * trans, const int * m, const int * n,
+              const double * alpha, const double * a, const int * lda,
+              const double * x, const int * incx,
+              const double * beta, double * y, const int * incy);
   void dgemm_(const char * transa, const char * transb, const int * m, const int * n,
               const int * k, const double * alpha, const double * a, const int * lda,
               const double * b, const int * ldb, const double * beta, double * c,
@@ -69,6 +73,12 @@ struct input_t {
   int strideA = -1;
   int strideB = -1;
   int strideC = -1;
+  // gemv / gemv_batch
+  bool do_gemv = false;
+  int incx = 1;
+  int incy = 1;
+  int strideX = -1;
+  int strideY = -1;
 };
 
 // ----------------------------------------------------------------
@@ -103,8 +113,42 @@ void parse_command_line(int argc, char * argv[], input_t & inp)
       }
     }
     else if(strcmp(argv[indx],"-replay") == 0) {
+      const char * mode = (indx+1 < argc) ? argv[indx+1] : "";
+      inp.do_gemv  = (strncmp(mode, "gemv", 4) == 0);
+
+      if(inp.do_gemv) {
+	// gemv:       mode ta m n lda incx incy alpha beta
+	// gemv_batch: ... + batch strideA strideX strideY
+	const bool vbatched = (strcmp(mode, "gemv_batch") == 0);
+	const int vneed = vbatched ? 13 : 9;
+	if(indx + vneed >= argc) {
+	  fprintf(stderr,
+		  "-replay needs %i values (%s transa m n lda incx incy alpha beta%s), got %i\n",
+		  vneed, mode, vbatched ? " batch strideA strideX strideY" : "", argc-indx-1);
+	  exit(1);
+	}
+	if(vbatched) inp.do_batched = true;
+	indx++;                                  // consume the mode token
+	inp.transa = argv[++indx];
+	inp.m      = atoi(argv[++indx]);
+	inp.n      = atoi(argv[++indx]);
+	inp.lda    = atoi(argv[++indx]);
+	inp.incx   = atoi(argv[++indx]);
+	inp.incy   = atoi(argv[++indx]);
+	inp.alpha  = atof(argv[++indx]);
+	inp.beta   = atof(argv[++indx]);
+	if(vbatched) {
+	  inp.num_batches = atoi(argv[++indx]);
+	  inp.strideA = atoi(argv[++indx]);
+	  inp.strideX = atoi(argv[++indx]);
+	  inp.strideY = atoi(argv[++indx]);
+	}
+	indx++;
+	continue;
+      }
+
       // mode + transa,transb + m,n,k + lda,ldb,ldc + alpha,beta [+ batch_size]
-      const bool batched = (indx+1 < argc) && (strcmp(argv[indx+1], "gemm_batch") == 0);
+      const bool batched = (strcmp(mode, "gemm_batch") == 0);
       const int need = batched ? 12 : 11;
       if(indx + need >= argc) {
 	fprintf(stderr,
@@ -154,6 +198,7 @@ void parse_command_line(int argc, char * argv[], input_t & inp)
   else if(inp.do_batched) printf("stride= (packed, not recorded in log)\n");
   printf("num_repeat= %i\n",inp.num_repeat);
   printf("fortran= %i\n",inp.fortran);
+  if(inp.do_gemv) printf("gemv= 1  inc= %i %i\n",inp.incx,inp.incy);
 }
 
 // ----------------------------------------------------------------
@@ -238,61 +283,131 @@ double print_summary(int id, double t, int num_rows_a, int num_cols_a, int num_c
 
 // ----------------------------------------------------------------
 						 
-int main( int argc, char* argv[] )
+
+// ----------------------------------------------------------------
+// gemv / gemv_batch replay. Column-major: A is always m x n with lda >= m; op(A)
+// is m x n for "N" (x has n entries, y has m) and n x m for "T" (x has m, y n).
+// ----------------------------------------------------------------
+
+int run_gemv(class PM * pm, class MATHLIB * ml, int num_devices, input_t & inp)
 {
-  MPI_Init(&argc, &argv);
+  const int m = inp.m, n = inp.n, lda = inp.lda;
+  const int incx = inp.incx, incy = inp.incy;
+  const double alpha = inp.alpha, beta = inp.beta;
+  const bool tn = (strcmp(inp.transa, "N") == 0);
 
-  int me,nranks;
-  MPI_Comm_size(MPI_COMM_WORLD, &nranks);
-  MPI_Comm_rank(MPI_COMM_WORLD, &me);
+  const int xlen = tn ? n : m;
+  const int ylen = tn ? m : n;
 
-#ifdef _SINGLE_PRECISION
-  if(me == 0) printf("Using single-precision\n\n");
-#else
-  if(me == 0) printf("Using double-precision\n\n");
-#endif
-  
-  // ----------------------------------------------------------------
+  // per-batch footprints, then the span the whole batch touches (stride 0 = broadcast)
+  const int fpA = lda*(n-1) + m;
+  const int fpX = 1 + (xlen-1)*abs(incx);
+  const int fpY = 1 + (ylen-1)*abs(incy);
+  const int sA = (inp.strideA >= 0) ? inp.strideA : fpA;
+  const int sX = (inp.strideX >= 0) ? inp.strideX : fpX;
+  const int sY = (inp.strideY >= 0) ? inp.strideY : fpY;
+  const int nb1 = inp.num_batches - 1;
+  const int sizeA = nb1*sA + fpA;
+  const int sizeX = nb1*sX + fpX;
+  const int sizeY = nb1*sY + fpY;
 
-  class PM * pm = new PM();
-  
-  int num_devices = pm->dev_num_devices();
+  printf("\nMatrix-Vector Multiplication :: Y(%i) = A(%i x %i)^%s . X(%i)   batch= %i\n",
+	 ylen, m, n, inp.transa, xlen, inp.num_batches);
 
-  class MATHLIB * ml = new MATHLIB(pm);
-  
+  real_t * a = (real_t*) malloc(sizeA * sizeof(real_t));
+  real_t * x = (real_t*) malloc(sizeX * sizeof(real_t));
+  real_t * y = (real_t*) malloc(sizeY * sizeof(real_t));
+  real_t * r = (real_t*) malloc(fpY * sizeof(real_t));
+
+  std::srand(time(nullptr));
+  for(int i=0; i<sizeA; ++i) a[i] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
+  for(int i=0; i<sizeX; ++i) x[i] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
+  for(int i=0; i<sizeY; ++i) y[i] = -1.0;
+
+  int err = 0;
+  double t = 0.0;
+
+  if(inp.check_result) {                     // reference for batch 0
+    for(int i=0; i<fpY; ++i) r[i] = -1.0;
+    dgemv_(inp.transa, &m, &n, &alpha, a, &lda, x, &incx, &beta, r, &incy);
+  }
+
+  real_t ** d_a = (real_t **) pm->dev_malloc_host(num_devices * sizeof(real_t*));
+  real_t ** d_x = (real_t **) pm->dev_malloc_host(num_devices * sizeof(real_t*));
+  real_t ** d_y = (real_t **) pm->dev_malloc_host(num_devices * sizeof(real_t*));
+
   for(int i=0; i<num_devices; ++i) {
     pm->dev_set_device(i);
-    int hid = ml->create_handle();
+    d_a[i] = (real_t *) pm->dev_malloc(sizeA * sizeof(real_t), "d_a[i]", FLERR);
+    d_x[i] = (real_t *) pm->dev_malloc(sizeX * sizeof(real_t), "d_x[i]", FLERR);
+    d_y[i] = (real_t *) pm->dev_malloc(sizeY * sizeof(real_t), "d_y[i]", FLERR);
+    pm->dev_push(d_a[i], a, sizeA * sizeof(real_t));
+    pm->dev_push(d_x[i], x, sizeX * sizeof(real_t));
+    pm->dev_push(d_y[i], y, sizeY * sizeof(real_t));
   }
 
-  if(me == 0) {
-    printf("\n# of devices= %i\n",num_devices);
-    pm->dev_properties(num_devices);
-  }
-  
-  // Device ID
+  double total_flops = 0.0, total_flops2 = 0.0, total_time = 0.0, total_time2 = 0.0;
 
-  int device_id = me % num_devices;
+  for(int ir=0; ir<inp.num_repeat; ++ir) {
 
-  pm->dev_set_device(device_id);
-  
-  ml->set_handle();
-  
-  for(int i=0; i<nranks; ++i) {
-    if(i == me) {
-      printf("Rank %i running on GPU %i!\n",me,device_id);
+    double t0 = MPI_Wtime();
+    for(int it=0; it<inp.num_iter; ++it)
+      for(int j=0; j<num_devices; ++j) {
+	pm->dev_set_device(j);
+	ml->set_handle();
+	if(inp.do_batched)
+	  ml->gemv_batch(inp.transa, &m, &n, &alpha, d_a[j], &lda, &sA,
+			 d_x[j], &incx, &sX, &beta, d_y[j], &incy, &sY, &(inp.num_batches));
+	else
+	  ml->gemv(inp.transa, &m, &n, &alpha, d_a[j], &lda, d_x[j], &incx, &beta, d_y[j], &incy);
+      }
+
+    for(int i=0; i<num_devices; ++i) { pm->dev_set_device(i); pm->dev_barrier(); }
+    t = MPI_Wtime() - t0;
+    total_time += t; total_time2 += t*t;
+
+    for(int i=0; i<num_devices; ++i) {
+      pm->dev_set_device(i);
+      pm->dev_pull(d_y[i], y, sizeY * sizeof(real_t));
+
+      double flops = print_summary(i, t, m, n, 1, inp.num_iter, inp.num_batches, "MATHLIB gemv");
+      total_flops += flops; total_flops2 += flops*flops;
+
+      if(inp.check_result) err += check_result(r, y, fpY, "gemv_gpu");
     }
-    MPI_Barrier(MPI_COMM_WORLD);
   }
 
-  input_t inp;
+  double avg_flops = total_flops / double(inp.num_repeat) / double(num_devices);
+  double avg_flops2 = total_flops2 / double(inp.num_repeat) / double(num_devices);
+  double avg_time = total_time / double(inp.num_repeat);
+  double avg_time2 = total_time2 / double(inp.num_repeat);
+  printf("\n[MATHLIB gemv] %f +/- %f [ms]   %f +/- %f [TFlops]\n",
+	 avg_time*1000.0, sqrt(avg_time2 - avg_time*avg_time + 1e-18)*1000.0,
+	 avg_flops/1000.0, sqrt(avg_flops2 - avg_flops*avg_flops + 1e-18)/1000.0);
 
-  parse_command_line(argc, argv, inp);
+  for(int i=0; i<num_devices; ++i) {
+    pm->dev_set_device(i);
+    ml->destroy_handle();
+    pm->dev_stream_destroy();
+    pm->dev_free(d_a[i]); pm->dev_free(d_x[i]); pm->dev_free(d_y[i]);
+  }
+  pm->dev_free_host(d_a); pm->dev_free_host(d_x); pm->dev_free_host(d_y);
+  free(a); free(x); free(y); free(r);
+  return err;
+}
+
+// ----------------------------------------------------------------
+// gemm / gemm_batch replay
+// ----------------------------------------------------------------
+
+int run_gemm(class PM * pm, class MATHLIB * ml, int num_devices, input_t & inp)
+{
+  int err = 0;
 
   // Resolve the gemm shape once, up front: the check_result reference below must
   // be issued with exactly the same shape/operand order as the device call.
-  const double alpha = 1.0;
-  const double beta = 0.0;
+  const double alpha = inp.alpha;   // -replay records these; they were hardcoded
+  const double beta = inp.beta;     // to 1.0/0.0 and silently ignored
 
   int m, n, k;
   int lda, ldb, ldc;
@@ -376,6 +491,7 @@ int main( int argc, char* argv[] )
 
   if(inp.check_result) {
     {
+      for(int i=0; i<fpC; ++i) r[i] = -1.0;   // match c's fill so ldc>m gaps agree
       // Mirror the device call exactly (m/n/k/ld/stride resolved above): hardcoding
       // "N","N" with the un-swapped inp.* dims made this reference valid only for the
       // default non-fortran N/N case, and it errored out otherwise.
@@ -405,7 +521,7 @@ int main( int argc, char* argv[] )
     
     print_summary(0, t, inp.m, inp.k, inp.n, _NUM_ITERATIONS_CPU, 1, "gemm_NN0_naive_cpu");
     
-    check_result(r, c, inp.m*inp.n, "naive_cpu");
+    err += check_result(r, c, fpC, "naive_cpu");
     
     //  print_matrix(a, inp.m, inp.k, "Original a");
     
@@ -549,14 +665,14 @@ int main( int argc, char* argv[] )
     for(int i=0; i<num_devices; ++i) {
       pm->dev_set_device(i);
       
-      pm->dev_pull(d_c[i], c, inp.m * inp.n * inp.num_batches * sizeof(real_t));
+      pm->dev_pull(d_c[i], c, sizeC * sizeof(real_t));
       
       double flops = print_summary(i, t, inp.m, inp.k, inp.n, inp.num_iter, inp.num_batches, "MATHLIB gemm"); // GFlops
 
       total_flops += flops;
       total_flops2 += flops * flops;
       
-      if(inp.check_result) check_result(r, c, inp.m*inp.n, "gemm_gpu");
+      if(inp.check_result) err += check_result(r, c, fpC, "gemm_gpu");
       
       //  print_matrix(r, inp.m, inp.n, "Reference r");
       
@@ -590,18 +706,78 @@ int main( int argc, char* argv[] )
     pm->dev_free(d_c[i]);
   }
   
-  delete ml;
   
   pm->dev_free_host(d_a);
   pm->dev_free_host(d_b);
   pm->dev_free_host(d_c);
   
-  delete pm;
     
   free(a);
   free(b);
   free(c);
   free(r);
 
+  return err;
+}
+
+int main( int argc, char* argv[] )
+{
+  MPI_Init(&argc, &argv);
+
+  int me,nranks;
+  MPI_Comm_size(MPI_COMM_WORLD, &nranks);
+  MPI_Comm_rank(MPI_COMM_WORLD, &me);
+
+#ifdef _SINGLE_PRECISION
+  if(me == 0) printf("Using single-precision\n\n");
+#else
+  if(me == 0) printf("Using double-precision\n\n");
+#endif
+  
+  // ----------------------------------------------------------------
+
+  class PM * pm = new PM();
+  
+  int num_devices = pm->dev_num_devices();
+
+  class MATHLIB * ml = new MATHLIB(pm);
+  
+  for(int i=0; i<num_devices; ++i) {
+    pm->dev_set_device(i);
+    int hid = ml->create_handle();
+  }
+
+  if(me == 0) {
+    printf("\n# of devices= %i\n",num_devices);
+    pm->dev_properties(num_devices);
+  }
+  
+  // Device ID
+
+  int device_id = me % num_devices;
+
+  pm->dev_set_device(device_id);
+  
+  ml->set_handle();
+  
+  for(int i=0; i<nranks; ++i) {
+    if(i == me) {
+      printf("Rank %i running on GPU %i!\n",me,device_id);
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+  }
+
+  input_t inp;
+
+  parse_command_line(argc, argv, inp);
+
+  int rc = inp.do_gemv ? run_gemv(pm, ml, num_devices, inp)
+                       : run_gemm(pm, ml, num_devices, inp);
+
+  delete ml;
+  delete pm;
+
   MPI_Finalize();
+
+  return rc;
 }
