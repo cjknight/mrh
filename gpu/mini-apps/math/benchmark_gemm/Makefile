@@ -22,6 +22,16 @@ CUDA_CXXFLAGS =
 ARCH ?= polaris-gnu-nvcc
 include $(BASE_LIBGPU)/arch/$(ARCH)
 
+# one-off flags, e.g.  make ARCH=mac EXTRA_CXXFLAGS=-D_PROFILE_ML
+# (`make CXXFLAGS+=...` would replace the arch flags, not append to them)
+# plain '=' (not '?=') so a stray EXTRA_CXXFLAGS exported in the caller's
+# environment cannot leak into the build; the command line still overrides.
+EXTRA_CXXFLAGS      =
+EXTRA_CUDA_CXXFLAGS =
+
+CXXFLAGS      += $(EXTRA_CXXFLAGS)
+CUDA_CXXFLAGS += $(EXTRA_CUDA_CXXFLAGS)
+
 # -- subset of src files with cuda kernels (need nvcc compiler)
 # -- since the device refactor the platform managers live in pm/<backend>/
 CUDA_SRC = pm/cuda/pm_cuda.cpp

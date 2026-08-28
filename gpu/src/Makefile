@@ -31,6 +31,20 @@ LDFLAGS += -fPIC -shared
 # note: nvcc accepts -MMD but not -MP, so CUDA gets -MMD only
 DEPFLAGS = -MMD -MP
 CXXFLAGS += $(DEPFLAGS)
+
+# one-off flags without respelling the arch file, e.g. to enable the MATHLIB call
+# profile for a single build:
+#   make ARCH=aurora EXTRA_CXXFLAGS=-D_PROFILE_ML install
+# NB: `make CXXFLAGS+=-D_PROFILE_ML` does NOT work -- a command-line assignment
+# overrides every makefile assignment to that variable, so the arch flags and the
+# -fPIC/-MMD added here would all be dropped.
+# plain '=' (not '?=') so a stray EXTRA_CXXFLAGS exported in the caller's
+# environment cannot leak into the build; the command line still overrides.
+EXTRA_CXXFLAGS      =
+EXTRA_CUDA_CXXFLAGS =
+
+CXXFLAGS      += $(EXTRA_CXXFLAGS)
+CUDA_CXXFLAGS += $(EXTRA_CUDA_CXXFLAGS)
 CUDA_CXXFLAGS += -MMD
 
 # -- subset of src files with cuda kernels (need nvcc compiler)
