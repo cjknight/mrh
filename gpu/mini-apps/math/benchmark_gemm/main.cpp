@@ -33,8 +33,9 @@ extern "C" {
 
 // -replay to rerun workloads sampled from gpu4mrh run exactly as they were executed
 // -replay [gemm|gemm_batch] [transa] [transb] [m] [n] [k] [lda] [ldb] [ldc] [alpha] [beta] [batch_size]
-// -replay gemm_batch T T 92 92 92 1 0 240
-// -replay gemm N N 92 92 22080 1 0
+// -replay gemm_batch T T 92 92 92  92 92 92  1 0 240
+// -replay gemm N N 92 92 22080  92 22080 92  1 0
+// (every field is required: short forms used to run off the end of argv)
 
 // -fortran-order : use this with by-hand testing
 // Column-ordering transposes everything
@@ -96,6 +97,15 @@ void parse_command_line(int argc, char * argv[], input_t & inp)
       }
     }
     else if(strcmp(argv[indx],"-replay") == 0) {
+      // mode + transa,transb + m,n,k + lda,ldb,ldc + alpha,beta [+ batch_size]
+      const bool batched = (indx+1 < argc) && (strcmp(argv[indx+1], "gemm_batch") == 0);
+      const int need = batched ? 12 : 11;
+      if(indx + need >= argc) {
+	fprintf(stderr,
+		"-replay needs %i values ([gemm|gemm_batch] transa transb m n k lda ldb ldc alpha beta%s), got %i\n",
+		need, batched ? " batch_size" : "", argc-indx-1);
+	exit(1);
+      }
       if(strcmp(argv[++indx], "gemm_batch") == 0) inp.do_batched = true;
       inp.transa = argv[++indx];
       inp.transb = argv[++indx];
@@ -133,7 +143,8 @@ void parse_command_line(int argc, char * argv[], input_t & inp)
 
 // ----------------------------------------------------------------
 
-void gemm_NN0_naive_cpu(const int * m_, const int * n_, const int * k_, const real_t * alpha_,
+void gemm_NN0_naive_cpu(const char * transa, const char * transb,
+                        const int * m_, const int * n_, const int * k_, const real_t * alpha_,
 			real_t * a, const int * lda_, real_t * b, const int * ldb_,
 			const real_t * beta_, real_t * c, const int * ldc_)
 {
@@ -149,8 +160,10 @@ void gemm_NN0_naive_cpu(const int * m_, const int * n_, const int * k_, const re
   int ldc = *ldc_;
  
 #if 1
-  dgemm_((const char*) "N", (const char*) "N", &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc); 
-#else 
+  dgemm_(transa, transb, &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc); 
+#else
+  // NB: the hand-rolled loop below assumes transa == transb == "N"
+
   for(int i=0; i<m; ++i)
     for(int j=0; j<n; ++j) {
       double val = 0.0;
@@ -298,21 +311,57 @@ int main( int argc, char* argv[] )
   printf("\nMatrix Multiplication :: C(%i x %i) = A(%i x %i)^%s . B(%i x %i)^%s\n",
 	 inp.m, inp.n, inp.m, inp.k, inp.transa, inp.k, inp.n, inp.transb);
 
+  // Resolve the gemm shape once, up front: the check_result reference below must
+  // be issued with exactly the same shape/operand order as the device call.
+  const double alpha = 1.0;
+  const double beta = 0.0;
+
+  int m, n, k;
+  int lda, ldb, ldc;
+  int strideA, strideB, strideC;
+
+  if(inp.fortran) {
+  
+    m = inp.n;  // # rows of first matrix B^T
+    n = inp.m;  // # cols of second matrix A^T
+    k = inp.k;  // # cols of first matrix B^T
+    
+    ldb = inp.ldb; // lead dimension of first matrix B^T
+    lda = inp.lda; // lead dimension of second matrix A^T
+    ldc = inp.ldc; // lead dimension of result matrix C
+    
+    strideA = inp.k * inp.n; // stride matrix B
+    strideB = inp.m * inp.k; // stride matrix A
+    strideC = inp.m * inp.n; // stride matrix C
+
+  } else {
+
+    m = inp.m;
+    n = inp.n;
+    k = inp.k;
+
+    lda = inp.lda;
+    ldb = inp.ldb;
+    ldc = inp.ldc;
+
+    strideA = inp.m * inp.k;
+    strideB = inp.k * inp.m;
+    strideC = inp.m * inp.n;
+    
+  }
+
   if(inp.check_result) {
     {
-      const double alpha = 1.0;
-      const double beta = 0.0;
-      
-      const int m = inp.m;  // # rows of first matrix A
-      const int n = inp.n;  // # cols of second matrix B
-      const int k = inp.k;  // # cols of first matrix A
+      // Mirror the device call exactly (m/n/k/ld/stride resolved above): hardcoding
+      // "N","N" with the un-swapped inp.* dims made this reference valid only for the
+      // default non-fortran N/N case, and it errored out otherwise.
+      real_t * ref_A = inp.fortran ? b : a;
+      real_t * ref_B = inp.fortran ? a : b;
+      const int ref_lda = inp.fortran ? ldb : lda;
+      const int ref_ldb = inp.fortran ? lda : ldb;
 
-      const int lda = inp.lda;
-      const int ldb = inp.ldb;
-      const int ldc = inp.ldc;
-      
 #if 1
-  dgemm_((const char*) "N", (const char*) "N", &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, r, &ldc);
+  dgemm_(inp.transa, inp.transb, &m, &n, &k, &alpha, ref_A, &ref_lda, ref_B, &ref_ldb, &beta, r, &ldc);
 #else  
     for(int i=0; i<inp.m; ++i)
       for(int j=0; j<inp.n; ++j) 	{
@@ -322,11 +371,11 @@ int main( int argc, char* argv[] )
       }
 #endif
 
-      gemm_NN0_naive_cpu(&m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+      gemm_NN0_naive_cpu(inp.transa, inp.transb, &m, &n, &k, &alpha, ref_A, &ref_lda, ref_B, &ref_ldb, &beta, c, &ldc);
       
       double t0 = MPI_Wtime();
       for(int i=0; i<_NUM_ITERATIONS_CPU; ++i)
-	gemm_NN0_naive_cpu(&m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+	gemm_NN0_naive_cpu(inp.transa, inp.transb, &m, &n, &k, &alpha, ref_A, &ref_lda, ref_B, &ref_ldb, &beta, c, &ldc);
       t = MPI_Wtime() - t0;
     }
     
@@ -369,42 +418,6 @@ int main( int argc, char* argv[] )
     pm->dev_push(d_b[i], b, inp.k * inp.n * inp.num_batches * sizeof(real_t));
   }
   
-  const double alpha = 1.0;
-  const double beta = 0.0;
-
-  int m, n, k;
-  int lda, ldb, ldc;
-  int strideA, strideB, strideC;
-
-  if(inp.fortran) {
-  
-    m = inp.n;  // # rows of first matrix B^T
-    n = inp.m;  // # cols of second matrix A^T
-    k = inp.k;  // # cols of first matrix B^T
-    
-    ldb = inp.ldb; // lead dimension of first matrix B^T
-    lda = inp.lda; // lead dimension of second matrix A^T
-    ldc = inp.ldc; // lead dimension of result matrix C
-    
-    strideA = inp.k * inp.n; // stride matrix B
-    strideB = inp.m * inp.k; // stride matrix A
-    strideC = inp.m * inp.n; // stride matrix C
-
-  } else {
-
-    m = inp.m;
-    n = inp.n;
-    k = inp.k;
-
-    lda = inp.lda;
-    ldb = inp.ldb;
-    ldc = inp.ldc;
-
-    strideA = inp.m * inp.k;
-    strideB = inp.k * inp.m;
-    strideC = inp.m * inp.n;
-    
-  }
     
   for(int i=0; i<num_devices; ++i) {
     pm->dev_set_device(i);

@@ -23,7 +23,8 @@ ARCH ?= polaris-gnu-nvcc
 include $(BASE_LIBGPU)/arch/$(ARCH)
 
 # -- subset of src files with cuda kernels (need nvcc compiler)
-CUDA_SRC = pm/pm_cuda.cpp
+# -- since the device refactor the platform managers live in pm/<backend>/
+CUDA_SRC = pm/cuda/pm_cuda.cpp
 CUDA_INC = $(CUDA_SRC:.cpp=.h)
 TMP0 = $(CUDA_SRC:pm/%=%)
 CUDA_OBJ = $(TMP0:.cpp=.o)
@@ -34,8 +35,11 @@ C_INC = $(wildcard *.h)
 C_OBJ = $(C_SRC:.cpp=.o)
 
 # -- subset of src files in src/pm directory
-PM_SRC = $(filter-out $(CUDA_SRC), $(wildcard pm/*.cpp))
-PM_INC = $(filter-out $(CUDA_INC), $(wildcard pm/*.h))
+# -- only the pm_<backend> platform managers: this mini-app links PM + MATHLIB and
+# -- has no Device, so pm/<backend>/{jk,ao2mo,h2eff,impham,pdft,fci,utilities}.cpp
+# -- and pm/mono/ are deliberately excluded (see the update target).
+PM_SRC = $(filter-out $(CUDA_SRC), $(wildcard pm/*.cpp) $(wildcard pm/*/pm_*.cpp))
+PM_INC = $(filter-out $(CUDA_INC), $(wildcard pm/*.h) $(wildcard pm/*/pm_*.h))
 TMP1 = $(PM_SRC:pm/%=%)
 PM_OBJ = $(TMP1:.cpp=.o)
 
@@ -67,9 +71,11 @@ $(EXE): $(C_OBJ) $(CUDA_OBJ) $(PM_OBJ) $(ML_OBJ)
 	$(LD) $(LDFLAGS) -o $@ $(C_OBJ) $(CUDA_OBJ) $(PM_OBJ) $(ML_OBJ) $(LIB)
 
 update:
+	rm -rf ./pm ./mathlib
 	cp -r $(BASE_LIBGPU)/pm ./
-	rm -f ./pm/device_*
 	cp -r $(BASE_LIBGPU)/mathlib ./
+	rm -rf ./pm/mono
+	find ./pm -name '*.cpp' ! -name 'pm_*.cpp' -delete
 
 ####################################################################
 
@@ -77,11 +83,12 @@ $(C_OBJ): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $<
 
 $(CUDA_OBJ): %.o: pm/%.cpp
+	@mkdir -p $(dir $@)
 	$(CUDA_CXX) $(CUDA_CXXFLAGS) -c $< -o $@
-	#$(CUDA_CXX) -x cu $(CUDA_CXXFLAGS) -c $< -o $@
 
 $(PM_OBJ): %.o: pm/%.cpp
-	$(CXX) $(CXXFLAGS) -c $<
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(ML_OBJ): %.o: mathlib/%.cpp
 	$(CXX) $(CXXFLAGS) -c $<
@@ -90,28 +97,30 @@ $(ML_OBJ): %.o: mathlib/%.cpp
 # -- Remove *.o and *~ from the directory
 clean:
 	rm -f *.o *~ ./$(EXE)
+	rm -f cuda/*.o hip/*.o sycl/*.o openmp/*.o host/*.o
 	rm -f $(EXE)
 	rm -rf $(EXE).dSYM
 #
 # -- Remove *.o, *~, and executable from the directory
 realclean:
 	rm -f *.o *~ ./$(EXE)
+	rm -rf cuda hip sycl openmp host
 	rm -f $(EXE)
 	rm -rf $(EXE).dSYM
 	rm -f *.optrpt
-	rm -r pm
-	rm -r mathlib
+	rm -rf pm
+	rm -rf mathlib
 
 #
 # -- Simple dependencies
 
-pm_cuda.o : pm/pm_cuda.cpp pm/pm_cuda.h pm/pm.h
-pm_sycl.o : pm/pm_sycl.cpp pm/pm_sycl.h pm/pm.h
-pm_hip.o : pm/pm_hip.cpp pm/pm_hip.h pm/pm.h
-pm_openmp.o : pm/pm_openmp.cpp pm/pm_openmp.h pm/pm.h
-pm_host.o : pm/pm_host.cpp pm/pm_host.h pm/pm.h
+cuda/pm_cuda.o     : pm/cuda/pm_cuda.cpp     pm/cuda/pm_cuda.h     pm/pm.h
+sycl/pm_sycl.o     : pm/sycl/pm_sycl.cpp     pm/sycl/pm_sycl.h     pm/pm.h
+hip/pm_hip.o       : pm/hip/pm_hip.cpp       pm/hip/pm_hip.h       pm/pm.h
+openmp/pm_openmp.o : pm/openmp/pm_openmp.cpp pm/openmp/pm_openmp.h pm/pm.h
+host/pm_host.o     : pm/host/pm_host.cpp     pm/host/pm_host.h     pm/pm.h
 
-mathlib_cublas.o : mathlib/mathlib_cublas.cpp mathlib/mathlib_cublas.h mathlib/mathlib.h pm/pm_cuda.o
-mathlib_mkl.o : mathlib/mathlib_mkl.cpp mathlib/mathlib_mkl.h mathlib/mathlib.h pm/pm_cuda.o pm/pm_sycl.o
-mathlib_rocm.o : mathlib/mathlib_rocm.cpp mathlib/mathlib_rocm.h mathlib/mathlib.h pm/pm_hip.o
-mathlib_host.o : mathlib/mathlib_host.cpp mathlib/mathlib_host.h mathlib/mathlib.h pm/pm_host.o
+mathlib_cublas.o  : mathlib/mathlib_cublas.cpp  mathlib/mathlib_cublas.h  mathlib/mathlib.h cuda/pm_cuda.o
+mathlib_mkl.o     : mathlib/mathlib_mkl.cpp     mathlib/mathlib_mkl.h     mathlib/mathlib.h cuda/pm_cuda.o sycl/pm_sycl.o
+mathlib_hipblas.o : mathlib/mathlib_hipblas.cpp mathlib/mathlib_hipblas.h mathlib/mathlib.h hip/pm_hip.o
+mathlib_host.o    : mathlib/mathlib_host.cpp    mathlib/mathlib_host.h    mathlib/mathlib.h host/pm_host.o
