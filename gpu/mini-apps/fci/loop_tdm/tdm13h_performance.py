@@ -30,7 +30,14 @@ def performance_checker(cre, n_bra, n_ket, norb, nelec, spin, reorder, nruns=10)
     ketvecs = np.empty((n_ket, na_ket, nb_ket))
     for _nbra in range(n_bra): bravecs[_nbra] = np.random.random((na_bra, nb_bra))
     for _nket in range(n_ket): ketvecs[_nket] = np.random.random((na_ket, nb_ket))
- 
+    if not cre:
+      # The arrays above were sized with nelec_bra/nelec_ket, which are the labels
+      # _trans_rdm13hs_o0 uses *after* its own internal swap. In the destruction case
+      # the physical bra is the one with the missing electron, so swap back before
+      # handing them to the loops -- both o0_loop and multi_gpu_loop then re-swap
+      # internally. test_tdm13h_loop in tdm13h_test.py does exactly the same.
+      bravecs, ketvecs = ketvecs, bravecs
+
     from pyscf.lib import param
     try: 
       use_gpu = param.use_gpu
