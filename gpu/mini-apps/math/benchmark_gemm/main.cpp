@@ -289,14 +289,14 @@ int main( int argc, char* argv[] )
     int offset = ib * inp.m * inp.k;
     for(int i=0; i<inp.m; ++i) {
       for(int j=0; j<inp.k; ++j) {
-	a[i * inp.k + j] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
+	a[offset + i * inp.k + j] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
       }
     }
 
     offset = ib * inp.k * inp.n;
     for(int i=0; i<inp.k; ++i) {
       for(int j=0; j<inp.n; ++j) {
-	b[i * inp.n + j] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
+	b[offset + i * inp.n + j] = std::rand() / (float(RAND_MAX) + 1.0) - 0.5;
       }
     }
     
@@ -345,7 +345,7 @@ int main( int argc, char* argv[] )
     ldc = inp.ldc;
 
     strideA = inp.m * inp.k;
-    strideB = inp.k * inp.m;
+    strideB = inp.k * inp.n;
     strideC = inp.m * inp.n;
     
   }
