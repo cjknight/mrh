@@ -162,7 +162,8 @@ def main():
             "total_s": per_call_ms * count / 1000.0,
             "gflops": gflops,
             "gflop_call": 2.0 * m * n * k * batch / 1e9,
-            "strided": len(name.split()) == 15,
+            "family": "gemv" if mode.startswith("gemv") else "gemm",
+            "strided": len(name.split()) in (13, 15),   # gemv_batch=13, gemm_batch=15
         })
 
     if not rows:
@@ -170,29 +171,41 @@ def main():
 
     rows.sort(key=lambda r: -r["total_s"])
     grand = sum(r["total_s"] for r in rows)
-
     w = max(len(r["mnk"]) for r in rows)
-    print(f"\n{'':2} {'mode':10} {'m x n x k [xbatch]':{w}}  {'count':>7} "
-          f"{'per call':>10} {'total':>9} {'share':>7} {'cum':>7} {'GF/s':>7}")
-    print("-" * (2 + 12 + w + 9 + 11 + 10 + 8 + 8 + 9))
-    cum = 0.0
-    for i, r in enumerate(rows, 1):
-        frac = r["total_s"] / grand
-        cum += frac
-        print(f"{i:2} {r['mode']:10} {r['mnk']:{w}}  {r['count']:7} "
-              f"{r['per_call_ms']:9.4f}m {r['total_s']:8.3f}s {frac:6.1%} {cum:6.1%} "
-              f"{r['gflops']:7.1f}")
-    print("-" * (2 + 12 + w + 9 + 11 + 10 + 8 + 8 + 9))
-    tot_calls = sum(r["count"] for r in rows)
-    print(f"{'':2} {'TOTAL':10} {'':{w}}  {tot_calls:7} {'':10} {grand:8.3f}s")
+    rule = "-" * (2 + 12 + w + 9 + 11 + 10 + 8 + 8 + 9)
 
-    # how few shapes cover most of the time
-    cum = 0.0
-    for i, r in enumerate(rows, 1):
-        cum += r["total_s"] / grand
-        if cum >= 0.9:
-            print(f"\ntop {i} of {len(rows)} shapes = {cum:.1%} of gemm time")
-            break
+    def table(family, label):
+        """One table per BLAS family: share/cum are relative to that family, since
+        a gemv is not competing with a gemm for the same work."""
+        fam = [r for r in rows if r["family"] == family]
+        if not fam:
+            return
+        sub_t = sum(r["total_s"] for r in fam)
+        print(f"\n{label}  --  {len(fam)} shape(s), {sub_t:.3f}s "
+              f"({sub_t/grand:.1%} of all BLAS time)")
+        print(f"{'':2} {'mode':10} {'m x n [x k] [xbatch]':{w}}  {'count':>7} "
+              f"{'per call':>10} {'total':>9} {'share':>7} {'cum':>7} {'GF/s':>7}")
+        print(rule)
+        cum = 0.0
+        for i, r in enumerate(fam, 1):
+            frac = r["total_s"] / sub_t
+            cum += frac
+            print(f"{i:2} {r['mode']:10} {r['mnk']:{w}}  {r['count']:7} "
+                  f"{r['per_call_ms']:9.4f}m {r['total_s']:8.3f}s {frac:6.1%} {cum:6.1%} "
+                  f"{r['gflops']:7.1f}")
+        print(rule)
+        print(f"{'':2} {'TOTAL':10} {'':{w}}  {sum(r['count'] for r in fam):7} "
+              f"{'':10} {sub_t:8.3f}s")
+        cum = 0.0
+        for i, r in enumerate(fam, 1):
+            cum += r["total_s"] / sub_t
+            if cum >= 0.9:
+                print(f"   top {i} of {len(fam)} = {cum:.1%} of {label.lower()} time")
+                break
+
+    table("gemm", "GEMM")
+    table("gemv", "GEMV")
+    print(f"\nall BLAS: {sum(r['count'] for r in rows)} calls, {grand:.3f}s")
 
     guessed = [r for r in rows if r["mode"] == "gemm_batch" and not r["strided"]]
     if guessed:
