@@ -697,7 +697,6 @@ void PM::dev_copy(void * dest, void * src, size_t N)
   printf("Inside PM::dev_copy()\n");
 #endif
   
-  printf("correct usage dest vs. src??]n");
   current_queue->memcpy(dest, src, N);
   
 #ifdef _DEBUG_PM
