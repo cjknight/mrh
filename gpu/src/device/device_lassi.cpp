@@ -563,8 +563,7 @@ void DeviceLassi::compute_4frag_matvec( int i, int j, int k, int l,
     for (int _i=0; _i<size_other; ++_i){printf("%f\t",h_vec[_i]);}printf("\n");
   #endif
   if (op_t){
-  double * buf_d2 = &(dd->jk.d_buf1[loc_C]); //buffer to store transposed d2, will copy it back to it's original position after done. 
-  printf("Inside op_t branch\n");
+  double * buf_d2 = &(dd->jk.d_buf1[loc_C]); //buffer to store transposed d2, will copy it back to it's original position after done.
   //transpose d[2] kcr->ckr
   ctx.utils->transpose_102(d_d2, buf_d2, c,k,r);
   ctx.utils->veccopy(buf_d2, d_d2, size_d2);
@@ -572,7 +571,11 @@ void DeviceLassi::compute_4frag_matvec( int i, int j, int k, int l,
   ctx.utils->transpose_102(d_d3, buf_d2, d,l,s);
   ctx.utils->veccopy(buf_d2, d_d3, size_d3);
   //transpose op rsjiba -> rsbaji
-  ctx.utils->transpose_021(d_op, buf_d2, r*s, j*i, b*a);
+  //transpose_021(in,out,ax1,ax2,ax3) reads in as (ax1,ax3,ax2) and writes out as (ax1,ax2,ax3),
+  //so recovering rsbaji (ax2=b*a,ax3=j*i) from a pushed rsjiba buffer needs args in that order,
+  //not (r*s, j*i, b*a) -- the latter instead converts a canonical rsbaji buffer to rsjiba, i.e.
+  //backwards. Only invisible when j*i == b*a (masked by every square test config).
+  ctx.utils->transpose_021(d_op, buf_d2, r*s, b*a, j*i);
   ctx.utils->veccopy(buf_d2, d_op, size_op);
   }
 
