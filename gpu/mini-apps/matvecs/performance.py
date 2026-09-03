@@ -1,11 +1,16 @@
-## DEPRECATED 2026-09-03: not exercised by any production LASSI call path
-## (push_op/init_new_sivecs_host/init_old_sivecs_host/compute_sivecs/
-## pull_sivecs_from_pinned have no caller under mrh/my_pyscf or gpu4mrh
-## outside this file). At its default problem size (m=1000, k=400,
-## total_n ~500k) it did not complete SCF+mol.build within 90s on a
-## laptop CPU backend and produced no output/error to diagnose -- never
-## reproduced as a genuine correctness bug, just deprioritized rather than
-## sunk further time into. See todo.md dead-code-triage note before reviving.
+## DEPRECATED 2026-09-03: exercises a dead libgpu code path. init_new_sivecs_host,
+## init_old_sivecs_host, push_sivecs_to_host, compute_sivecs, and
+## pull_sivecs_from_pinned all have zero call sites under mrh/my_pyscf,
+## mrh/gpu/gpu4mrh, pyscf, or pyscf-forge today -- confirmed by
+## `gpu/tools/prod_usage_audit.sh push_sivecs_to_host init_new_sivecs_host
+## init_old_sivecs_host compute_sivecs pull_sivecs_from_pinned`. Production
+## LASSI uses the v3/pinned path instead (push_sivecs_to_device,
+## compute_sivecs_full_v3, finalize_ox1_pinned -- all LIVE). At its default
+## problem size (m=1000, k=400, total_n ~500k) this script also did not
+## complete SCF+mol.build within 90s on a laptop CPU backend, with no
+## output/error to diagnose -- never reproduced as a genuine correctness
+## bug in the dead path itself, just not worth sinking more time into.
+## Run gpu/tools/prod_usage_audit.sh before reviving or deep-diving a bug here.
 gpu_run=1
 if gpu_run:from mrh.my_pyscf.gpu import libgpu
 import pyscf
