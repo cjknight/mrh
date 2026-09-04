@@ -88,7 +88,8 @@ realclean:
 	rm -f $(EXE)
 	rm -rf $(EXE).dSYM
 	rm -f *.optrpt
-	rm -r pm
+	rm -rf pm
+	rm -rf cuda sycl hip openmp host
 
 #
 # -- Simple dependencies

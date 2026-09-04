@@ -7,7 +7,11 @@
 #include "cublas_v2.h"
 
 #ifdef _USE_NVTX
+#if CUDART_VERSION >= 12900
+#include "nvtx3/nvToolsExt.h"
+#else
 #include "nvToolsExt.h"
+#endif
 #endif
 
 #include <iostream>
