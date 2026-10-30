@@ -31,9 +31,10 @@ DeviceCache::~DeviceCache()
   eri_count.clear();
   eri_size.clear();
 #ifdef _DEBUG_ERI_CACHE
-  for(int i=0; i<d_eri_host.size(); ++i) ctx.pm->dev_free_host( d_eri_host[i] );
+  for(int i=0; i<d_eri_host.size(); ++i) if(d_eri_host[i] != nullptr) ctx.pm->dev_free_host( d_eri_host[i] );
 #endif
   for(int i=0; i<d_eri_cache.size(); ++i) {
+    if(d_eri_cache[i] == nullptr) continue; // evicted
     int id = eri_device[i];
     ctx.pm->dev_set_device(id);
     ctx.pm->dev_free(d_eri_cache[i], "eri_cache");
@@ -46,6 +47,43 @@ DeviceCache::~DeviceCache()
 void DeviceCache::set_update_dfobj_(int _val)
 {
   update_dfobj = _val; // this is reset to zero in Device::pull_get_jk
+}
+
+/* ---------------------------------------------------------------------- */
+
+// free the cached eri blocks of a dfobj that was reset or garbage collected
+// the slots stay in place (key 0, no memory) so that block indices of other dfobjs, incl. the
+// full-molecule dfobj at index 0, are unchanged; a later dfobj at the same address starts fresh
+
+void DeviceCache::evict_dfobj(size_t addr_dfobj)
+{
+  int id = -1;
+  for(int i=0; i<eri_list.size(); ++i)
+    if(eri_list[i] == addr_dfobj) {
+      id = i;
+      break;
+    }
+  if(id < 0) return;
+
+  const int nblocks = eri_num_blocks[id];
+  const int device_id = ctx.pm->dev_get_device();
+
+  for(int i=id; i<id+nblocks && i<eri_list.size(); ++i) {
+    if(eri_list[i] != addr_dfobj + (i-id) || d_eri_cache[i] == nullptr) continue;
+    ctx.pm->dev_set_device(eri_device[i]);
+    ctx.pm->dev_barrier();
+    ctx.pm->dev_free(d_eri_cache[i], "eri_cache");
+#ifdef _DEBUG_ERI_CACHE
+    ctx.pm->dev_free_host(d_eri_host[i]);
+    d_eri_host[i] = nullptr;
+#endif
+    d_eri_cache[i] = nullptr;
+    eri_list[i] = 0;
+    eri_size[i] = 0;
+    eri_num_blocks[i] = 0;
+  }
+
+  ctx.pm->dev_set_device(device_id);
 }
 
 /* ---------------------------------------------------------------------- */

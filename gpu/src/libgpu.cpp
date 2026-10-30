@@ -162,6 +162,14 @@ void libgpu_get_dfobj_status(void * ptr, size_t addr_dfobj, py::array_t<int> arg
 
 /* ---------------------------------------------------------------------- */
 
+void libgpu_evict_dfobj(void * ptr, size_t addr_dfobj)
+{ 
+  LIBGPU_DEVICE(ptr)
+  dev->evict_dfobj(addr_dfobj);
+}
+
+/* ---------------------------------------------------------------------- */
+
 void libgpu_push_mo_coeff(void * ptr,
 			  py::array_t<double> mo_coeff, int size_mo_coeff)
 {

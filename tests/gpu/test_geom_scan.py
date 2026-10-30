@@ -1,3 +1,4 @@
+import gc
 import unittest
 import numpy
 from pyscf import gto, dft, lib
@@ -33,6 +34,13 @@ def _scanned (xc, spin, use_gpu):
     scan = mf.nuc_grad_method().as_scanner()
     mol1 = mf.mol.set_geom_(gto.M(atom=G1, unit="Angstrom").atom_coords(), unit="Bohr", inplace=False)
     return scan(mol1)
+
+def _cached_blocks (gpu, dfobj_addr):
+    # number of device ERI blocks cached under this DF object address, -1 if none
+    from mrh.my_pyscf.gpu import libgpu
+    arg = numpy.array([-1, -1, -1, -1], dtype=numpy.int32)
+    libgpu.get_dfobj_status(gpu, dfobj_addr, arg)
+    return int(arg[2])
 
 def setUpModule():
     global refs, ref_tz
@@ -73,6 +81,34 @@ class KnownValues (unittest.TestCase):
         mf_tz.with_df = mf.with_df
         mf_tz.with_df.reset(mf_tz.mol)
         self.assertAlmostEqual (mf_tz.kernel(), ref_tz, 9)
+
+    def test_freed_dfobj_evicted (self):
+        # the cache is keyed by id(dfobj): a DF object that is garbage collected must not leave blocks that a
+        # later DF object at the same address would read (evictions are applied on the next get_jk)
+        mf = _make(G0, 'pbe0', 0, use_gpu=self.gpu)
+        mf.kernel()
+        addr = id(mf.with_df)
+        self.assertEqual (_cached_blocks(self.gpu, addr), 1)
+        del mf
+        gc.collect()
+        mf1 = _make(G1, 'pbe0', 0, use_gpu=self.gpu)
+        self.assertAlmostEqual (mf1.kernel(), refs[('pbe0', 0)][0], 9)
+        if id(mf1.with_df) != addr:
+            self.assertEqual (_cached_blocks(self.gpu, addr), -1)
+
+    def test_rsh_scanner_evicts (self):
+        # DF.reset replaces the range-separated sub-DF objects on every geometry step; their blocks must not pile up
+        mf = _make(G0, 'wb97m-v', 0, use_gpu=self.gpu)
+        mf.kernel()
+        old = [id(x) for x in mf.with_df._rsh_df.values()]
+        self.assertTrue (old)
+        scan = mf.nuc_grad_method().as_scanner()
+        mol1 = mf.mol.set_geom_(gto.M(atom=G1, unit="Angstrom").atom_coords(), unit="Bohr", inplace=False)
+        e, g = scan(mol1)
+        self.assertAlmostEqual (e, refs[('wb97m-v', 0)][0], 9)
+        new = [id(x) for x in scan.base.with_df._rsh_df.values()]
+        for addr in set(old) - set(new):
+            self.assertEqual (_cached_blocks(self.gpu, addr), -1)
 
 if __name__ == "__main__":
     print("Tests for GPU DF J/K after a geometry change")

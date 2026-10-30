@@ -39,6 +39,7 @@ public:
 
   void set_update_dfobj_(int _val);
   void get_dfobj_status(size_t addr_dfobj, py::array_t<int> _arg);
+  void evict_dfobj(size_t addr_dfobj);
 
   int * dd_fetch_pumap(my_device_data *, int, int);
   double * dd_fetch_eri(my_device_data *, double *, int, int, size_t, int);
