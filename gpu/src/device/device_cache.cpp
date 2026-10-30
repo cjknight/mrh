@@ -285,6 +285,23 @@ double * DeviceCache::dd_fetch_eri(my_device_data * dd, double * eri1, int naux,
     eri_count[id]++;
     d_eri = d_eri_cache[id];
 
+    // block changed shape (e.g. new basis/aux basis on the same dfobj): reallocate; only legal if refresh was requested
+    if(update_dfobj && (naux != eri_extra[id*2] || nao_pair != eri_extra[id*2+1])) {
+      ctx.pm->dev_free(d_eri, "eri_cache");
+      d_eri = (double *) ctx.pm->dev_malloc_async(naux * nao_pair * sizeof(double), "eri_cache", FLERR);
+      d_eri_cache[id] = d_eri;
+      eri_size[id] = naux * nao_pair;
+      eri_extra[id*2] = naux;
+      eri_extra[id*2+1] = nao_pair;
+      eri_update[id]++;
+      int err = ctx.pm->dev_push_async(d_eri, eri1, naux * nao_pair * sizeof(double));
+      if(err) {
+	printf("LIBGPU:: dev_push_async(d_eri) reallocating eri block\n");
+	exit(1);
+      }
+      return d_eri;
+    }
+
     bool full_molecule = id-count == 0;
 
     // update_dfobj == 1 :: refresh blocks of sub-fragment dfobjs only (full-molecule dfobj is fixed in LAS)
