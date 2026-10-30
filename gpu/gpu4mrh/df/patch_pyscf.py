@@ -21,7 +21,7 @@ def _reset(self, mol=None):
     out = _cpu_reset(self, mol)
     gpu = resolve_use_gpu(self)
     if gpu is not None:
-        libgpu.set_update_dfobj_(gpu, 1)
+        libgpu.set_update_dfobj_(gpu, 2) # 2: also refresh full-molecule dfobj
     return out
 
 DF.reset = _reset

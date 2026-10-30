@@ -287,7 +287,9 @@ double * DeviceCache::dd_fetch_eri(my_device_data * dd, double * eri1, int naux,
 
     bool full_molecule = id-count == 0;
 
-    if(!full_molecule && update_dfobj) {
+    // update_dfobj == 1 :: refresh blocks of sub-fragment dfobjs only (full-molecule dfobj is fixed in LAS)
+    // update_dfobj == 2 :: refresh all blocks, including full-molecule (geometry changed, e.g. geometry optimization)
+    if(update_dfobj && (update_dfobj > 1 || !full_molecule)) {
       eri_update[id]++;
       int err = ctx.pm->dev_push_async(d_eri, eri1, naux * nao_pair * sizeof(double));
       if(err) {
