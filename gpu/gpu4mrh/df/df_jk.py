@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import copy
+import weakref
 
 import ctypes
 import numpy
@@ -13,6 +14,23 @@ from gpu4mrh.lib.utils import patch_cpu_kernel, resolve_use_gpu
 
 from mrh.my_pyscf.gpu import libgpu
 
+# The device ERI cache is keyed by id(dfobj). A DF object that is reset (geometry change) or garbage collected must
+# not leave its blocks behind: a later DF object can be given the same address, and range-separated sub-DF objects
+# are replaced on every reset. Evictions are queued per device and applied on that device's next get_jk, so libgpu
+# is never called from a finalizer (the device may already be destroyed by then).
+_evict_pending = {}
+_tracked = weakref.WeakSet()
+
+def evict_dfobj_later(gpu, dfobj_addr):
+    _evict_pending.setdefault(gpu, set()).add(dfobj_addr)
+
+def track_dfobj(gpu, dfobj):
+    for addr in _evict_pending.pop(gpu, ()):
+        libgpu.evict_dfobj(gpu, addr)
+    if dfobj not in _tracked:
+        _tracked.add(dfobj)
+        weakref.finalize(dfobj, evict_dfobj_later, gpu, id(dfobj)).atexit = False
+
 # Setting DEBUG = True will execute both CPU (original) and GPU (new) paths checking for consistency 
 import math
 
@@ -24,6 +42,9 @@ def get_jk(dfobj, dm, hermi=1, with_j=True, with_k=True, direct_scf_tol=1e-13):
         # 3-center integral tensor is not initialized
         dfobj._cderi is None):
         return get_j(dfobj, dm, hermi, direct_scf_tol), None
+
+    if gpu is not None:
+        track_dfobj(gpu, dfobj)
 
     t0 = t1 = (logger.process_clock(), logger.perf_counter())
     log = logger.Logger(dfobj.stdout, dfobj.verbose)
@@ -223,6 +244,9 @@ def get_jk_debug(dfobj, dm, hermi=1, with_j=True, with_k=True, direct_scf_tol=1e
         # 3-center integral tensor is not initialized
         dfobj._cderi is None):
         return get_j(dfobj, dm, hermi, direct_scf_tol), None
+
+    if gpu is not None:
+        track_dfobj(gpu, dfobj)
 
     t0 = t1 = (logger.process_clock(), logger.perf_counter())
     log = logger.Logger(dfobj.stdout, dfobj.verbose)

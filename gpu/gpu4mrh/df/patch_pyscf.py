@@ -1,4 +1,4 @@
-from gpu4mrh.df.df_jk import _get_jk
+from gpu4mrh.df.df_jk import _get_jk, evict_dfobj_later
 from pyscf.df import df_jk
 
 from gpu4mrh.lib.utils import patch_cpu_kernel
@@ -22,6 +22,7 @@ def _reset(self, mol=None):
     gpu = resolve_use_gpu(self)
     if gpu is not None:
         libgpu.set_update_dfobj_(gpu, 2) # 2: also refresh full-molecule dfobj
+        evict_dfobj_later(gpu, id(self)) # blocks may change shape; free them on the next get_jk
     return out
 
 DF.reset = _reset
