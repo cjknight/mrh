@@ -236,12 +236,12 @@ class LASImpurityOrbitalCallable (object):
         uo = uo @ u[:,:self.nlas]
         ao = ao @ vh[:self.nlas,:].conj ().T
         f0 = self.hcore[None,:,:] + veff
-        f0_aa = (np.dot (f0, ao) * ao[None,:,:]).sum (1)
-        f0_uu = (np.dot (f0, uo) * uo[None,:,:]).sum (1)
-        f0_ua = (np.dot (f0, ao) * uo[None,:,:]).sum (1)
-        dm1s_aa = (np.dot (dm1s, ao) * ao[None,:,:]).sum (1)
-        dm1s_uu = (np.dot (dm1s, uo) * uo[None,:,:]).sum (1)
-        dm1s_ua = (np.dot (dm1s, ao) * uo[None,:,:]).sum (1)
+        f0_aa = ((f0 @ ao) * ao[None,:,:]).sum (1)
+        f0_uu = ((f0 @ uo) * uo[None,:,:]).sum (1)
+        f0_ua = ((f0 @ ao) * uo[None,:,:]).sum (1)
+        dm1s_aa = ((dm1s @ ao) * ao[None,:,:]).sum (1)
+        dm1s_uu = ((dm1s @ uo) * uo[None,:,:]).sum (1)
+        dm1s_ua = ((dm1s @ ao) * uo[None,:,:]).sum (1)
         uHa = ((f0_aa*dm1s_uu) + (f0_uu*dm1s_aa) - (2*f0_ua*dm1s_ua)).sum (0)
         uXa = (u * ((-uGa/uHa)[None,:])) @ vh # x = -b/A
         kappa1 = np.zeros ((mo.shape[1], mo.shape[1]), dtype=mo.dtype)
@@ -250,7 +250,7 @@ class LASImpurityOrbitalCallable (object):
         kappa1 = mo @ kappa1 @ mo.conj ().T
 
         # approximate update to fock1
-        tdm1 = -np.dot (dm1s, kappa1)
+        tdm1 = -(dm1s @ kappa1)
         tdm1 += tdm1.transpose (0,2,1)
         v1 = self._get_veff (tdm1)
         fock1 += (fock1@kappa1 - kappa1@fock1) / 2

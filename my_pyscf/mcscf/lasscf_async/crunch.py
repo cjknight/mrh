@@ -258,7 +258,7 @@ class ImpuritySCF (scf.hf.SCF):
         t0 = log.timer ("Two-electron integrals in embedding subspace", *t0)
         # External mean-field; potentially spin-broken
         h1s = mf.get_hcore ()[None,:,:] + veff
-        h1s = np.dot (imporb_coeff.conj ().T, np.dot (h1s, imporb_coeff)).transpose (1,0,2)
+        h1s = imporb_coeff.conj ().T @ h1s @ imporb_coeff
         self._imporb_h1 = h1s.sum (0) / 2
         self._imporb_h1_sz = (h1s[0] - h1s[1]) / 2
         self._imporb_h0 = e_tot 
@@ -285,7 +285,7 @@ class ImpuritySCF (scf.hf.SCF):
         dm2 -= np.multiply.outer (dm1, dm1)
         dm2 += np.multiply.outer (dm1s[0], dm1s[0]).transpose (0,3,2,1)
         dm2 += np.multiply.outer (dm1s[1], dm1s[1]).transpose (0,3,2,1)
-        dm1s = np.dot (mo_dm, np.dot (dm1s, mo_dm.conj ().T)).transpose (1,0,2)
+        dm1s = mo_dm @ dm1s @ mo_dm.conj ().T
         dm1s += (mo_docc @ mo_docc.conj ().T)[None,:,:]
         vj, vk = self.get_jk (dm=dm1s)
         veff = vj.sum (0)[None,:,:] - vk
@@ -362,7 +362,7 @@ def _fake_h_for_fast_casci(casscf, mo, eris):
     hcore = h1.sum (1)
     energy_core += np.einsum('ij,rji->r', core_dm, hcore)
     energy_core += eris.vhf_c[:ncore,:ncore].trace ()
-    h1eff = np.tensordot (mo_cas.conj (), np.dot (h1, mo_cas), axes=((0),(2))).transpose (1,2,0,3)
+    h1eff = np.tensordot (mo_cas.conj (), h1 @ mo_cas, axes=((0),(2))).transpose (1,2,0,3)
     h1eff += eris.vhf_c[None,None,ncore:nocc,ncore:nocc]
     mc.get_h1eff = lambda *args: (h1eff, energy_core)
 
@@ -661,7 +661,7 @@ class ImpuritySolver ():
         veff_core = vj - vk*.5
         e2_core = ((veff_core @ mo_core) * mo_core.conj ()).sum ()
         h1_rs = self.get_hcore_rs ()
-        e1_core = np.tensordot (np.dot (h1_rs.sum (1), mo_core), mo_core[:,:].conj (), axes=2)
+        e1_core = np.tensordot (h1_rs.sum (1) @ mo_core, mo_core[:,:].conj (), axes=2)
         h1_rs = self.get_hcore_rs () + veff_core[None,None,:,:]
         h1_rs = lib.einsum ('rsij,ip,jq->rspq', h1_rs, mo_cas.conj (), mo_cas)
         e1_cas = (h1_rs * casdm1rs).sum ((1,2,3))
@@ -685,9 +685,9 @@ class ImpuritySolver ():
             t_vj = log.timer("vj ext", *t_vj)    
         else: # Safety case: AO-basis SCF driver
             imporb_coeff = self.mol.get_imporb_coeff ()
-            dm1 = np.dot (mo_ext, np.dot (dm1, mo_ext.conj().T)).transpose (1,0,2)
+            dm1 = mo_ext @ dm1 @ mo_ext.conj().T
             vj = self.mol._las._scf.get_j (dm=dm1)
-            vj = np.dot (imporb_coeff.conj ().T, np.dot (vj, imporb_coeff)).transpose (1,0,2)
+            vj = imporb_coeff.conj ().T @ vj @ imporb_coeff
         return vj.reshape (*output_shape) 
 
     def get_vk_ext (self, mo_ext, dm1rs_ext, bmPu=None):
@@ -702,10 +702,10 @@ class ImpuritySolver ():
             vk = np.tensordot (vuiP, biPu, axes=((-3,-1),(-1,-2)))
             t_vk = log.timer("vk ext", *t_vk)    
         else: # Safety case: AO-basis SCF driver
-            dm1 = np.dot (mo_ext, np.dot (dm1, mo_ext.conj().T)).transpose (1,0,2)
+            dm1 = mo_ext @ dm1 @ mo_ext.conj().T
             #vk = self.mol._las._scf.get_k (dm=dm1) 
             _,vk = self.mol._las._scf.get_jk (dm=dm1) #TODO: for gpu run, this has to be written as get_k (it is now written as get_jk)
-            vk = np.dot (imporb_coeff.conj ().T, np.dot (vk, imporb_coeff)).transpose (1,0,2)
+            vk = imporb_coeff.conj ().T @ vk @ imporb_coeff
         return vk.reshape (*output_shape)
             
     def get_hcore_rs (self):
@@ -736,7 +736,7 @@ class ImpurityCASSCF (mcscf.mc1step.CASSCF, ImpuritySolver):
         ''' inject the stateshift h1 into envs '''
         mou = mo @ u[:,self.ncore:][:,:self.ncas]
         h1_stateshift = self.get_hcore_rs () - self.get_hcore ()[None,None,:,:]
-        h1_stateshift = np.tensordot (mou.conj ().T, np.dot (h1_stateshift, mou),
+        h1_stateshift = np.tensordot (mou.conj ().T, h1_stateshift @ mou,
                                    axes=((1),(2))).transpose (1,2,0,3)
         envs['h1_stateshift'] = h1_stateshift
         return super().update_casdm (mo, u, fcivec, e_cas, eris, envs=envs)
@@ -937,7 +937,7 @@ class ImpurityLASPSCF_HessianOperator (laspscf.LASPSCF_HessianOperator):
     def _init_ham_(self, h2eff_sub, veff):
         laspscf.LASPSCF_HessianOperator._init_ham_(self, h2eff_sub, veff)
         las, mo_coeff, ncore, nocc = self.las, self.mo_coeff, self.ncore, self.nocc
-        h1rs = np.dot (las.get_hcore_rs (), mo_coeff)
+        h1rs = las.get_hcore_rs () @ mo_coeff
         h1rs = np.tensordot (mo_coeff.conj (), h1rs, axes=((0),(2))).transpose (1,2,0,3)
         hcore = mo_coeff.conj ().T @ las.get_hcore () @ mo_coeff
         dh1rs = h1rs - hcore[None,None,:,:]
@@ -986,7 +986,7 @@ class ImpurityLASPSCF_HessianOperator (laspscf.LASPSCF_HessianOperator):
             self, kappa1, odm1s, ocm2, tdm1rs, tcm2, veff_prime
         )
         h1rs = self.h1rs - self.h1s[None,:,:,:]
-        odm1rs = -np.dot (self.dm1rs, kappa1)
+        odm1rs = -(self.dm1rs @ kappa1)
         odm1rs += odm1rs.transpose (0,1,3,2)
         edm1rs = odm1rs + tdm1rs
         for w, h, d in zip (self.weights, h1rs, edm1rs):
@@ -1030,7 +1030,7 @@ class ImpurityLASPSCF (laspscf.LASPSCFNoSymm, ImpuritySolver):
         ncore, ncas = self.ncore, self.ncas
         nocc = ncore + ncas
         mo_cas = mo_coeff[:,ncore:nocc]
-        dh1_rs = np.dot (self.get_hcore_rs () - self.get_hcore ()[None,None,:,:], mo_cas)
+        dh1_rs = (self.get_hcore_rs () - self.get_hcore ()[None,None,:,:]) @ mo_cas
         dh1_rs = np.tensordot (mo_coeff.conj (), dh1_rs, axes=((0),(2))).transpose (1,2,0,3)
         casdm1rs = self.states_make_casdm1s (ci=ci)
         f = np.zeros ((nmo,nmo), dtype=gorb.dtype)
@@ -1048,7 +1048,7 @@ class ImpurityLASPSCF (laspscf.LASPSCFNoSymm, ImpuritySolver):
     def h1e_for_las (self, mo_coeff=None, **kwargs):
         h1e_fr = laspscf.LASPSCFNoSymm.h1e_for_las (self, mo_coeff=mo_coeff, **kwargs)
         ncas_sub = kwargs.get ('ncas_sub', self.ncas_sub)
-        dh1_rs = np.dot (self.get_hcore_rs () - self.get_hcore ()[None,None,:,:], mo_coeff)
+        dh1_rs = (self.get_hcore_rs () - self.get_hcore ()[None,None,:,:]) @ mo_coeff
         dh1_rs = np.tensordot (mo_coeff.conj (), dh1_rs, axes=((0),(2))).transpose (1,2,0,3)
         for ix in range (len (ncas_sub)):
             i = sum (ncas_sub[:ix])
@@ -1073,7 +1073,7 @@ class ImpurityLASPSCF (laspscf.LASPSCFNoSymm, ImpuritySolver):
         nao, nmo = mo_coeff.shape
         nocc = ncore + ncas
         mo_cas = mo_coeff[:,ncore:nocc]
-        dh1_rs = np.dot (self.get_hcore_rs () - self.get_hcore ()[None,None,:,:], mo_cas)
+        dh1_rs = (self.get_hcore_rs () - self.get_hcore ()[None,None,:,:]) @ mo_cas
         dh1_rs = np.tensordot (mo_cas.conj (), dh1_rs, axes=((0),(2))).transpose (1,2,0,3)
         enuc_r = self.energy_nuc_r ()
         for ix, (h, d) in enumerate (zip (dh1_rs, casdm1rs)):
