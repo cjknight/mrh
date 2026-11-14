@@ -146,7 +146,6 @@ def get_h2eff_gpu_v2 (las,mo_coeff):
             bPmn = sparsedf_array (cderi)
             #print(lib.unpack_tril(cderi)[:3,:3,:3])
             #print(lib.unpack_tril(cderi).shape)
-            print(mo_cas)
             bmuP1 = bPmn.contract1 (mo_cas)
             buvP = np.tensordot (mo_cas.conjugate (), bmuP1, axes=((0),(0)))
             eri2 = np.tensordot (bmuP1, buvP, axes=((2),(2)))
@@ -170,16 +169,18 @@ def get_h2eff_gpu_v2 (las,mo_coeff):
     t0 = lib.logger.timer (las, 'las_ao2mo', *t0)
     libgpu.pull_eri_h2eff(gpu, eri, nmo, ncas)
     if las.verbose>lib.logger.DEBUG and gpu:
-        if np.allclose(eri, eri_cpu): log.debug("h2eff_v2 working")
-        else: 
-            print("h2eff not working");
-            diff = eri - eri_cpu
-            non_zero_vals = np.nonzero(diff)
-            print(non_zero_vals)
-            print(np.max(np.abs(diff)))
-            log.debug("h2eff not working");
-            log.debug('eri_diff' + str(np.max(np.abs(eri-eri_cpu))));
-            exit()
+        # absolute max difference, judged against the size of the integrals. The CPU reference
+        # (sparsedf_array) is itself only accurate to ~1e-9 (small test molecules, host backend)
+        # to ~3e-8 (fefefe), so np.allclose's default atol=1e-8 flags noise as an error.
+        err = np.amax (np.abs (eri - eri_cpu)) if eri.size else 0.0
+        scale = max (np.amax (np.abs (eri_cpu)) if eri.size else 0.0, 1.0)
+        msg = 'GPU vs CPU h2eff (dfobj %#x, nmo %d, ncas %d): max|diff| %.3e  max|eri| %.3e'
+        args = (id (las.with_df), nmo, ncas, err, scale)
+        if err > 1e-6 * scale:
+            log.error (msg, *args)
+            raise RuntimeError ('GPU h2eff disagrees with CPU: max|diff| {:.3e}'.format (err))
+        elif err > 1e-7 * scale: log.warn (msg, *args)
+        else: log.debug (msg, *args)
     eri1= None
     return eri
 
