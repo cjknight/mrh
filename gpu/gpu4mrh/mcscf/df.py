@@ -72,7 +72,16 @@ class _ERIS:
             self.ppaa = ppaa
             self.papa = papa
             t1 = log.timer('pull_ao2mo', *t1)
-        else:
+        # verbose >= DEBUG1: also run the CPU transform and compare. The GPU results are kept,
+        # so the run follows the same trajectory as a non-debug GPU run.
+        check_gpu = bool(gpu) and log.verbose >= logger.DEBUG1
+        if check_gpu:
+            gpu_ref = (self.j_pc.copy(), k_cp.copy(), self.ppaa, self.papa)
+            self.j_pc = numpy.zeros((nmo,ncore))
+            k_cp = numpy.zeros((ncore,nmo))
+            self.ppaa = self.feri['ppaa']
+            self.papa = self.feri['papa']
+        if not gpu or check_gpu:
             fmmm = _ao2mo.libao2mo.AO2MOmmm_nr_s2_iltj
             fdrv = _ao2mo.libao2mo.AO2MOnr_e2_drv
             ftrans = _ao2mo.libao2mo.AO2MOtranse2_nr_s2
@@ -135,6 +144,15 @@ class _ERIS:
 
 
                 
+        if check_gpu:
+            cpu_ref = (self.j_pc, k_cp, numpy.asarray(self.ppaa), numpy.asarray(self.papa))
+            errs = [numpy.amax(numpy.abs(g - c)) if g.size else 0.0 for g, c in zip(gpu_ref, cpu_ref)]
+            msg = ('GPU vs CPU ao2mo (dfobj %#x, naux %d, nblk %d, nmo %d, ncore %d, ncas %d): '
+                   'max|diff| j_pc %.3e  k_cp %.3e  ppaa %.3e  papa %.3e')
+            args = (id(with_df), naoaux, -(-naoaux // with_df.blockdim), nmo, ncore, ncas) + tuple(errs)
+            if max(errs) > 1e-8: log.warn(msg, *args)
+            else: log.debug1(msg, *args)
+            self.j_pc, k_cp, self.ppaa, self.papa = gpu_ref
         self.k_pc = k_cp.T.copy()
            
         bufs1 = bufpa = None
