@@ -1,6 +1,7 @@
 /* -*- c++ -*- */
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "device.h"
 
@@ -192,6 +193,14 @@ Device::Device()
   } else {
     int peer_enable_error = pm->dev_enable_peer(rank, num_devices);
     if(peer_enable_error) dev_ctx.enable_p2p = false;
+  }
+
+  // LIBGPU_DISABLE_P2P=1 forces the host-staged collectives (no mgpu_bcast/mgpu_reduce,
+  // no device-device copies) for debugging and A/B comparisons of the multi-device paths.
+  const char * env_disable_p2p = getenv("LIBGPU_DISABLE_P2P");
+  if(env_disable_p2p && atoi(env_disable_p2p) != 0) {
+    dev_ctx.enable_p2p = false;
+    printf("LIBGPU :: LIBGPU_DISABLE_P2P set: using host-staged multi-device transfers\n");
   }
 }
 
@@ -469,6 +478,7 @@ void Device::set_verbose_(int _verbose)
 {
   verbose_level = _verbose; // setting nonzero prints affinity + timing info
   dev_ctx.verbose_level = _verbose; // subdomains (e.g. DeviceCache stats at teardown) read the context copy
+  if(_verbose) printf("LIBGPU :: num_devices= %i  enable_p2p= %i\n", num_devices, (int) dev_ctx.enable_p2p);
 }
 
 /* ---------------------------------------------------------------------- */
