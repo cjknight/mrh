@@ -674,6 +674,9 @@ class ImpuritySolver ():
 
     def get_vj_ext (self, mo_ext, dm1rs_ext, bmPu=None):
         output_shape = list (dm1rs_ext.shape[:-2]) + [self.mol.nao (), self.mol.nao ()]
+        if not np.any (dm1rs_ext):
+            # e.g. single-state LAS: the state-shift density is identically zero
+            return np.zeros (output_shape, dtype=dm1rs_ext.dtype)
         dm1 = dm1rs_ext.reshape (-1, mo_ext.shape[1], mo_ext.shape[1])
         if bmPu is not None:
             log = logger.new_logger (self, self.verbose)
@@ -692,6 +695,9 @@ class ImpuritySolver ():
 
     def get_vk_ext (self, mo_ext, dm1rs_ext, bmPu=None):
         output_shape = list (dm1rs_ext.shape[:-2]) + [self.mol.nao (), self.mol.nao ()]
+        if not np.any (dm1rs_ext):
+            # e.g. single-state LAS: the state-shift density is identically zero
+            return np.zeros (output_shape, dtype=dm1rs_ext.dtype)
         dm1 = dm1rs_ext.reshape (-1, mo_ext.shape[1], mo_ext.shape[1])
         imporb_coeff = self.mol.get_imporb_coeff ()
         if bmPu is not None:
