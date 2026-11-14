@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sched.h>
+#include <algorithm>
 #define _MIN(A,B) (A<B)?A:B
 #define _MAX(A,B) (A>B)?A:B
 #define _SIZE_FCI_BATCHES 6
@@ -90,7 +91,20 @@ void DeviceImpham::compute_eri_impham(int nao_s, int nao_f, int blksize, int nau
 
   dd->active = 1;
 
-  // using fetch_eri, assume it's already there
+  // The jk scratch buffers are shared with get_jk. Size them here instead of relying on an
+  // earlier get_jk on this device having grown them enough (it need not have, e.g. for the
+  // 4c2e result in buf3). grow_array is a no-op when the buffer is already large enough.
+  {
+    const int nao_f_pair_ = nao_f * (nao_f+1)/2;
+    const int size_buf1 = std::max(naux*nao_s*nao_s, naux*nao_f*nao_f); // cderi unpacked, then bPee
+    const int size_buf2 = std::max(naux*nao_s*nao_f, naux*nao_f_pair_); // bPeu, then packed bPee
+    ::grow_array(ctx.pm, dd->jk.d_buf1, size_buf1, dd->jk.size_buf1, "buf1", FLERR);
+    ::grow_array(ctx.pm, dd->jk.d_buf2, size_buf2, dd->jk.size_buf2, "buf2", FLERR);
+    if (return_4c2eeri)
+      ::grow_array(ctx.pm, dd->jk.d_buf3, nao_f_pair_*nao_f_pair_, dd->jk.size_buf3, "buf3", FLERR);
+  }
+
+  // using fetch_eri, assume it's already there (the caller checks with get_dfobj_status)
 
   int nao_s_pair = nao_s * (nao_s + 1)/2;
 

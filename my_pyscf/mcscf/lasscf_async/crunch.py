@@ -102,6 +102,53 @@ class ImpuritySCF (scf.hf.SCF):
         ImpurityMole object.'''
         self.mol._update_space_(imporb_coeff, nelec_imp)
 
+    def _get_imporb_cderi_cpu (self, with_df, imporb_coeff):
+        '''Full-system DF 3-center integrals transformed into the impurity orbital basis
+        (compact/s2 storage), shape (naux, nimp*(nimp+1)//2)'''
+        nimp = imporb_coeff.shape[1]
+        _cderi = np.empty ((with_df.get_naoaux (), nimp*(nimp+1)//2), dtype=imporb_coeff.dtype)
+        ijmosym, mij_pair, moij, ijslice = ao2mo.incore._conc_mos (imporb_coeff, imporb_coeff,
+                                                                compact=True)
+        b0 = 0
+        for eri1 in with_df.loop ():
+            b1 = b0 + eri1.shape[0]
+            eri2 = _cderi[b0:b1]
+            eri2 = ao2mo._ao2mo.nr_e2 (eri1, moij, ijslice, aosym='s2', mosym=ijmosym, out=eri2)
+            b0 = b1
+        return _cderi
+
+    def _get_imporb_cderi_gpu (self, gpu, with_df, imporb_coeff):
+        '''GPU version of _get_imporb_cderi_cpu. It reuses the full-system DF blocks that
+        get_jk has already cached on the device(s), so nothing is read from with_df here.
+        Returns None, so that the caller falls back to the CPU path, if those cached blocks are
+        missing, have a pending update, or do not tile with_df the way compute_eri_impham
+        assumes (uniform blocks of with_df.blockdim; full-system nao).'''
+        from mrh.my_pyscf.gpu import libgpu
+        imporb_coeff = np.ascontiguousarray (imporb_coeff) # device code assumes C order
+        nao_s, nao_f = imporb_coeff.shape
+        naoaux = with_df.get_naoaux ()
+        blksize = with_df.blockdim
+        addr = id (with_df)
+        arg = np.array ([-1, -1, -1, -1], dtype=np.int32)
+        libgpu.get_dfobj_status (gpu, addr, arg)
+        nblk, update_pending = arg[2], arg[3]
+        if update_pending or nblk < 1: return None
+        nauxs = []
+        for count in range (nblk):
+            arg = np.array ([-1, -1, count, -1], dtype=np.int32)
+            libgpu.get_dfobj_status (gpu, addr, arg)
+            if arg[1] != nao_s*(nao_s+1)//2: return None
+            nauxs.append (int (arg[0]))
+        if sum (nauxs) != naoaux: return None
+        if any (n != blksize for n in nauxs[:-1]) or nauxs[-1] > blksize: return None
+        _cderi = np.empty ((naoaux, nao_f*(nao_f+1)//2), dtype=imporb_coeff.dtype)
+        libgpu.push_mo_coeff (gpu, imporb_coeff, nao_s*nao_f)
+        libgpu.init_eri_impham (gpu, naoaux, nao_f, 0)
+        for count, naux in enumerate (nauxs):
+            libgpu.compute_eri_impham (gpu, nao_s, nao_f, blksize, naux, count, addr, 0)
+        libgpu.pull_eri_impham (gpu, _cderi, naoaux, nao_f, 0)
+        return _cderi
+
     def _update_impham_1_(self, veff, dm1s, e_tot=None):
         '''Update energy_nuc (), get_hcore (), and the two-electron integrals in either _eri or
         with_df to correspond to the current full-system total energy, the current full-system
@@ -131,122 +178,35 @@ class ImpuritySCF (scf.hf.SCF):
                                             "supported)"))
         df_eris_mem_error = MemoryError (("Density-fitted two-electron integrals in asynchronous "
                                           "LASSCF (outcore algorithm is not yet supported"))
-        gpu = getattr(lib.param, 'use_gpu', None)
+        gpu = getattr (self.mol._las, 'use_gpu', None) # per-LAS handle, not the global default
 
         if getattr (mf, 'with_df', None) is not None:
-            from mrh.my_pyscf.gpu import libgpu
             # TODO: impurity outcore cderi
-            imporb_coeff=np.ascontiguousarray(imporb_coeff) 
-            #VA - 4/29/25
-            #you need to do this because imporb_coeff is input into the function is F-contiguous during recomb and C-contiguous during fragments 
-            #gpu code expects a c-contiguous
-            #this does not affect the cpu code because ```ao2mo.incore._conc_mos``` gives back moij which is necessarily in f-contiguous regardless of how imporb_coeff is to start with
-            if mf.mol.verbose>=lib.logger.DEBUG and gpu:
-                #do cpu
-                if not self._is_mem_enough (df_naux = mf.with_df.get_naoaux ()):
-                    raise df_eris_mem_error
-                _cderi = np.empty ((mf.with_df.get_naoaux (), nimp*(nimp+1)//2),
-                               dtype=imporb_coeff.dtype)
-                ijmosym, mij_pair, moij, ijslice = ao2mo.incore._conc_mos (imporb_coeff, imporb_coeff,
-                                                                        compact=True)
-                b0 = 0
-
-                log.debug("Doing CPU version of impham, nimp: " + str(nimp))
-                for eri1 in mf.with_df.loop ():
-                    b1 = b0 + eri1.shape[0]
-                    eri2 = _cderi[b0:b1]
-                    eri2 = ao2mo._ao2mo.nr_e2 (eri1, moij, ijslice, aosym='s2', mosym=ijmosym,out=eri2)
-                    b0 = b1
-                if getattr (self, 'with_df', None) is not None:
-                    self.with_df._cderi = _cderi
-                else:
-                    self._cderi = _cderi
-                    self._eri = np.dot (_cderi.conj ().T, _cderi)
-                #do gpu
-                naoaux = mf.with_df.get_naoaux()
-                nao_s, nao_f = imporb_coeff.shape
-                if getattr(self, 'with_df', None) is not None:
-                    _cderi_gpu = np.zeros ((mf.with_df.get_naoaux (), nao_f*(nao_f+1)//2),dtype=imporb_coeff.dtype)
-                    return_4c2eeri=False
-                else: 
-                    _eri_gpu=np.zeros((nao_f*(nao_f+1)//2,nao_f*(nao_f+1)//2), dtype = imporb_coeff.dtype)
-                    #VA -for some reason, beyond my comprehension, np.empty does not work, you must initialize it as np.zeros. 
-                    return_4c2eeri=True
-                blksize=mf.with_df.blockdim
-                libgpu.push_mo_coeff(gpu, imporb_coeff, nao_s*nao_f)
-                libgpu.init_eri_impham(gpu, naoaux, nao_f, return_4c2eeri)
-                 
-                for k, eri1 in enumerate(mf.with_df.loop(blksize)):pass;
-                for count in range(k+1): 
-                    arg = np.array([-1, -1, count, -1], dtype = np.int32)
-                    libgpu.get_dfobj_status(gpu, id(mf.with_df),arg)
-                    naux = arg[0]
-                    libgpu.compute_eri_impham (gpu, nao_s, nao_f, blksize, naux, count, id(mf.with_df), return_4c2eeri)
-                if return_4c2eeri:
-                    libgpu.pull_eri_impham(gpu, _eri_gpu, naoaux, nao_f, return_4c2eeri)
-                    #self._eri=_eri_gpu
-                else:
-                    libgpu.pull_eri_impham(gpu, _cderi_gpu, naoaux, nao_f, return_4c2eeri)
-                    #self._cderi=_cderi
-                if return_4c2eeri:
-                    if (np.allclose(_eri_gpu, self._eri)):  
-                        log.debug("Cholesky vectors updating correctly")
-                    else:
-                        log.debug("Cholesky vector issue")
-                        exit()
-                else:
-                    if (np.allclose(_cderi_gpu, _cderi)):  
-                        log.debug("Cholesky vectors updating correctly")
-                    else:
-                        log.debug("Cholesky vector issue")
-                        exit()
-
-            elif gpu and 0:
-                naoaux = mf.with_df.get_naoaux()
-                nao_s, nao_f = imporb_coeff.shape
-                if getattr(self, 'with_df', None) is not None:
-                    _cderi = np.zeros ((mf.with_df.get_naoaux (), nao_f*(nao_f+1)//2),dtype=imporb_coeff.dtype)
-                    return_4c2eeri=False
-                else: 
-                    _eri=np.zeros((nao_f*(nao_f+1)//2,nao_f*(nao_f+1)//2), dtype = imporb_coeff.dtype)
-                    return_4c2eeri=True
-                blksize=mf.with_df.blockdim
-                libgpu.push_mo_coeff(gpu, imporb_coeff, nao_s*nao_f)
-                libgpu.init_eri_impham(gpu, naoaux, nao_f, return_4c2eeri)
-                 
-                for k, eri1 in enumerate(mf.with_df.loop(blksize)):pass;
-                for count in range(k+1): 
-                    arg = np.array([-1, -1, count, -1], dtype = np.int32)
-                    libgpu.get_dfobj_status(gpu, id(mf.with_df),arg)
-                    naux = arg[0]
-                    libgpu.compute_eri_impham (gpu, nao_s, nao_f, blksize, naux, count, id(mf.with_df), return_4c2eeri)
-                if return_4c2eeri:
-                    libgpu.pull_eri_impham(gpu, _eri, naoaux, nao_f, return_4c2eeri)
-                    self._eri=_eri
-                else:
-                    libgpu.pull_eri_impham(gpu, _cderi, naoaux, nao_f, return_4c2eeri)
-                    self._cderi=_cderi
-            else:         
-                if not self._is_mem_enough (df_naux = mf.with_df.get_naoaux ()):
-                    raise df_eris_mem_error
-                _cderi = np.empty ((mf.with_df.get_naoaux (), nimp*(nimp+1)//2),
-                               dtype=imporb_coeff.dtype)
-                ijmosym, mij_pair, moij, ijslice = ao2mo.incore._conc_mos (imporb_coeff, imporb_coeff,
-                                                                        compact=True)
-                b0 = 0
-
-                log.debug("Doing CPU version of impham, nimp: " + str(nimp))
-                for eri1 in mf.with_df.loop ():
-                    b1 = b0 + eri1.shape[0]
-                    eri2 = _cderi[b0:b1]
-                    eri2 = ao2mo._ao2mo.nr_e2 (eri1, moij, ijslice, aosym='s2', mosym=ijmosym,out=eri2)
-                    b0 = b1
-                if getattr (self, 'with_df', None) is not None:
-                    self.with_df._cderi = _cderi
-                else:
-                    self._cderi = _cderi
-                    self._eri = np.dot (_cderi.conj ().T, _cderi)
-
+            if not self._is_mem_enough (df_naux = mf.with_df.get_naoaux ()):
+                raise df_eris_mem_error
+            _cderi = None
+            # The GPU path produces the 3-center form for every impurity: DF fragment impurities
+            # use it directly, and the non-DF pair impurities built in combine.py contract it
+            # into 4-center integrals below, exactly as the CPU path does.
+            if gpu:
+                _cderi = self._get_imporb_cderi_gpu (gpu, mf.with_df, imporb_coeff)
+                if _cderi is None:
+                    log.debug ("Impurity cderi: full-system DF blocks not usable on device; "
+                               "using CPU path")
+            if _cderi is None or log.verbose >= logger.DEBUG1:
+                _cderi_cpu = self._get_imporb_cderi_cpu (mf.with_df, imporb_coeff)
+                if _cderi is not None:
+                    err = np.amax (np.abs (_cderi - _cderi_cpu))
+                    log.debug1 ("Impurity cderi GPU vs CPU max abs diff = %e", err)
+                    if err > 1e-8:
+                        raise RuntimeError (("GPU impurity cderi disagrees with CPU "
+                                             "(max abs diff = {})").format (err))
+                _cderi = _cderi_cpu
+            if getattr (self, 'with_df', None) is not None:
+                self.with_df._cderi = _cderi
+            else:
+                self._cderi = _cderi
+                self._eri = np.dot (_cderi.conj ().T, _cderi)
         else:
             if getattr (mf, '_eri', None) is None:
                 if not mf._is_mem_enough ():
