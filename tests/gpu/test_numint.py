@@ -10,7 +10,7 @@ from pyscf.grad import rks as rks_grad
 # matrices without orbitals.
 
 ATOM = "O 0 0 0; H 0 0.76 0.59; H 0 -0.76 0.59"
-XCS = ['lda,vwn', 'pbe', 'pbe0', 'scan', 'm06-l', 'wb97m-v', 'wb97m-d3bj']
+XCS = ['lda,vwn', 'pbe', 'pbe0', 'scan', 'm06-l', 'wb97m-v']
 BLOCK_MB = 2.0 # tiny device blocks: many grid blocks per call
 
 def _mol (use_gpu=None):
@@ -22,6 +22,8 @@ def _mf (mol, xc):
     mf.xc = xc
     mf.grids.level = 2
     mf.conv_tol = 1e-11
+    # no VV10: 'wb97m-v' here is wb97m-d3bj without the D3 term, so pyscf-dispersion is not needed
+    mf.nlc = False
     return mf
 
 def setUpModule():
@@ -36,7 +38,7 @@ def setUpModule():
         dm = mf.make_rdm1()
         refs[xc] = (dm, mf._numint.nr_rks(mol, mf.grids, xc, dm))
         grad_refs[xc] = rks_grad.get_vxc(mf._numint, mol, mf.grids, xc, dm)[1]
-    mf = _mf(mol, 'wb97m-d3bj')
+    mf = _mf(mol, 'wb97m-v')
     e_scf_ref = mf.kernel()
     de_ref = mf.nuc_grad_method().kernel()
 
@@ -91,8 +93,8 @@ class KnownValues (unittest.TestCase):
                     self.assertAlmostEqual(abs(v - grad_refs[xc]).max(), 0, 10)
 
     def test_scf_energy_and_gradient (self):
-        # DF J/K and XC both on the device: wB97M-D3BJ (range-separated meta-GGA hybrid)
-        mf = _mf(_mol(self.gpu), 'wb97m-d3bj')
+        # DF J/K and XC both on the device: wB97M (range-separated meta-GGA hybrid; VV10 off)
+        mf = _mf(_mol(self.gpu), 'wb97m-v')
         e = mf.kernel()
         self.assertAlmostEqual(e, e_scf_ref, 9)
         de = mf.nuc_grad_method().kernel()
