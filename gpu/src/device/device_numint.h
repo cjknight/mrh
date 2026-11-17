@@ -34,6 +34,12 @@ using namespace MATHLIB_NS;
 // nrow selects the functional type: 1 = LDA (ncomp = 1 AO component), 4 = GGA,
 // 5 = meta-GGA without laplacian (ncomp = 4: value + gradient).
 //
+// grad = 1 (pyscf.grad.rks.get_vxc): the AO block also carries the derivative needed for the
+// nuclear gradient (ncomp_ao = 4 for LDA, 10 = value, gradient, Hessian xx,xy,xz,yy,yz,zz for
+// GGA/meta-GGA; rho still uses the first ncomp_rho), and compute_numint_vmat accumulates
+// vmat[3, nao, nao] as _d1_dot_ / _gga_grad_sum_ / _tau_grad_dot_ (no symmetrization; the caller
+// negates). wv is weight * vxc with wv[0] (GGA, meta-GGA) and wv[4] halved, as get_vxc.
+//
 // Per-device buffers are owned here (not in my_device_data); the kernel launchers
 // are implemented per platform in pm/<platform>/numint.cpp.
 class DeviceNumint {
@@ -44,7 +50,7 @@ public:
   ~DeviceNumint();
 
   // orchestration (invoked through the Device facade)
-  void init_numint(py::array_t<double> _cocc, int nao, int nocc, int nrow);
+  void init_numint(py::array_t<double> _cocc, int nao, int nocc, int nrow, int grad);
   void compute_numint_rho(py::array_t<double> _ao, py::array_t<double> _rho, int ngrid, int block);
   void compute_numint_vmat(py::array_t<double> _wv, int ngrid, int block);
   void pull_numint_vmat(py::array_t<double> _vmat);
@@ -58,6 +64,14 @@ public:
   // out[i*ngrid+g] = sum_{k<ncomp} ao[k*nao*ngrid + i*ngrid + g] * wv[k*ngrid + g]
   void numint_scale_ao(double * out, const double * ao, const double * wv, int ngrid, int nao, int ncomp);
 
+  // out[i*ngrid+g] = sum_{t<n} ao_t[i*ngrid + g] * wv_t[g]   (component pointers, n <= 4)
+  struct Terms {
+    const double * ao[4];
+    const double * wv[4];
+    int n;
+  };
+  void numint_scale_ao_terms(double * out, Terms t, int ngrid, int nao);
+
 private:
 
   struct NumintBuffers {
@@ -68,12 +82,17 @@ private:
   };
 
   NumintBuffers * select_device(int block);
+  void vmat_grad(NumintBuffers * b, int ngrid); // grad = 1 contributions of one block
 
   DeviceContext & ctx;
 
   std::vector<NumintBuffers> bufs;
 
-  int nao, nocc, nrow, ncomp;
+  int nao, nocc, nrow;
+  int grad;      // 0: nr_rks vmat[nao, nao]; 1: gradient vmat[3, nao, nao]
+  int ncomp;     // AO components used for rho (1 or 4)
+  int ncomp_ao;  // AO components pushed per block
+  int nvmat;     // 1 or 3
 
   double * h_vmat; // pinned staging for the per-device vmat pull
   int size_h_vmat;

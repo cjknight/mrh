@@ -110,7 +110,7 @@ extern "C"
                    py::array_t<double>, int, int); 
 
   //DFT numint
-  void libgpu_init_numint(void *, py::array_t<double>, int, int, int);
+  void libgpu_init_numint(void *, py::array_t<double>, int, int, int, int);
   void libgpu_compute_numint_rho(void *, py::array_t<double>, py::array_t<double>, int, int);
   void libgpu_compute_numint_vmat(void *, py::array_t<double>, int, int);
   void libgpu_pull_numint_vmat(void *, py::array_t<double>);
@@ -283,7 +283,7 @@ PYBIND11_MODULE(libgpu, m) {
   m.def("compute_Pi", &libgpu_compute_Pi, "pyscf/mcpdft/otfnal.py::energy_ot part 0.4");
   m.def("pull_Pi", &libgpu_pull_Pi, "pyscf/mcpdft/otfnal.py::energy_ot part final");
 
-  m.def("init_numint", &libgpu_init_numint, "pyscf/dft/numint.py::nr_rks: push occupied orbitals, reset vmat");
+  m.def("init_numint", &libgpu_init_numint, "pyscf/dft/numint.py::nr_rks, pyscf/grad/rks.py::get_vxc (grad=1): push occupied orbitals, reset vmat");
   m.def("compute_numint_rho", &libgpu_compute_numint_rho, "pyscf/dft/numint.py::nr_rks: rho/grad/tau of one grid block");
   m.def("compute_numint_vmat", &libgpu_compute_numint_vmat, "pyscf/dft/numint.py::nr_rks: XC matrix of one grid block");
   m.def("pull_numint_vmat", &libgpu_pull_numint_vmat, "pyscf/dft/numint.py::nr_rks: sum per-device XC matrices");

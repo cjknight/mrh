@@ -84,4 +84,32 @@ void DeviceNumint::numint_scale_ao(double * out, const double * ao, const double
 #endif
 }
 
+/* ---------------------------------------------------------------------- */
+
+void DeviceNumint::numint_scale_ao_terms(double * out, Terms t, int ngrid, int nao)
+{
+  sycl::queue * s = ctx.pm->dev_get_queue();
+
+  const size_t n = (size_t) ngrid * nao;
+  const size_t local = _NUMINT_BLOCK_SIZE;
+  size_t ngroups = (n + local - 1) / local;
+  if(ngroups > 1048576) ngroups = 1048576; // grid-stride loop covers the rest
+  const size_t global = ngroups * local;
+
+  s->parallel_for(sycl::nd_range<1>(sycl::range<1>(global), sycl::range<1>(local)),
+		  [=](sycl::nd_item<1> item) {
+    for(size_t idx = item.get_global_id(0); idx < n; idx += global) {
+      const size_t g = idx % ngrid; // idx = i*ngrid + g
+      double val = t.ao[0][idx] * t.wv[0][g];
+      for(int k=1; k<t.n; ++k) val += t.ao[k][idx] * t.wv[k][g];
+      out[idx] = val;
+    }
+  });
+
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- numint::scale_ao_terms :: ngrid= %i  nao= %i  n= %i\n", ngrid, nao, t.n);
+  ctx.pm->dev_check_errors();
+#endif
+}
+
 #endif

@@ -65,4 +65,24 @@ void DeviceNumint::numint_scale_ao(double * out, const double * ao, const double
   }
 }
 
+/* ---------------------------------------------------------------------- */
+
+void DeviceNumint::numint_scale_ao_terms(double * out, Terms t, int ngrid, int nao)
+{
+#pragma omp parallel for schedule(static)
+  for(int i=0; i<nao; ++i) {
+    double * o = out + (size_t) i * ngrid;
+    const double * a = t.ao[0] + (size_t) i * ngrid;
+    const double * w = t.wv[0];
+
+    for(int g=0; g<ngrid; ++g) o[g] = a[g] * w[g];
+
+    for(int k=1; k<t.n; ++k) {
+      a = t.ao[k] + (size_t) i * ngrid;
+      w = t.wv[k];
+      for(int g=0; g<ngrid; ++g) o[g] += a[g] * w[g];
+    }
+  }
+}
+
 #endif

@@ -7,7 +7,8 @@
 /* ---------------------------------------------------------------------- */
 
 DeviceNumint::DeviceNumint(DeviceContext & _ctx)
-  : ctx(_ctx), nao(0), nocc(0), nrow(0), ncomp(0), h_vmat(nullptr), size_h_vmat(0)
+  : ctx(_ctx), nao(0), nocc(0), nrow(0), grad(0), ncomp(0), ncomp_ao(0), nvmat(1),
+    h_vmat(nullptr), size_h_vmat(0)
 {
   NumintBuffers empty = {nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
                          0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -34,7 +35,7 @@ DeviceNumint::~DeviceNumint()
 
 /* ---------------------------------------------------------------------- */
 
-void DeviceNumint::init_numint(py::array_t<double> _cocc, int _nao, int _nocc, int _nrow)
+void DeviceNumint::init_numint(py::array_t<double> _cocc, int _nao, int _nocc, int _nrow, int _grad)
 {
   double t0 = omp_get_wtime();
 
@@ -46,7 +47,10 @@ void DeviceNumint::init_numint(py::array_t<double> _cocc, int _nao, int _nocc, i
   nao = _nao;
   nocc = _nocc;
   nrow = _nrow;
+  grad = _grad ? 1 : 0;
   ncomp = (nrow == 1) ? 1 : 4;
+  ncomp_ao = grad ? ((nrow == 1) ? 4 : 10) : ncomp;
+  nvmat = grad ? 3 : 1;
 
   py::buffer_info info_cocc = _cocc.request(); // 2D array (nao, nocc), C-contiguous
   double * cocc = static_cast<double*>(info_cocc.ptr);
@@ -56,7 +60,7 @@ void DeviceNumint::init_numint(py::array_t<double> _cocc, int _nao, int _nocc, i
     NumintBuffers & b = bufs[id];
 
     grow_array(ctx.pm, b.d_cocc, nao*nocc, b.size_cocc, "numint_cocc", FLERR);
-    grow_array(ctx.pm, b.d_vmat, nao*nao, b.size_vmat, "numint_vmat", FLERR);
+    grow_array(ctx.pm, b.d_vmat, nvmat*nao*nao, b.size_vmat, "numint_vmat", FLERR);
 
     ctx.pm->dev_push_async(b.d_cocc, cocc, nao*nocc*sizeof(double));
     ctx.pm->dev_stream_wait(); // host array is a Python temporary
@@ -84,25 +88,25 @@ void DeviceNumint::compute_numint_rho(py::array_t<double> _ao, py::array_t<doubl
 {
   double t0 = omp_get_wtime();
 
-  py::buffer_info info_ao = _ao.request();   // (ncomp, nao, ngrid), C-contiguous
+  py::buffer_info info_ao = _ao.request();   // (ncomp_ao, nao, ngrid), C-contiguous
   py::buffer_info info_rho = _rho.request(); // (nrow, ngrid), C-contiguous
   double * ao = static_cast<double*>(info_ao.ptr);
   double * rho = static_cast<double*>(info_rho.ptr);
 
-  if((size_t) info_ao.size != (size_t) ncomp * ngrid * nao) {
+  if((size_t) info_ao.size != (size_t) ncomp_ao * ngrid * nao) {
     printf("LIBGPU :: compute_numint_rho() ao has %zu elements; expected ncomp*ngrid*nao= %i*%i*%i\n",
-	   (size_t) info_ao.size, ncomp, ngrid, nao);
+	   (size_t) info_ao.size, ncomp_ao, ngrid, nao);
     exit(1);
   }
 
   NumintBuffers * b = select_device(block);
 
-  grow_array(ctx.pm, b->d_ao, ncomp*ngrid*nao, b->size_ao, "numint_ao", FLERR);
+  grow_array(ctx.pm, b->d_ao, ncomp_ao*ngrid*nao, b->size_ao, "numint_ao", FLERR);
   grow_array(ctx.pm, b->d_c, ncomp*ngrid*nocc, b->size_c, "numint_c", FLERR);
   grow_array(ctx.pm, b->d_rho, nrow*ngrid, b->size_rho, "numint_rho", FLERR);
 
   // the AO block is a Python temporary: wait for the copy before returning
-  ctx.pm->dev_push_async(b->d_ao, ao, (size_t) ncomp*ngrid*nao*sizeof(double));
+  ctx.pm->dev_push_async(b->d_ao, ao, (size_t) ncomp_ao*ngrid*nao*sizeof(double));
   ctx.pm->dev_stream_wait();
 
   // c[k](g,o) = sum_i ao[k](g,i) cocc[i,o]: column-major (ngrid x nao) . (nao x nocc), where the
@@ -149,6 +153,14 @@ void DeviceNumint::compute_numint_vmat(py::array_t<double> _wv, int ngrid, int b
 
   b->active = 1;
 
+  if(grad) {
+    vmat_grad(b, ngrid);
+
+    double t1 = omp_get_wtime();
+    LIBGPU_PROFILE(ctx, t1 - t0);
+    return;
+  }
+
   // aow = sum_{k<ncomp} ao[k] * wv[k];  vmat (+)= ao0^T . aow, as pyscf (column-major ngrid x nao
   // operands; the row-major host array holds its transpose, which does not matter since the caller
   // forms vmat + vmat^T).
@@ -193,14 +205,75 @@ void DeviceNumint::compute_numint_vmat(py::array_t<double> _wv, int ngrid, int b
 
 /* ---------------------------------------------------------------------- */
 
+// Gradient contributions of one grid block (pyscf.grad.rks.get_vxc before the final minus sign).
+// pyscf's _dot_ao_ao(ao1, ao2)[i,j] = sum_g ao1[g,i] ao2[g,j]; with column-major (ngrid x nao)
+// operands, gemm("T","N") of (ao2, ao1) gives that matrix in the row-major layout of the host.
+
+void DeviceNumint::vmat_grad(NumintBuffers * b, int ngrid)
+{
+  const size_t nn = (size_t) nao * nao;
+  const size_t na = (size_t) ngrid * nao;
+  const double * ao = b->d_ao;
+  double * aow = b->d_aow;
+
+  // Hessian components: XX, XY, XZ = 4, 5, 6; YX, YY, YZ = 5, 7, 8; ZX, ZY, ZZ = 6, 8, 9
+  const int H[3][3] = {{4, 5, 6}, {5, 7, 8}, {6, 8, 9}};
+
+  auto ao_k = [&](int k) { return ao + k * na; };
+  auto wv_k = [&](int k) { return (const double *) b->d_wv + (size_t) k * ngrid; };
+
+  // vmat[x] += ao1^T . ao2; the first product into each vmat[x] of an evaluation overwrites it
+  int first = !b->vmat_init;
+  auto dot = [&](const double * ao1, const double * ao2, int x) {
+    const double alpha = 1.0;
+    const double beta = first ? 0.0 : 1.0;
+    ctx.ml->set_handle();
+    ctx.ml->gemm((char *) "T", (char *) "N", &nao, &nao, &ngrid,
+		 &alpha, ao2, &ngrid, ao1, &ngrid,
+		 &beta, b->d_vmat + x * nn, &nao);
+  };
+
+  // _d1_dot_(vmat, ao[1:4], sum_k ao[k] * wv[k]): k < 1 for LDA, k < 4 for GGA/meta-GGA
+  numint_scale_ao(aow, ao, b->d_wv, ngrid, nao, ncomp);
+  for(int x=0; x<3; ++x) dot(ao_k(1+x), aow, x);
+  first = 0;
+  b->vmat_init = 1;
+
+  if(nrow == 1) return;
+
+  // _d1_dot_(vmat, _make_dR_dao_w(ao, wv), ao[0])
+  for(int x=0; x<3; ++x) {
+    Terms t = {{ao_k(1+x), ao_k(H[x][0]), ao_k(H[x][1]), ao_k(H[x][2])},
+	       {wv_k(0), wv_k(1), wv_k(2), wv_k(3)}, 4};
+    numint_scale_ao_terms(aow, t, ngrid, nao);
+    dot(aow, ao_k(0), x);
+  }
+
+  if(nrow < 5) return;
+
+  // _tau_grad_dot_: for d, vmat[x] += ao[H[x][d]]^T . (ao[1+d] * wv[4])
+  for(int d=0; d<3; ++d) {
+    Terms t = {{ao_k(1+d), nullptr, nullptr, nullptr}, {wv_k(4), nullptr, nullptr, nullptr}, 1};
+    numint_scale_ao_terms(aow, t, ngrid, nao);
+    for(int x=0; x<3; ++x) dot(ao_k(H[x][d]), aow, x);
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
 void DeviceNumint::pull_numint_vmat(py::array_t<double> _vmat)
 {
   double t0 = omp_get_wtime();
 
-  py::buffer_info info_vmat = _vmat.request(); // (nao, nao); accumulated into
+  py::buffer_info info_vmat = _vmat.request(); // (nao, nao) or (3, nao, nao); accumulated into
   double * vmat = static_cast<double*>(info_vmat.ptr);
 
-  const int N = nao * nao;
+  const int N = nvmat * nao * nao;
+
+  if((size_t) info_vmat.size != (size_t) N) {
+    printf("LIBGPU :: pull_numint_vmat() vmat has %zu elements; expected %i\n", (size_t) info_vmat.size, N);
+    exit(1);
+  }
 
   grow_array_host(ctx.pm, h_vmat, N, size_h_vmat, "h:numint_vmat");
 
@@ -227,8 +300,8 @@ void DeviceNumint::pull_numint_vmat(py::array_t<double> _vmat)
 /* Device facade forwarders                                               */
 /* ---------------------------------------------------------------------- */
 
-void Device::init_numint(py::array_t<double> _cocc, int nao, int nocc, int nrow)
-{ _numint->init_numint(_cocc, nao, nocc, nrow); }
+void Device::init_numint(py::array_t<double> _cocc, int nao, int nocc, int nrow, int grad)
+{ _numint->init_numint(_cocc, nao, nocc, nrow, grad); }
 
 void Device::compute_numint_rho(py::array_t<double> _ao, py::array_t<double> _rho, int ngrid, int block)
 { _numint->compute_numint_rho(_ao, _rho, ngrid, block); }

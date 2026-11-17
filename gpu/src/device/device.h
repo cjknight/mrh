@@ -147,7 +147,7 @@ public :
   void pull_Pi (py::array_t<double>, int, int); 
 
   //DFT numint (nr_rks) -> DeviceNumint
-  void init_numint(py::array_t<double>, int, int, int);
+  void init_numint(py::array_t<double>, int, int, int, int);
   void compute_numint_rho(py::array_t<double>, py::array_t<double>, int, int);
   void compute_numint_vmat(py::array_t<double>, int, int);
   void pull_numint_vmat(py::array_t<double>);

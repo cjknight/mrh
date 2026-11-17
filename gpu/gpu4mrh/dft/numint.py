@@ -20,7 +20,7 @@ from gpu4mrh.lib.utils import resolve_use_gpu
 from mrh.my_pyscf.gpu import libgpu
 
 # Device memory cap per grid block for the AO values plus one work array, in MB:
-# (ncomp + 1) * ngrid * nao * 8 bytes, ncomp = 1 (LDA) or 4 (GGA, meta-GGA).
+# (ncomp + 1) * ngrid * nao * 8 bytes, ncomp = AO components (1 or 4; gradient 4 or 10).
 max_block_mb = 4000
 
 _NROW = {'LDA': 1, 'GGA': 4, 'MGGA': 5}
@@ -58,55 +58,76 @@ def _grid_blocks (ngrids, nao, ncomp, ndev):
 def _laplacian_mgga (xc_code):
     return any (x in xc_code.upper () for x in ('CC06', 'CS', 'BR89', 'MK00'))
 
-def nr_rks (ni, mol, grids, xc_code, dms, relativity=0, hermi=1,
-            max_memory=2000, verbose=None):
+def gpu_cocc (ni, mol, xc_code, dms):
+    '''(gpu, cocc) if this XC evaluation can run on the device, else (None, None).'''
     gpu = resolve_use_gpu (mol)
     xctype = ni._xc_type (xc_code)
-    cocc = None
-    if gpu is not None and xctype in _NROW and not (xctype == 'MGGA' and _laplacian_mgga (xc_code)):
-        cocc = _occupied_orbitals (dms)
+    if gpu is None or xctype not in _NROW or (xctype == 'MGGA' and _laplacian_mgga (xc_code)):
+        return None, None
+    cocc = _occupied_orbitals (dms)
+    if cocc is None: return None, None
+    return gpu, cocc
+
+def xc_block_loop (gpu, ni, mol, grids, xc_code, cocc, vmat, grad, block_weights):
+    '''Device XC integration over the grid blocks (see module docstring). block_weights
+    (rho[nrow, ng], weight[ng]) -> wv[nrow, ng] does the host part of each block (libxc);
+    the per-device matrices are summed into vmat ((nao, nao), or (3, nao, nao) for grad).'''
+    if grids.coords is None:
+        grids.build (with_non0tab=True)
+    non0tab = grids.non0tab if mol is grids.mol else None
+    xctype = ni._xc_type (xc_code)
+    nao = mol.nao
+    nocc = cocc.shape[1]
+    nrow = _NROW[xctype]
+    ao_deriv = (0 if xctype == 'LDA' else 1) + int (bool (grad))
+    ncomp = (1, 4, 10)[ao_deriv]
+    ngrids = grids.weights.size
+    if nocc == 0: return vmat
+
+    libgpu.init_numint (gpu, cocc, nao, nocc, nrow, int (bool (grad)))
+    ndev = libgpu.get_num_devices (gpu)
+    for block, (p0, p1) in enumerate (_grid_blocks (ngrids, nao, ncomp, ndev)):
+        ng = p1 - p0
+        mask = None if non0tab is None else non0tab[p0//BLKSIZE:]
+        ao = ni.eval_ao (mol, grids.coords[p0:p1], deriv=ao_deriv, non0tab=mask,
+                         cutoff=grids.cutoff)
+        # eval_ao's memory order is (ncomp, nao, ngrid): pass that buffer, no copy
+        ao = numpy.ascontiguousarray (ao.reshape (ncomp, ng, nao).transpose (0,2,1))
+        rho = numpy.empty ((nrow, ng))
+        libgpu.compute_numint_rho (gpu, ao, rho, ng, block)
+        ao = None
+        wv = numpy.ascontiguousarray (block_weights (rho, grids.weights[p0:p1]))
+        libgpu.compute_numint_vmat (gpu, wv, ng, block)
+    libgpu.pull_numint_vmat (gpu, vmat)
+    return vmat
+
+def nr_rks (ni, mol, grids, xc_code, dms, relativity=0, hermi=1,
+            max_memory=2000, verbose=None):
+    gpu, cocc = gpu_cocc (ni, mol, xc_code, dms)
     if cocc is None:
         return _cpu_nr_rks (ni, mol, grids, xc_code, dms, relativity=relativity, hermi=hermi,
                             max_memory=max_memory, verbose=verbose)
 
     t0 = (logger.process_clock (), logger.perf_counter ())
-    if grids.coords is None:
-        grids.build (with_non0tab=True)
-    non0tab = grids.non0tab if mol is grids.mol else None
-    nao = mol.nao
-    nocc = cocc.shape[1]
+    xctype = ni._xc_type (xc_code)
     nrow = _NROW[xctype]
-    ao_deriv = 0 if xctype == 'LDA' else 1
-    ncomp = 1 if xctype == 'LDA' else 4
-    ngrids = grids.weights.size
+    nao = mol.nao
+    acc = [0.0, 0.0] # nelec, excsum
 
-    vmat = numpy.zeros ((nao, nao))
-    nelec = excsum = 0.0
-    if nocc > 0:
-        libgpu.init_numint (gpu, cocc, nao, nocc, nrow)
-        ndev = libgpu.get_num_devices (gpu)
-        for block, (p0, p1) in enumerate (_grid_blocks (ngrids, nao, ncomp, ndev)):
-            ng = p1 - p0
-            weight = grids.weights[p0:p1]
-            mask = None if non0tab is None else non0tab[p0//BLKSIZE:]
-            ao = ni.eval_ao (mol, grids.coords[p0:p1], deriv=ao_deriv, non0tab=mask,
-                             cutoff=grids.cutoff)
-            # eval_ao's memory order is (ncomp, nao, ngrid): pass that buffer, no copy
-            ao = numpy.ascontiguousarray (ao.reshape (ncomp, ng, nao).transpose (0,2,1))
-            rho = numpy.empty ((nrow, ng))
-            libgpu.compute_numint_rho (gpu, ao, rho, ng, block)
-            ao = None
-            rho_xc = rho[0] if xctype == 'LDA' else rho
-            exc, vxc = ni.eval_xc_eff (xc_code, rho_xc, deriv=1, xctype=xctype, spin=0)[:2]
-            den = rho[0] * weight
-            nelec += den.sum ()
-            excsum += numpy.dot (den, exc)
-            wv = numpy.empty ((nrow, ng))
-            wv[:] = weight * vxc.reshape (nrow, ng)
-            wv[0] *= .5 # vmat + vmat.T at the end
-            if nrow == 5: wv[4] *= .5 # 1/2 in tau
-            libgpu.compute_numint_vmat (gpu, wv, ng, block)
-        libgpu.pull_numint_vmat (gpu, vmat)
+    def block_weights (rho, weight):
+        rho_xc = rho[0] if xctype == 'LDA' else rho
+        exc, vxc = ni.eval_xc_eff (xc_code, rho_xc, deriv=1, xctype=xctype, spin=0)[:2]
+        den = rho[0] * weight
+        acc[0] += den.sum ()
+        acc[1] += numpy.dot (den, exc)
+        wv = weight * vxc.reshape (nrow, -1)
+        wv[0] *= .5 # vmat + vmat.T at the end
+        if nrow == 5: wv[4] *= .5 # 1/2 in tau
+        return wv
+
+    vmat = xc_block_loop (gpu, ni, mol, grids, xc_code, cocc, numpy.zeros ((nao, nao)), False,
+                          block_weights)
+    nelec, excsum = acc
     vmat = vmat + vmat.T
     logger.timer (mol, 'gpu4mrh nr_rks', *t0)
 

@@ -97,4 +97,41 @@ void DeviceNumint::numint_scale_ao(double * out, const double * ao, const double
 #endif
 }
 
+/* ---------------------------------------------------------------------- */
+
+// grid-stride loop over the ngrid*nao elements of out
+__global__ void _numint_scale_ao_terms(double * out, DeviceNumint::Terms t, int ngrid, int nao)
+{
+  const size_t n = (size_t) ngrid * nao;
+  const size_t step = (size_t) blockDim.x * gridDim.x;
+
+  for(size_t idx = (size_t) blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += step) {
+    const size_t g = idx % ngrid; // idx = i*ngrid + g
+    double val = t.ao[0][idx] * t.wv[0][g];
+    for(int k=1; k<t.n; ++k) val += t.ao[k][idx] * t.wv[k][g];
+    out[idx] = val;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void DeviceNumint::numint_scale_ao_terms(double * out, Terms t, int ngrid, int nao)
+{
+  const size_t n = (size_t) ngrid * nao;
+  size_t nblocks = (n + _NUMINT_BLOCK_SIZE - 1) / _NUMINT_BLOCK_SIZE;
+  if(nblocks > 1048576) nblocks = 1048576; // grid-stride loop covers the rest
+
+  dim3 block_size(_NUMINT_BLOCK_SIZE, 1, 1);
+  dim3 grid_size((unsigned int) nblocks, 1, 1);
+
+  cudaStream_t s = *(ctx.pm->dev_get_queue());
+
+  _numint_scale_ao_terms<<<grid_size, block_size, 0, s>>>(out, t, ngrid, nao);
+
+#ifdef _DEBUG_DEVICE
+  printf("LIBGPU ::  -- numint::scale_ao_terms :: ngrid= %i  nao= %i  n= %i\n", ngrid, nao, t.n);
+  ctx.pm->dev_check_errors();
+#endif
+}
+
 #endif

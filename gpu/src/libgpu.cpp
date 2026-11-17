@@ -400,10 +400,10 @@ void libgpu_pull_Pi (void * ptr,
 
 /* ---------------------------------------------------------------------- */
 
-void libgpu_init_numint(void * ptr, py::array_t<double> cocc, int nao, int nocc, int nrow)
+void libgpu_init_numint(void * ptr, py::array_t<double> cocc, int nao, int nocc, int nrow, int grad)
 {
   LIBGPU_DEVICE(ptr)
-  dev->init_numint(cocc, nao, nocc, nrow);
+  dev->init_numint(cocc, nao, nocc, nrow, grad);
 }
 
 /* ---------------------------------------------------------------------- */
