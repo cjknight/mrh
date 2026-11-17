@@ -11,6 +11,7 @@ from pyscf.df.df import DF
 
 ATOM = "O 0 0 0; H 0 0.76 0.59; H 0 -0.76 0.59"
 BLOCKDIM = 20
+OMEGA = 0.33
 
 def _make (use_gpu=None):
     kwargs = {} if use_gpu is None else {'use_gpu': use_gpu}
@@ -23,16 +24,18 @@ def _make (use_gpu=None):
     return mf
 
 def setUpModule():
-    global e_ref, dm_ref, vj_ref
+    global e_ref, dm_ref, vj_ref, vk_ref, vklr_ref
     assert getattr(lib.param, 'use_gpu', None) is None
     mf = _make()
     e_ref = mf.kernel()
     dm_ref = mf.make_rdm1()
     vj_ref = mf.with_df.get_jk(dm_ref, with_k=False)[0]
+    vk_ref = mf.with_df.get_jk(dm_ref, with_j=False)[1]
+    vklr_ref = mf.with_df.get_jk(dm_ref, with_j=False, omega=OMEGA)[1]
 
 def tearDownModule():
-    global e_ref, dm_ref, vj_ref
-    del e_ref, dm_ref, vj_ref
+    global e_ref, dm_ref, vj_ref, vk_ref, vklr_ref
+    del e_ref, dm_ref, vj_ref, vk_ref, vklr_ref
 
 class KnownValues (unittest.TestCase):
 
@@ -76,6 +79,18 @@ class KnownValues (unittest.TestCase):
         mf.kernel()
         vj = mf.with_df.get_jk(dm_ref, with_k=False)[0]
         self.assertAlmostEqual(abs(vj - vj_ref).max(), 0, 9)
+
+    def test_k_only (self):
+        # with_j=False: libgpu skips J; vj is 0 as in pyscf.df.df_jk.get_jk. Twice: host blocks, then cache.
+        mf = _make(self.gpu)
+        for it in range(2):
+            vj, vk = mf.with_df.get_jk(dm_ref, with_j=False)
+            vjlr, vklr = mf.with_df.get_jk(dm_ref, with_j=False, omega=OMEGA)
+            with self.subTest(it=it):
+                self.assertIs(vj, 0)
+                self.assertIs(vjlr, 0)
+                self.assertAlmostEqual(abs(vk - vk_ref).max(), 0, 9)
+                self.assertAlmostEqual(abs(vklr - vklr_ref).max(), 0, 9)
 
     def test_other_partition_not_trusted (self):
         mf = _make(self.gpu)

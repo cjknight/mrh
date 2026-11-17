@@ -35,9 +35,9 @@ public:
   void get_jk(int naux, int nao, int nset,
               py::array_t<double> _eri1, py::array_t<double> _dmtril, py::list & _dms_list,
               py::array_t<double> _vj, py::array_t<double> _vk,
-              int with_k, int count, size_t addr_dfobj);
+              int with_k, int count, size_t addr_dfobj, int with_j);
   void pull_get_jk(py::array_t<double> _vj, py::array_t<double> _vk,
-                   int nao, int nset, int with_k);
+                   int nao, int nset, int with_k, int with_j);
 
   // kernel launchers (implemented in pm/<platform>/jk.cpp)
   void getjk_rho(double *, double *, double *, int, int, int);
@@ -51,8 +51,8 @@ private:
   // *_staged stages through the pinned host buffers buf_vj/buf_vk.
   void push_dmtril_p2p(my_device_data *, double *, int, int, int);
   void push_dmtril_staged(my_device_data *, double *, int, int, int);
-  void pull_get_jk_p2p(py::array_t<double>, py::array_t<double>, int, int, int);
-  void pull_get_jk_staged(py::array_t<double>, py::array_t<double>, int, int, int);
+  void pull_get_jk_p2p(py::array_t<double>, py::array_t<double>, int, int, int, int);
+  void pull_get_jk_staged(py::array_t<double>, py::array_t<double>, int, int, int, int);
 
   DeviceContext & ctx;
 

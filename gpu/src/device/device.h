@@ -90,8 +90,8 @@ public :
   void get_jk(int, int, int,
 	      py::array_t<double>, py::array_t<double>, py::list &,
 	      py::array_t<double>, py::array_t<double>,
-	      int, int, size_t);
-  void pull_get_jk(py::array_t<double>, py::array_t<double>, int, int, int);
+	      int, int, size_t, int);
+  void pull_get_jk(py::array_t<double>, py::array_t<double>, int, int, int, int);
 
   void set_update_dfobj_(int); // forwarder -> DeviceCache
   void get_dfobj_status(size_t, py::array_t<int>); // forwarder -> DeviceCache

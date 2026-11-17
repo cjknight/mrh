@@ -38,9 +38,9 @@ extern "C"
 			     int, int, int,
 			     py::array_t<double>, py::array_t<double>, py::list &,
 			     py::array_t<double>, py::array_t<double>,
-			     int, int, size_t);
+			     int, int, size_t, int);
   
-  void libgpu_pull_get_jk(void *, py::array_t<double>, py::array_t<double>, int, int, int);
+  void libgpu_pull_get_jk(void *, py::array_t<double>, py::array_t<double>, int, int, int, int);
   
   //AO2MO
   void libgpu_push_mo_coeff(void *, 
