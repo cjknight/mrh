@@ -259,4 +259,36 @@ void MATHLIB::gemm_batch(const char * transa, const char * transb,
 #endif
 }
 
+/* ---------------------------------------------------------------------- */
+
+void MATHLIB::trsm(const char * side, const char * uplo, const char * transa, const char * diag,
+		   const int * m, const int * n,
+		   const double * alpha, const double * a, const int * lda,
+		   double * b, const int * ldb)
+{
+#ifdef _DEBUG_ML
+  printf("LIBGPU :: Inside MATHLIB::trsm()\n");
+#endif
+
+  sycl::queue * q = pm_->dev_get_queue();
+
+  using oneapi::mkl::transpose;
+
+  oneapi::mkl::side sd = (side[0] == 'L' || side[0] == 'l') ? oneapi::mkl::side::left : oneapi::mkl::side::right;
+  oneapi::mkl::uplo ul = (uplo[0] == 'L' || uplo[0] == 'l') ? oneapi::mkl::uplo::lower : oneapi::mkl::uplo::upper;
+  transpose ta = (transa[0] == 'N' || transa[0] == 'n') ? transpose::nontrans :
+    ((transa[0] == 'T' || transa[0] == 't') ? transpose::trans : transpose::conjtrans);
+  oneapi::mkl::diag dg = (diag[0] == 'U' || diag[0] == 'u') ? oneapi::mkl::diag::unit : oneapi::mkl::diag::nonunit;
+
+#if defined(_GPU_SYCL_CUDA)
+  oneapi::mkl::blas::column_major::trsm(*q, sd, ul, ta, dg, *m, *n, *alpha, a, *lda, b, *ldb);
+#else
+  oneapi::mkl::blas::trsm(*q, sd, ul, ta, dg, *m, *n, *alpha, a, *lda, b, *ldb);
+#endif
+
+#ifdef _DEBUG_ML
+  printf("LIBGPU ::  -- Leaving MATHLIB::trsm()\n");
+#endif
+}
+
 #endif

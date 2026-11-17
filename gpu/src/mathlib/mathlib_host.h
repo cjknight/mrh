@@ -53,6 +53,14 @@ namespace MATHLIB_NS {
 		    const double * beta, double * c, const int * ldc, const int * strideC,
 		    const int * batchCount);
 
+    // triangular solve with multiple right-hand sides (BLAS dtrsm, column-major):
+    // op(A) X = alpha B (side "L") or X op(A) = alpha B (side "R"); X overwrites B
+    void trsm(const char * side, const char * uplo, const char * transa, const char * diag,
+	      const int * m, const int * n,
+	      const double * alpha, const double * a, const int * lda,
+	      double * b, const int * ldb);
+
+
   private:
     // shared by gemm() and gemm_batch()'s loop; does no PROFILE_ML accounting so a
     // batched call is recorded once rather than once per batch member

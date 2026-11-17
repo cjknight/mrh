@@ -323,4 +323,32 @@ void MATHLIB::gemm_batch(const char * transa, const char * transb,
 #endif
 }
 
+/* ---------------------------------------------------------------------- */
+
+void MATHLIB::trsm(const char * side, const char * uplo, const char * transa, const char * diag,
+		   const int * m, const int * n,
+		   const double * alpha, const double * a, const int * lda,
+		   double * b, const int * ldb)
+{
+#ifdef _DEBUG_ML
+  printf("LIBGPU :: Inside MATHLIB::trsm()\n");
+#endif
+
+  cublasHandle_t * h = current_handle;
+
+  cublasSideMode_t sd = (side[0] == 'L' || side[0] == 'l') ? CUBLAS_SIDE_LEFT : CUBLAS_SIDE_RIGHT;
+  cublasFillMode_t ul = (uplo[0] == 'L' || uplo[0] == 'l') ? CUBLAS_FILL_MODE_LOWER : CUBLAS_FILL_MODE_UPPER;
+  cublasOperation_t ta = (transa[0] == 'N' || transa[0] == 'n') ? CUBLAS_OP_N :
+    ((transa[0] == 'T' || transa[0] == 't') ? CUBLAS_OP_T : CUBLAS_OP_C);
+  cublasDiagType_t dg = (diag[0] == 'U' || diag[0] == 'u') ? CUBLAS_DIAG_UNIT : CUBLAS_DIAG_NON_UNIT;
+
+  cublasDtrsm(*h, sd, ul, ta, dg, *m, *n, alpha, a, *lda, b, *ldb);
+
+  _CUDA_CHECK_ERRORS();
+
+#ifdef _DEBUG_ML
+  printf("LIBGPU ::  -- Leaving MATHLIB::trsm()\n");
+#endif
+}
+
 #endif

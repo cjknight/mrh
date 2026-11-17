@@ -20,6 +20,10 @@ extern "C" {
               const double * alpha, const double * a, const int * lda,
               const double * b, const int * ldb,
               const double * beta, double * c, const int * ldc);
+  void dtrsm_(const char * side, const char * uplo, const char * transa, const char * diag,
+              const int * m, const int * n,
+              const double * alpha, const double * a, const int * lda,
+              double * b, const int * ldb);
   void dsymm_(const char * side, const char * uplo,
               const int * m, const int * n,
               const double * alpha, const double * a, const int * lda,
@@ -180,6 +184,24 @@ void MATHLIB::gemm_batch(const char * transa, const char * transb,
     double * ci = c + i * (*strideC);
     gemm_impl(tA, tB, m, n, k, alpha, ai, lda, bi, ldb, beta, ci, ldc);
   }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void MATHLIB::trsm(const char * side, const char * uplo, const char * transa, const char * diag,
+		   const int * m, const int * n,
+		   const double * alpha, const double * a, const int * lda,
+		   double * b, const int * ldb)
+{
+#ifdef _DEBUG_ML
+  printf("LIBGPU :: Inside MATHLIB::trsm()\n");
+#endif
+
+  dtrsm_(side, uplo, transa, diag, m, n, alpha, a, lda, b, ldb);
+
+#ifdef _DEBUG_ML
+  printf("LIBGPU ::  -- Leaving MATHLIB::trsm()\n");
+#endif
 }
 
 #endif
