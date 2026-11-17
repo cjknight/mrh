@@ -399,6 +399,38 @@ void libgpu_pull_Pi (void * ptr,
 }
 
 /* ---------------------------------------------------------------------- */
+
+void libgpu_init_numint(void * ptr, py::array_t<double> cocc, int nao, int nocc, int nrow)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->init_numint(cocc, nao, nocc, nrow);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_compute_numint_rho(void * ptr, py::array_t<double> ao, py::array_t<double> rho, int ngrid, int block)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->compute_numint_rho(ao, rho, ngrid, block);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_compute_numint_vmat(void * ptr, py::array_t<double> wv, int ngrid, int block)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->compute_numint_vmat(wv, ngrid, block);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_pull_numint_vmat(void * ptr, py::array_t<double> vmat)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->pull_numint_vmat(vmat);
+}
+
+/* ---------------------------------------------------------------------- */
 void libgpu_init_tdm1(void * ptr, 
                       int norb)
 {

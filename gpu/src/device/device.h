@@ -25,6 +25,7 @@ namespace py = pybind11;
 #include "device_h2eff.h"
 #include "device_ao2mo.h"
 #include "device_fci.h"
+#include "device_numint.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -144,6 +145,12 @@ public :
   void compute_rho_to_Pi (py::array_t<double>, int, int); 
   void compute_Pi (int, int, int, int); 
   void pull_Pi (py::array_t<double>, int, int); 
+
+  //DFT numint (nr_rks) -> DeviceNumint
+  void init_numint(py::array_t<double>, int, int, int);
+  void compute_numint_rho(py::array_t<double>, py::array_t<double>, int, int);
+  void compute_numint_vmat(py::array_t<double>, int, int);
+  void pull_numint_vmat(py::array_t<double>);
 
   //FCI (tdm/rdm orchestration -> DeviceFci via _fci shims)
   void init_tdm1(int);
@@ -276,6 +283,7 @@ private:
   double * pin_bufpa;
 
   DeviceAo2mo * _ao2mo; // ao2mo domain; owns buf_j_pc/buf_k_pc/buf_ppaa/buf_papa staging
+  DeviceNumint * _numint; // DFT numint domain; owns its per-device buffers and h_vmat staging
   DeviceFci * _fci;     // fci domain; owns h_bravecs/h_ketvecs/h_dm1_full/h_dm2_full/h_dm2_p_full staging
 
   // DEPRECATED: legacy integral engine helpers (fdrv/ftrans/fmmm/my_AO2MOEnvs/

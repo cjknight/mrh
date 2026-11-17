@@ -48,7 +48,7 @@ CUDA_CXXFLAGS += $(EXTRA_CUDA_CXXFLAGS)
 CUDA_CXXFLAGS += -MMD
 
 # -- subset of src files with cuda kernels (need nvcc compiler)
-CUDA_SRC = pm/cuda/pm_cuda.cpp pm/cuda/jk.cpp pm/cuda/ao2mo.cpp pm/cuda/h2eff.cpp pm/cuda/impham.cpp pm/cuda/pdft.cpp pm/cuda/fci.cpp pm/cuda/utilities.cpp
+CUDA_SRC = pm/cuda/pm_cuda.cpp pm/cuda/jk.cpp pm/cuda/ao2mo.cpp pm/cuda/h2eff.cpp pm/cuda/impham.cpp pm/cuda/pdft.cpp pm/cuda/fci.cpp pm/cuda/utilities.cpp pm/cuda/numint.cpp
 CUDA_INC = $(CUDA_SRC:.cpp=.h)
 TMP0 = $(CUDA_SRC:pm/%=%)
 CUDA_OBJ = $(TMP0:.cpp=.o)
