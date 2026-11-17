@@ -115,6 +115,17 @@ extern "C"
   void libgpu_compute_numint_vmat(void *, py::array_t<double>, int, int);
   void libgpu_pull_numint_vmat(void *, py::array_t<double>);
 
+  //DF J/K gradient
+  void libgpu_init_dfgrad(void *, py::array_t<double>, py::array_t<double>, py::array_t<double>, py::array_t<double>,
+			  py::array_t<double>, int, int, int, int, int);
+  void libgpu_compute_dfgrad_rhok(void *, py::array_t<double>, py::array_t<double>, int, int, int);
+  void libgpu_pull_dfgrad_rho(void *, py::array_t<double>, py::array_t<double>);
+  void libgpu_set_dfgrad_rhoj(void *, py::array_t<double>);
+  void libgpu_compute_dfgrad_ip1(void *, py::array_t<double>, py::array_t<double>, int, int, int);
+  void libgpu_compute_dfgrad_ip2(void *, py::array_t<double>, py::array_t<double>, int, int, int);
+  void libgpu_pull_dfgrad(void *, py::array_t<double>, py::array_t<double>, py::array_t<double>, py::array_t<double>);
+  void libgpu_free_dfgrad(void *);
+
   //FCI
   void libgpu_init_tdm1(void *,
                        int);
@@ -287,6 +298,15 @@ PYBIND11_MODULE(libgpu, m) {
   m.def("compute_numint_rho", &libgpu_compute_numint_rho, "pyscf/dft/numint.py::nr_rks: rho/grad/tau of one grid block");
   m.def("compute_numint_vmat", &libgpu_compute_numint_vmat, "pyscf/dft/numint.py::nr_rks: XC matrix of one grid block");
   m.def("pull_numint_vmat", &libgpu_pull_numint_vmat, "pyscf/dft/numint.py::nr_rks: sum per-device XC matrices");
+
+  m.def("init_dfgrad", &libgpu_init_dfgrad, "pyscf/df/grad/rhf.py::get_jk: push orbitals, dm, metric inverse; reset sums");
+  m.def("compute_dfgrad_rhok", &libgpu_compute_dfgrad_rhok, "pyscf/df/grad/rhf.py::get_jk: rhoj, rhok, rhok_oo of one AO block of (P|mn)");
+  m.def("pull_dfgrad_rho", &libgpu_pull_dfgrad_rho, "pyscf/df/grad/rhf.py::get_jk: sum per-device rhoj (unsolved) and rhok_oo");
+  m.def("set_dfgrad_rhoj", &libgpu_set_dfgrad_rhoj, "pyscf/df/grad/rhf.py::get_jk: push solved rhoj");
+  m.def("compute_dfgrad_ip1", &libgpu_compute_dfgrad_ip1, "pyscf/df/grad/rhf.py::get_jk: vj, vk of one aux block of (d i j|P)");
+  m.def("compute_dfgrad_ip2", &libgpu_compute_dfgrad_ip2, "pyscf/df/grad/rhf.py::get_jk: drhoj, vkaux of one aux block of (i j|d P)");
+  m.def("pull_dfgrad", &libgpu_pull_dfgrad, "pyscf/df/grad/rhf.py::get_jk: sum per-device vj, vk, drhoj, vkaux");
+  m.def("free_dfgrad", &libgpu_free_dfgrad, "pyscf/df/grad/rhf.py::get_jk: release device buffers");
   // DEPRECATED: legacy integral engine (orbital_response) -- commented out.
   //m.def("orbital_response", &libgpu_orbital_response, "mrh/lasscf_sync_o0.py::orbital_response");
   // RDM can be used from previously made JKs

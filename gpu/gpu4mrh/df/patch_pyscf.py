@@ -20,3 +20,11 @@ def _reset(self, mol=None):
 
 DF.reset = _reset
 print(f'{DF}.reset monkey-patched to evict the GPU ERI cache')
+
+from pyscf.df.grad import rhf as df_rhf_grad
+from gpu4mrh.df import grad_rhf as gpu_df_rhf_grad
+
+# Gradients.get_jk (and through it get_k, the DF-RKS gradient's get_veff) looks get_jk up on the
+# pyscf.df.grad.rhf module at call time. Falls back to the CPU function for what it does not handle.
+df_rhf_grad.get_jk = gpu_df_rhf_grad.get_jk
+print(f'{df_rhf_grad.__name__}.get_jk monkey-patched to GPU accelerated version')

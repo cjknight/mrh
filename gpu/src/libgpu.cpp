@@ -431,6 +431,70 @@ void libgpu_pull_numint_vmat(void * ptr, py::array_t<double> vmat)
 }
 
 /* ---------------------------------------------------------------------- */
+
+void libgpu_init_dfgrad(void * ptr, py::array_t<double> orbol, py::array_t<double> orbor, py::array_t<double> dm, py::array_t<double> dm_tril, py::array_t<double> jinv, int nao, int naux, int nocc, int with_j, int aux_response)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->init_dfgrad(orbol, orbor, dm, dm_tril, jinv, nao, naux, nocc, with_j, aux_response);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_compute_dfgrad_rhok(void * ptr, py::array_t<double> int3c, py::array_t<double> rhok, int p0, int nb, int block)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->compute_dfgrad_rhok(int3c, rhok, p0, nb, block);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_pull_dfgrad_rho(void * ptr, py::array_t<double> rhoj, py::array_t<double> rhok_oo)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->pull_dfgrad_rho(rhoj, rhok_oo);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_set_dfgrad_rhoj(void * ptr, py::array_t<double> rhoj)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->set_dfgrad_rhoj(rhoj);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_compute_dfgrad_ip1(void * ptr, py::array_t<double> int3c, py::array_t<double> rhok, int P0, int nP, int block)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->compute_dfgrad_ip1(int3c, rhok, P0, nP, block);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_compute_dfgrad_ip2(void * ptr, py::array_t<double> int3c, py::array_t<double> rhok_oo, int P0, int nP, int block)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->compute_dfgrad_ip2(int3c, rhok_oo, P0, nP, block);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_pull_dfgrad(void * ptr, py::array_t<double> vj, py::array_t<double> vk, py::array_t<double> drhoj, py::array_t<double> vkaux)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->pull_dfgrad(vj, vk, drhoj, vkaux);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_free_dfgrad(void * ptr)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->free_dfgrad();
+}
+
+/* ---------------------------------------------------------------------- */
 void libgpu_init_tdm1(void * ptr, 
                       int norb)
 {

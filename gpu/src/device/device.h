@@ -26,6 +26,7 @@ namespace py = pybind11;
 #include "device_ao2mo.h"
 #include "device_fci.h"
 #include "device_numint.h"
+#include "device_dfgrad.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -151,6 +152,17 @@ public :
   void compute_numint_rho(py::array_t<double>, py::array_t<double>, int, int);
   void compute_numint_vmat(py::array_t<double>, int, int);
   void pull_numint_vmat(py::array_t<double>);
+
+  //DF J/K nuclear gradient (df/grad/rhf.py::get_jk) -> DeviceDFGrad
+  void init_dfgrad(py::array_t<double>, py::array_t<double>, py::array_t<double>, py::array_t<double>,
+		   py::array_t<double>, int, int, int, int, int);
+  void compute_dfgrad_rhok(py::array_t<double>, py::array_t<double>, int, int, int);
+  void pull_dfgrad_rho(py::array_t<double>, py::array_t<double>);
+  void set_dfgrad_rhoj(py::array_t<double>);
+  void compute_dfgrad_ip1(py::array_t<double>, py::array_t<double>, int, int, int);
+  void compute_dfgrad_ip2(py::array_t<double>, py::array_t<double>, int, int, int);
+  void pull_dfgrad(py::array_t<double>, py::array_t<double>, py::array_t<double>, py::array_t<double>);
+  void free_dfgrad();
 
   //FCI (tdm/rdm orchestration -> DeviceFci via _fci shims)
   void init_tdm1(int);
@@ -284,6 +296,7 @@ private:
 
   DeviceAo2mo * _ao2mo; // ao2mo domain; owns buf_j_pc/buf_k_pc/buf_ppaa/buf_papa staging
   DeviceNumint * _numint; // DFT numint domain; owns its per-device buffers and h_vmat staging
+  DeviceDFGrad * _dfgrad; // DF J/K gradient domain; owns its per-device buffers
   DeviceFci * _fci;     // fci domain; owns h_bravecs/h_ketvecs/h_dm1_full/h_dm2_full/h_dm2_p_full staging
 
   // DEPRECATED: legacy integral engine helpers (fdrv/ftrans/fmmm/my_AO2MOEnvs/
