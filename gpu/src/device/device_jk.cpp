@@ -178,9 +178,10 @@ void DeviceJk::get_jk(int naux, int nao, int nset,
   py::buffer_info info_eri1 = _eri1.request(); // 2D array (naux, nao_pair)
   py::buffer_info info_dmtril = _dmtril.request(); // 2D array (nset, nao_pair)
 
-  double * eri1 = static_cast<double*>(info_eri1.ptr);
+  // an empty host block means "use the cached device block" (no host data; a cache miss is an error)
+  double * eri1 = (info_eri1.size > 0) ? static_cast<double*>(info_eri1.ptr) : nullptr;
   double * dmtril = static_cast<double*>(info_dmtril.ptr);
-  
+
   int nao_pair = nao * (nao+1) / 2;
 
   // Bcast() from master device ; make sure devices arrays allocated

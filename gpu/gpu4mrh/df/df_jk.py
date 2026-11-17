@@ -14,8 +14,49 @@ from gpu4mrh.lib.utils import patch_cpu_kernel, resolve_use_gpu
 from mrh.my_pyscf.gpu import libgpu
 from mrh.my_pyscf.gpu import eri_cache
 
-# Setting DEBUG = True will execute both CPU (original) and GPU (new) paths checking for consistency 
+# Setting DEBUG = True will execute both CPU (original) and GPU (new) paths checking for consistency
 import math
+
+# Skip the host read of the DF blocks (dfobj.loop) when they are all cached on the device.
+# Set False to always stream the host blocks (e.g. for timing comparisons).
+skip_cached_loop = True
+
+_NO_ERI = numpy.empty((0, 0)) # empty host block: libgpu uses the cached device block
+
+def _cached_block_naux(gpu, dfobj, blksize, nao):
+    '''Per-block naux of dfobj.loop(blksize) if every block is cached on the device and no
+    refresh is pending, else None (the caller loops over the host blocks, which fills the cache).
+
+    Stale blocks are not possible here: DF.reset and garbage collection evict a dfobj's blocks
+    (mrh.my_pyscf.gpu.eri_cache), and LAS in-place rebuilds set update_dfobj, which makes
+    get_dfobj_status report a pending refresh.'''
+    if dfobj._cderi is None: return None # loop() would build it
+    arg = numpy.array([-1, -1, -1, -1], dtype=numpy.int32)
+    libgpu.get_dfobj_status(gpu, id(dfobj), arg)
+    if arg[3] or arg[2] < 0: return None
+    naoaux = dfobj.get_naoaux()
+    block_naux = [min(blksize, naoaux-b0) for b0 in range(0, naoaux, blksize)]
+    if arg[2] != len(block_naux): return None
+    nao_pair = nao * (nao+1) // 2
+    for count, naux in enumerate(block_naux):
+        arg[:] = (-1, -1, count, -1)
+        libgpu.get_dfobj_status(gpu, id(dfobj), arg)
+        if arg[0] != naux or arg[1] != nao_pair: return None # partial fill or other partition
+    return block_naux
+
+def _eri_blocks(gpu, dfobj, blksize, nao, log):
+    '''Yield (count, eri1, naux) over the DF blocks of dfobj. On the GPU path the host blocks
+    are only read when the device cache cannot supply all of them; otherwise eri1 is empty.'''
+    block_naux = None
+    if gpu and skip_cached_loop:
+        block_naux = _cached_block_naux(gpu, dfobj, blksize, nao)
+    if block_naux is None:
+        for count, eri1 in enumerate(dfobj.loop(blksize)):
+            yield count, eri1, eri1.shape[0]
+    else:
+        log.debug('df_jk: %d DF blocks of dfobj %#x from the device cache', len(block_naux), id(dfobj))
+        for count, naux in enumerate(block_naux):
+            yield count, _NO_ERI, naux
 
 def get_jk(dfobj, dm, hermi=1, with_j=True, with_k=True, direct_scf_tol=1e-13):
     gpu = resolve_use_gpu(dfobj)
@@ -62,21 +103,13 @@ def get_jk(dfobj, dm, hermi=1, with_j=True, with_k=True, direct_scf_tol=1e-13):
         #t2 = (logger.process_clock(), logger.perf_counter())
 
 #        dms = [numpy.asarray(x, order='F') for x in dms]
-        count = 0
-        for eri1 in dfobj.loop():
-            #t6 = (logger.process_clock(), logger.perf_counter())
-            naux, nao_pair = eri1.shape
+        for count, eri1, naux in _eri_blocks(gpu, dfobj, blksize, nao, log):
             if gpu:
-                #if count == 0:
                 libgpu.init_get_jk(gpu, eri1, dmtril, blksize, nset, nao, 0, count)
                 libgpu.compute_get_jk(gpu, naux, nao, nset, eri1, dmtril, dms, vj, vk, 0, count, id(dfobj))
             else:
                 rho = numpy.einsum('ix,px->ip', dmtril, eri1)
                 vj += numpy.einsum('ip,px->ix', rho, eri1)
-
-            #lib.logger.timer(dfobj, 'get_jk not with_k loop iteration',*t6)
-
-            count += 1
 
         if gpu:
             libgpu.pull_get_jk(gpu, vj, vk, nao, nset, 0)
@@ -138,69 +171,33 @@ def get_jk(dfobj, dm, hermi=1, with_j=True, with_k=True, direct_scf_tol=1e-13):
         max_memory = dfobj.max_memory - lib.current_memory()[0]
         #blksize = max(4, int(min(dfobj.blockdim, max_memory*.22e6/8/nao**2)))
 #        blksize = dfobj.blockdim # hard-coded to constant size for now
-        buf = numpy.empty((2,blksize,nao,nao))
-        
-        count = 0
-        vj = numpy.zeros_like(dmtril) # redundant? 
+        if not gpu: buf = numpy.empty((2,blksize,nao,nao))
 
-        #t3 = lib.logger.timer(dfobj, 'get_jk with_k setup',*t2)
+        vj = numpy.zeros_like(dmtril) # redundant?
 
-        load_eri = True
+        for count, eri1, naux in _eri_blocks(gpu, dfobj, blksize, nao, log):
 
-        # load_eri = False doesn't offer benefit unless deep-copies and so on. disable for now
-#        if gpu:
-#            arg = numpy.array([-1, -1, -1, -1], dtype=numpy.int32)
-#            libgpu.get_dfobj_status(gpu, id(dfobj), arg)
-#            if arg[2] > -1: load_eri = False
-
-        if load_eri:
-        
-            for eri1 in dfobj.loop(blksize): # how much time spent unnecessarily copying eri1 data?
-                #t6 = (logger.process_clock(), logger.perf_counter())
-                naux, nao_pair = eri1.shape
-
-                if gpu:
-                    #if count == 0:
-                    libgpu.init_get_jk(gpu, eri1, dmtril, blksize, nset, nao, naux, count)
-                    libgpu.compute_get_jk(gpu, naux, nao, nset, eri1, dmtril, dms, vj, vk, 1, count, id(dfobj))
-                
-                else:
-                
-                    if with_j:
-                        rho = numpy.einsum('ix,px->ip', dmtril, eri1)
-                        vj += numpy.einsum('ip,px->ix', rho, eri1)
-                    
-                    for k in range(nset):
-                        buf1 = buf[0,:naux]
-                        fdrv(ftrans, fmmm,
-                             buf1.ctypes.data_as(ctypes.c_void_p),
-                             eri1.ctypes.data_as(ctypes.c_void_p),
-                             dms[k].ctypes.data_as(ctypes.c_void_p),
-                             ctypes.c_int(naux), *rargs)
-                        
-                        buf2 = lib.unpack_tril(eri1, out=buf[1])
-                        vk[k] += lib.dot(buf1.reshape(-1,nao).T, buf2.reshape(-1,nao))
-
-                count+=1
-                #lib.logger.timer(dfobj, 'get_jk with_k loop iteration',*t6)
-
-        else:
-            
-            nblk = arg[2]
-            for count in range( arg[2] ):
-                #t6 = (logger.process_clock(), logger.perf_counter())
-                arg = numpy.array([-1, -1, count, -1], dtype=numpy.int32)
-                libgpu.get_dfobj_status(gpu, id(dfobj), arg)
-                naux = arg[0]
-                nao_pair = arg[1]
-
-                eri1 = numpy.zeros(1)
-                if count == 0: libgpu.init_get_jk(gpu, eri1, dmtril, blksize, nset, nao, naux, count)
+            if gpu:
+                libgpu.init_get_jk(gpu, eri1, dmtril, blksize, nset, nao, naux, count)
                 libgpu.compute_get_jk(gpu, naux, nao, nset, eri1, dmtril, dms, vj, vk, 1, count, id(dfobj))
-                
-                #lib.logger.timer(dfobj, 'get_jk with_k loop iteration',*t6)
-                
-        #t4 = lib.logger.timer(dfobj, 'get_jk with_k loop full',*t3)
+
+            else:
+
+                if with_j:
+                    rho = numpy.einsum('ix,px->ip', dmtril, eri1)
+                    vj += numpy.einsum('ip,px->ix', rho, eri1)
+
+                for k in range(nset):
+                    buf1 = buf[0,:naux]
+                    fdrv(ftrans, fmmm,
+                         buf1.ctypes.data_as(ctypes.c_void_p),
+                         eri1.ctypes.data_as(ctypes.c_void_p),
+                         dms[k].ctypes.data_as(ctypes.c_void_p),
+                         ctypes.c_int(naux), *rargs)
+
+                    buf2 = lib.unpack_tril(eri1, out=buf[1])
+                    vk[k] += lib.dot(buf1.reshape(-1,nao).T, buf2.reshape(-1,nao))
+
         t1 = log.timer_debug1('jk', *t1)
 
         if gpu:

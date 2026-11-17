@@ -58,10 +58,10 @@ class _ERIS:
             libgpu.init_jk_ao2mo(gpu, ncore, nmo) 
             libgpu.init_ppaa_papa_ao2mo(gpu, nmo, ncas) #initializes ppaa on pinned memory
             t1 = log.timer('init_ao2mo', *t1)
-            count = 0
-            for k, eri1 in enumerate(with_df.loop(blksize)):
-                pass;
-            for count in range(k+1):
+            # blocks are cached by a preceding get_jk on with_df with the same blksize;
+            # only their number is needed here (no host read of the DF tensor)
+            nblk = (naoaux + blksize - 1) // blksize
+            for count in range(nblk):
                 arg = numpy.array([-1, -1, count, -1], dtype = numpy.int32)
                 libgpu.get_dfobj_status(gpu, id(with_df),arg)
                 naux = arg[0]
