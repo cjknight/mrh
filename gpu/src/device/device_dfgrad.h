@@ -25,8 +25,12 @@ using namespace MATHLIB_NS;
 //
 //   A  compute_dfgrad_rhok (AO blocks [p0, p0+nb) of (P|mn), memory [P][b][i], i fastest):
 //        rhoj_raw[P] += sum_ib (P|i b) Dm[i, p0+b]                               (if with_j)
-//        Y[o][P][b]   = sum_i (P|i b) orbor[i,o];  X = Jinv Y over P
-//        rhok block   = X permuted to [P][o][b] -> host (rhok[P, o, p0+b])
+//        Y[P][o][b]   = sum_i (P|i b) orbor[i,o]; rhok = J^-1 Y over P, as pyscf's metric solver:
+//                       two triangular solves with the Cholesky factor L (metric_cd), else a
+//                       GEMM with the dense pseudo-inverse pyscf uses when the Cholesky fails
+//                       (an explicit inverse is not accurate enough: the jkfit metrics of large
+//                       molecules have cond ~1e11)
+//        rhok block   -> host (rhok[P, o, p0+b])
 //        rhok_oo[P][o][j] += sum_b rhok[P,o,p0+b] orbol[p0+b, j]                  (if aux_response)
 //   B  compute_dfgrad_ip1 (aux blocks [P0, P0+nP) of (d_x i j|P), memory [x][P][j][i]):
 //        vj[x](i,j) += sum_P rhoj[P] I_x[i,j,P]                                  (if with_j)
@@ -45,8 +49,8 @@ public:
 
   // orchestration (invoked through the Device facade)
   void init_dfgrad(py::array_t<double> _orbol, py::array_t<double> _orbor, py::array_t<double> _dm,
-		   py::array_t<double> _dm_tril, py::array_t<double> _jinv,
-		   int nao, int naux, int nocc, int with_j, int aux_response);
+		   py::array_t<double> _dm_tril, py::array_t<double> _metric,
+		   int nao, int naux, int nocc, int with_j, int aux_response, int metric_cd);
   void compute_dfgrad_rhok(py::array_t<double> _int3c, py::array_t<double> _rhok, int p0, int nb, int block);
   void pull_dfgrad_rho(py::array_t<double> _rhoj, py::array_t<double> _rhok_oo);
   void set_dfgrad_rhoj(py::array_t<double> _rhoj);
@@ -57,9 +61,6 @@ public:
   void free_dfgrad();
 
   // kernel launchers (implemented in pm/<platform>/dfgrad.cpp)
-
-  // out[b + nb*(o + nocc*P)] = in[b + nb*(P + naux*o)]
-  void dfgrad_permute(double * out, const double * in, int nb, int naux, int nocc);
 
   // out[i*(i+1)/2 + j + npair*P] = S_P[j + nao*i] (j < i), 0.5 * S_P[i + nao*i] (j == i), for symmetric
   // S_P = S + P*nao*nao; npair = nao*(nao+1)/2
@@ -87,7 +88,7 @@ private:
 
   std::vector<DFGradBuffers> bufs;
 
-  int nao, naux, nocc, npair, with_j, aux_response;
+  int nao, naux, nocc, npair, with_j, aux_response, metric_cd;
 
   double * h_buf; // pinned staging for the per-device pulls
   size_t size_h_buf;

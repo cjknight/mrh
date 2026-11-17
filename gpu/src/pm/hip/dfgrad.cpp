@@ -11,19 +11,6 @@
 
 /* ---------------------------------------------------------------------- */
 
-__global__ void _dfgrad_permute(double * out, const double * in, int nb, int naux, int nocc)
-{
-  const size_t n = (size_t) nb * nocc * naux;
-  const size_t step = (size_t) blockDim.x * gridDim.x;
-  for(size_t idx = (size_t) blockIdx.x * blockDim.x + threadIdx.x; idx < n; idx += step) {
-    const size_t b = idx % nb;
-    const size_t t = idx / nb;
-    const size_t o = t % nocc;
-    const size_t P = t / nocc;
-    out[idx] = in[b + nb * (P + (size_t) naux * o)];
-  }
-}
-
 __global__ void _dfgrad_pack_tril(double * out, const double * S, int nao, int nP)
 {
   const size_t n = (size_t) nP * nao * nao;
@@ -35,8 +22,8 @@ __global__ void _dfgrad_pack_tril(double * out, const double * S, int nao, int n
     const size_t i = t % nao;
     const size_t P = t / nao;
     if(j <= i) {
-      const double s = S[idx]; // S_P[j + nao*i]
-      out[i * (i + 1) / 2 + j + npair * P] = (j == i) ? 0.5 * s : s;
+      const double v = S[idx]; // S_P[j + nao*i]
+      out[i * (i + 1) / 2 + j + npair * P] = (j == i) ? 0.5 * v : v;
     }
   }
 }
@@ -49,21 +36,6 @@ static unsigned int _dfgrad_nblocks(size_t n)
   if(nblocks > _DFGRAD_MAX_BLOCKS) nblocks = _DFGRAD_MAX_BLOCKS; // grid-stride loop covers the rest
   if(nblocks == 0) nblocks = 1;
   return (unsigned int) nblocks;
-}
-
-void DeviceDFGrad::dfgrad_permute(double * out, const double * in, int nb, int naux, int nocc)
-{
-  dim3 block_size(_DFGRAD_BLOCK_SIZE, 1, 1);
-  dim3 grid_size(_dfgrad_nblocks((size_t) nb * nocc * naux), 1, 1);
-
-  hipStream_t s = *(ctx.pm->dev_get_queue());
-
-  _dfgrad_permute<<<grid_size, block_size, 0, s>>>(out, in, nb, naux, nocc);
-
-#ifdef _DEBUG_DEVICE
-  printf("LIBGPU ::  -- dfgrad::permute :: nb= %i  naux= %i  nocc= %i\n", nb, naux, nocc);
-  _HIP_CHECK_ERRORS();
-#endif
 }
 
 void DeviceDFGrad::dfgrad_pack_tril(double * out, const double * S, int nao, int nP)

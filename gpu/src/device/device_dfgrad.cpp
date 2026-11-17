@@ -8,7 +8,7 @@
 /* ---------------------------------------------------------------------- */
 
 DeviceDFGrad::DeviceDFGrad(DeviceContext & _ctx)
-  : ctx(_ctx), nao(0), naux(0), nocc(0), npair(0), with_j(0), aux_response(0),
+  : ctx(_ctx), nao(0), naux(0), nocc(0), npair(0), with_j(0), aux_response(0), metric_cd(0),
     h_buf(nullptr), size_h_buf(0)
 {
   DFGradBuffers empty;
@@ -79,8 +79,8 @@ static void check_size(py::array_t<double> & a, size_t n, const char * what)
 /* ---------------------------------------------------------------------- */
 
 void DeviceDFGrad::init_dfgrad(py::array_t<double> _orbol, py::array_t<double> _orbor, py::array_t<double> _dm,
-			       py::array_t<double> _dm_tril, py::array_t<double> _jinv,
-			       int _nao, int _naux, int _nocc, int _with_j, int _aux_response)
+			       py::array_t<double> _dm_tril, py::array_t<double> _metric,
+			       int _nao, int _naux, int _nocc, int _with_j, int _aux_response, int _metric_cd)
 {
   double t0 = omp_get_wtime();
 
@@ -90,19 +90,22 @@ void DeviceDFGrad::init_dfgrad(py::array_t<double> _orbol, py::array_t<double> _
   npair = nao * (nao + 1) / 2;
   with_j = _with_j;
   aux_response = _aux_response;
+  metric_cd = _metric_cd;
 
   // orbol, orbor: C-contiguous (nao, nocc); dm: C-contiguous (nao, nao) = orbor . orbol^T, passed
-  // transposed so that d_dm is its column-major copy; dm_tril: (npair); jinv: (naux, naux) symmetric
+  // transposed so that d_dm is its column-major copy; dm_tril: (npair); metric (naux, naux): the
+  // Cholesky factor L passed transposed (column-major lower triangle on the device) if metric_cd,
+  // else pyscf's dense pseudo-inverse j2c (symmetric)
   check_size(_orbol, (size_t) nao*nocc, "orbol");
   check_size(_orbor, (size_t) nao*nocc, "orbor");
   check_size(_dm, (size_t) nao*nao, "dm");
-  check_size(_jinv, (size_t) naux*naux, "jinv");
+  check_size(_metric, (size_t) naux*naux, "metric");
   if(with_j && aux_response) check_size(_dm_tril, (size_t) npair, "dm_tril");
 
   double * orbol = as_ptr(_orbol);
   double * orbor = as_ptr(_orbor);
   double * dm = as_ptr(_dm);
-  double * jinv = as_ptr(_jinv);
+  double * metric = as_ptr(_metric);
 
   // column-major copies of orbol and orbor (nao x nocc)
   std::vector<double> orbolF((size_t) nao*nocc), orborF((size_t) nao*nocc);
@@ -129,7 +132,7 @@ void DeviceDFGrad::init_dfgrad(py::array_t<double> _orbol, py::array_t<double> _
     ctx.pm->dev_push_async(b.d_orbolF, orbolF.data(), (size_t) nao*nocc*sizeof(double));
     ctx.pm->dev_push_async(b.d_orbolC, orbol, (size_t) nao*nocc*sizeof(double));
     ctx.pm->dev_push_async(b.d_orborF, orborF.data(), (size_t) nao*nocc*sizeof(double));
-    ctx.pm->dev_push_async(b.d_jinv, jinv, (size_t) naux*naux*sizeof(double));
+    ctx.pm->dev_push_async(b.d_jinv, metric, (size_t) naux*naux*sizeof(double));
 
     size_t bytes = (size_t) 3*nao*nao*sizeof(double);
     ctx.ml->memset(b.d_vk, &zero, &bytes);
@@ -179,14 +182,21 @@ void DeviceDFGrad::compute_dfgrad_rhok(py::array_t<double> _int3c, py::array_t<d
 
   check_size(_int3c, (size_t) nao*nb*naux, "int3c (A)");
   check_size(_rhok, (size_t) naux*nocc*nb, "rhok (A)");
+  double * h_int3c = as_ptr(_int3c);
+  double * h_rhok = as_ptr(_rhok);
+
+  // Release the GIL for the push and the device work: get_jk computes the next integral block
+  // in a prefetch thread (lib.map_with_prefetch), which needs the GIL to start its libcint call.
+  // All Python objects are touched above; the arrays stay alive as arguments of this call.
+  py::gil_scoped_release nogil;
 
   DFGradBuffers * b = select_device(block);
 
   grow_array(ctx.pm, b->d_int3c, nao*nb*naux, b->size_int3c, "dfgrad_int3c", FLERR);
   grow_array(ctx.pm, b->d_y, nb*naux*nocc, b->size_y, "dfgrad_y", FLERR);
-  grow_array(ctx.pm, b->d_x, nb*naux*nocc, b->size_x, "dfgrad_x", FLERR);
+  if(!metric_cd) grow_array(ctx.pm, b->d_x, nb*naux*nocc, b->size_x, "dfgrad_x", FLERR);
 
-  ctx.pm->dev_push_async(b->d_int3c, as_ptr(_int3c), (size_t) nao*nb*naux*sizeof(double));
+  ctx.pm->dev_push_async(b->d_int3c, h_int3c, (size_t) nao*nb*naux*sizeof(double));
   ctx.pm->dev_stream_wait(); // Python temporary
 
   const double one = 1.0;
@@ -201,38 +211,46 @@ void DeviceDFGrad::compute_dfgrad_rhok(py::array_t<double> _int3c, py::array_t<d
 		 &one, b->d_rhoj_raw, &inc);
   }
 
-  // Y[(b,P), o] = sum_i A[i, (b,P)] orbor[i,o]: layout [o][P][b]
+  // Y_P (nb x nocc) = A_P^T orbor, A_P = (P|i b) column-major (nao x nb): Y layout [P][o][b], i.e. the
+  // column-major (nb*nocc x naux) matrix Y[(b,o), P]
+  const int m = nb * nocc;
   {
-    const int m = nb * naux;
-    ctx.ml->set_handle();
-    ctx.ml->gemm((char *) "T", (char *) "N", &m, &nocc, &nao,
-		 &one, b->d_int3c, &nao, b->d_orborF, &nao,
-		 &zero, b->d_y, &m);
-  }
-
-  // X_o = Y_o . Jinv (nb x naux per o): X_o^T = Jinv Y_o^T, the metric solve over P
-  {
-    const int stride = nb * naux;
+    const int strideA = nao * nb;
     const int stride0 = 0;
     ctx.ml->set_handle();
-    ctx.ml->gemm_batch((char *) "N", (char *) "N", &nb, &naux, &naux,
-		       &one, b->d_y, &nb, &stride, b->d_jinv, &naux, &stride0,
-		       &zero, b->d_x, &nb, &stride, &nocc);
+    ctx.ml->gemm_batch((char *) "T", (char *) "N", &nb, &nocc, &nao,
+		       &one, b->d_int3c, &nao, &strideA, b->d_orborF, &nao, &stride0,
+		       &zero, b->d_y, &nb, &m, &naux);
   }
 
-  // rhok block [P][o][b] (reuse d_y)
-  dfgrad_permute(b->d_y, b->d_x, nb, naux, nocc);
+  // rhok = Y J^-1 over P (pyscf: J^-1 v with v = Y^T)
+  double * d_rhok = b->d_y;
+  if(metric_cd) {
+    // J = L L^T: Y <- Y L^-T, then Y <- Y L^-1
+    ctx.ml->set_handle();
+    ctx.ml->trsm((char *) "R", (char *) "L", (char *) "T", (char *) "N", &m, &naux,
+		 &one, b->d_jinv, &naux, b->d_y, &m);
+    ctx.ml->trsm((char *) "R", (char *) "L", (char *) "N", (char *) "N", &m, &naux,
+		 &one, b->d_jinv, &naux, b->d_y, &m);
+  } else {
+    // the host j2c (C order) is j2c^T column-major: X = Y j2c^T, X^T = j2c Y^T
+    ctx.ml->set_handle();
+    ctx.ml->gemm((char *) "N", (char *) "N", &m, &naux, &naux,
+		 &one, b->d_y, &m, b->d_jinv, &naux,
+		 &zero, b->d_x, &m);
+    d_rhok = b->d_x;
+  }
 
   // rhok_oo[P][o][j] += sum_b orbol[p0+b, j] rhok[P,o,b]: column-major (nocc x nocc*naux)
   if(aux_response) {
     const int n = nocc * naux;
     ctx.ml->set_handle();
     ctx.ml->gemm((char *) "N", (char *) "N", &nocc, &n, &nb,
-		 &one, b->d_orbolC + (size_t) p0*nocc, &nocc, b->d_y, &nb,
+		 &one, b->d_orbolC + (size_t) p0*nocc, &nocc, d_rhok, &nb,
 		 &one, b->d_rhok_oo, &nocc);
   }
 
-  ctx.pm->dev_pull_async(b->d_y, as_ptr(_rhok), (size_t) naux*nocc*nb*sizeof(double));
+  ctx.pm->dev_pull_async(d_rhok, h_rhok, (size_t) naux*nocc*nb*sizeof(double));
   ctx.pm->dev_stream_wait();
 
   double t1 = omp_get_wtime();
@@ -302,6 +320,13 @@ void DeviceDFGrad::compute_dfgrad_ip1(py::array_t<double> _int3c, py::array_t<do
   const size_t nn = (size_t) nao * nao;
   check_size(_int3c, 3 * nn * nP, "int3c (ip1)");
   check_size(_rhok, (size_t) nP*nocc*nao, "rhok (ip1)");
+  double * h_int3c = as_ptr(_int3c);
+  double * h_rhok = as_ptr(_rhok);
+
+  // Release the GIL for the push and the device work: get_jk computes the next integral block
+  // in a prefetch thread (lib.map_with_prefetch), which needs the GIL to start its libcint call.
+  // All Python objects are touched above; the arrays stay alive as arguments of this call.
+  py::gil_scoped_release nogil;
 
   DFGradBuffers * b = select_device(block);
 
@@ -309,8 +334,8 @@ void DeviceDFGrad::compute_dfgrad_ip1(py::array_t<double> _int3c, py::array_t<do
   grow_array(ctx.pm, b->d_rhok, nP*nocc*nao, b->size_rhok, "dfgrad_rhok", FLERR);
   grow_array(ctx.pm, b->d_t, nao*nocc*nP, b->size_t, "dfgrad_t", FLERR);
 
-  ctx.pm->dev_push_async(b->d_int3c, as_ptr(_int3c), 3 * nn * nP * sizeof(double));
-  ctx.pm->dev_push_async(b->d_rhok, as_ptr(_rhok), (size_t) nP*nocc*nao*sizeof(double));
+  ctx.pm->dev_push_async(b->d_int3c, h_int3c, 3 * nn * nP * sizeof(double));
+  ctx.pm->dev_push_async(b->d_rhok, h_rhok, (size_t) nP*nocc*nao*sizeof(double));
   ctx.pm->dev_stream_wait(); // Python temporaries
 
   const double one = 1.0;
@@ -358,6 +383,13 @@ void DeviceDFGrad::compute_dfgrad_ip2(py::array_t<double> _int3c, py::array_t<do
   const size_t nn = (size_t) nao * nao;
   check_size(_int3c, (size_t) 3 * npair * nP, "int3c (ip2)");
   check_size(_rhok_oo, (size_t) nP*nocc*nocc, "rhok_oo (ip2)");
+  double * h_int3c = as_ptr(_int3c);
+  double * h_rhok_oo = as_ptr(_rhok_oo);
+
+  // Release the GIL for the push and the device work: get_jk computes the next integral block
+  // in a prefetch thread (lib.map_with_prefetch), which needs the GIL to start its libcint call.
+  // All Python objects are touched above; the arrays stay alive as arguments of this call.
+  py::gil_scoped_release nogil;
 
   DFGradBuffers * b = select_device(block);
 
@@ -367,8 +399,8 @@ void DeviceDFGrad::compute_dfgrad_ip2(py::array_t<double> _int3c, py::array_t<do
   grow_array(ctx.pm, b->d_s, nao*nao*nP, b->size_s, "dfgrad_s", FLERR);
   grow_array(ctx.pm, b->d_sp, npair*nP, b->size_sp, "dfgrad_sp", FLERR);
 
-  ctx.pm->dev_push_async(b->d_int3c, as_ptr(_int3c), (size_t) 3*npair*nP*sizeof(double));
-  ctx.pm->dev_push_async(b->d_rhok, as_ptr(_rhok_oo), (size_t) nP*nocc*nocc*sizeof(double));
+  ctx.pm->dev_push_async(b->d_int3c, h_int3c, (size_t) 3*npair*nP*sizeof(double));
+  ctx.pm->dev_push_async(b->d_rhok, h_rhok_oo, (size_t) nP*nocc*nocc*sizeof(double));
   ctx.pm->dev_stream_wait(); // Python temporaries
 
   const double one = 1.0;
@@ -452,9 +484,9 @@ void DeviceDFGrad::pull_dfgrad(py::array_t<double> _vj, py::array_t<double> _vk,
 /* ---------------------------------------------------------------------- */
 
 void Device::init_dfgrad(py::array_t<double> orbol, py::array_t<double> orbor, py::array_t<double> dm,
-			 py::array_t<double> dm_tril, py::array_t<double> jinv,
-			 int nao, int naux, int nocc, int with_j, int aux_response)
-{ _dfgrad->init_dfgrad(orbol, orbor, dm, dm_tril, jinv, nao, naux, nocc, with_j, aux_response); }
+			 py::array_t<double> dm_tril, py::array_t<double> metric,
+			 int nao, int naux, int nocc, int with_j, int aux_response, int metric_cd)
+{ _dfgrad->init_dfgrad(orbol, orbor, dm, dm_tril, metric, nao, naux, nocc, with_j, aux_response, metric_cd); }
 
 void Device::compute_dfgrad_rhok(py::array_t<double> int3c, py::array_t<double> rhok, int p0, int nb, int block)
 { _dfgrad->compute_dfgrad_rhok(int3c, rhok, p0, nb, block); }

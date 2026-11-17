@@ -155,7 +155,7 @@ public :
 
   //DF J/K nuclear gradient (df/grad/rhf.py::get_jk) -> DeviceDFGrad
   void init_dfgrad(py::array_t<double>, py::array_t<double>, py::array_t<double>, py::array_t<double>,
-		   py::array_t<double>, int, int, int, int, int);
+		   py::array_t<double>, int, int, int, int, int, int);
   void compute_dfgrad_rhok(py::array_t<double>, py::array_t<double>, int, int, int);
   void pull_dfgrad_rho(py::array_t<double>, py::array_t<double>);
   void set_dfgrad_rhoj(py::array_t<double>);

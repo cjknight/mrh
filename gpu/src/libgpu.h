@@ -117,7 +117,7 @@ extern "C"
 
   //DF J/K gradient
   void libgpu_init_dfgrad(void *, py::array_t<double>, py::array_t<double>, py::array_t<double>, py::array_t<double>,
-			  py::array_t<double>, int, int, int, int, int);
+			  py::array_t<double>, int, int, int, int, int, int);
   void libgpu_compute_dfgrad_rhok(void *, py::array_t<double>, py::array_t<double>, int, int, int);
   void libgpu_pull_dfgrad_rho(void *, py::array_t<double>, py::array_t<double>);
   void libgpu_set_dfgrad_rhoj(void *, py::array_t<double>);
@@ -299,7 +299,7 @@ PYBIND11_MODULE(libgpu, m) {
   m.def("compute_numint_vmat", &libgpu_compute_numint_vmat, "pyscf/dft/numint.py::nr_rks: XC matrix of one grid block");
   m.def("pull_numint_vmat", &libgpu_pull_numint_vmat, "pyscf/dft/numint.py::nr_rks: sum per-device XC matrices");
 
-  m.def("init_dfgrad", &libgpu_init_dfgrad, "pyscf/df/grad/rhf.py::get_jk: push orbitals, dm, metric inverse; reset sums");
+  m.def("init_dfgrad", &libgpu_init_dfgrad, "pyscf/df/grad/rhf.py::get_jk: push orbitals, dm, metric (Cholesky factor or pseudo-inverse); reset sums");
   m.def("compute_dfgrad_rhok", &libgpu_compute_dfgrad_rhok, "pyscf/df/grad/rhf.py::get_jk: rhoj, rhok, rhok_oo of one AO block of (P|mn)");
   m.def("pull_dfgrad_rho", &libgpu_pull_dfgrad_rho, "pyscf/df/grad/rhf.py::get_jk: sum per-device rhoj (unsolved) and rhok_oo");
   m.def("set_dfgrad_rhoj", &libgpu_set_dfgrad_rhoj, "pyscf/df/grad/rhf.py::get_jk: push solved rhoj");

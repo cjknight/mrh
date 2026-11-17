@@ -8,14 +8,18 @@ devices (DeviceDFGrad), blocks assigned round-robin:
      kept in host memory (pyscf writes it to an HDF5 temporary file)
   B  aux blocks of (d_x m n|P): vj, vk
   C  aux blocks of (m n|d_x P) (auxbasis response): drhoj and vkaux
-The metric solve is a GEMM with the dense J^-1 from pyscf's own metric solver (cho_solve with
-the identity for CD; the pseudo-inverse pyscf already uses for ED). The (d_x P|Q) terms and the
-per-atom sums stay on the host as in pyscf.
+The metric solve follows pyscf's _gen_metric_solver: two triangular solves with the Cholesky
+factor (CD), or, if the Cholesky fails or decompose_j2c='ED', a GEMM with the same dense
+pseudo-inverse pyscf uses. (An explicit inverse in place of the triangular solves is not
+accurate enough: the aug-jkfit metric of a 66-atom molecule has cond ~1e11, and J^-1 applied as
+a GEMM loses ~3 digits there.) The (d_x P|Q) terms and the per-atom sums stay on the host as in
+pyscf.
 
 Handled: one real density matrix, with_k (any with_j), either auxbasis_response. Falls back to
 the CPU get_jk otherwise (J only, several density matrices, complex, only_dfj).
 '''
 import numpy
+import scipy.linalg
 from pyscf import lib
 from pyscf.lib import logger
 from pyscf.ao2mo.outcore import balance_partition
@@ -37,6 +41,27 @@ def _ranges (loc, nbytes, nelem, cap_bytes):
     blk = int (min (cap_bytes // nbytes, _INT_MAX // nelem))
     blk = max (blk, int (max (loc[1:] - loc[:-1])))
     return [(shl0, shl1) for shl0, shl1, _ in balance_partition (loc, blk)]
+
+def _metric (auxmol, decompose_j2c, lindep):
+    '''As pyscf.df.grad.rhf._gen_metric_solver: (True, L^T, solver) with L the lower Cholesky
+    factor ((naux, naux), C order, i.e. L column-major), else (False, j2c, solver) with the dense
+    pseudo-inverse j2c.'''
+    int2c = auxmol.intor ('int2c2e', aosym='s1')
+    if decompose_j2c.upper () == 'CD':
+        try:
+            low = scipy.linalg.cho_factor (int2c, lower=True)
+            def solver (v):
+                return scipy.linalg.cho_solve (low, v, overwrite_b=True)
+            return True, numpy.ascontiguousarray (low[0].T), solver
+        except (numpy.linalg.LinAlgError, scipy.linalg.LinAlgError):
+            pass
+    w, v = scipy.linalg.eigh (int2c)
+    mask = w > lindep
+    v1 = v[:,mask]
+    j2c = lib.dot (v1/w[mask], v1.conj ().T)
+    def solver (v):
+        return lib.dot (j2c, v)
+    return False, numpy.ascontiguousarray (j2c), solver
 
 def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
             decompose_j2c='CD', lindep=df_rhf_grad.LINEAR_DEP_THRESHOLD):
@@ -66,11 +91,7 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
     orbor = numpy.ascontiguousarray (orbor[0])
     nocc = orbol.shape[1]
 
-    # J^-1 from pyscf's metric solver; the device applies it as a GEMM
-    int2c = auxmol.intor ('int2c2e', aosym='s1')
-    solve_j2c = df_rhf_grad._gen_metric_solver (int2c, decompose_j2c, lindep)
-    int2c = None
-    jinv = numpy.ascontiguousarray (solve_j2c (numpy.eye (naux)))
+    metric_cd, metric, solve_j2c = _metric (auxmol, decompose_j2c, lindep)
 
     # rhoj: (P|mn) (orbor orbol^T)_mn, as pyscf; passed transposed (column-major on the device)
     dm_cm = numpy.ascontiguousarray (orbol @ orbor.T)
@@ -80,9 +101,9 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
         dm_tril = lib.pack_tril (dms + dms.T)
         dm_tril[idx*(idx+1)//2+idx] *= .5
 
-    libgpu.init_dfgrad (gpu, orbol, orbor, dm_cm, dm_tril, jinv, nao, naux, nocc,
-                        int (with_j), int (aux_response))
-    jinv = dm_cm = None
+    libgpu.init_dfgrad (gpu, orbol, orbor, dm_cm, dm_tril, metric, nao, naux, nocc,
+                        int (with_j), int (aux_response), int (metric_cd))
+    metric = dm_cm = None
     cap = max_block_mb * 1e6
     t1 = logger.timer_debug1 (mf_grad, 'gpu4mrh df grad init', *t0)
 

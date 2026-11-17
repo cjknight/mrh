@@ -432,10 +432,10 @@ void libgpu_pull_numint_vmat(void * ptr, py::array_t<double> vmat)
 
 /* ---------------------------------------------------------------------- */
 
-void libgpu_init_dfgrad(void * ptr, py::array_t<double> orbol, py::array_t<double> orbor, py::array_t<double> dm, py::array_t<double> dm_tril, py::array_t<double> jinv, int nao, int naux, int nocc, int with_j, int aux_response)
+void libgpu_init_dfgrad(void * ptr, py::array_t<double> orbol, py::array_t<double> orbor, py::array_t<double> dm, py::array_t<double> dm_tril, py::array_t<double> metric, int nao, int naux, int nocc, int with_j, int aux_response, int metric_cd)
 {
   LIBGPU_DEVICE(ptr)
-  dev->init_dfgrad(orbol, orbor, dm, dm_tril, jinv, nao, naux, nocc, with_j, aux_response);
+  dev->init_dfgrad(orbol, orbor, dm, dm_tril, metric, nao, naux, nocc, with_j, aux_response, metric_cd);
 }
 
 /* ---------------------------------------------------------------------- */

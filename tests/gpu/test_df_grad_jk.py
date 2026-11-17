@@ -7,15 +7,19 @@ from pyscf import gto, dft, lib
 # the CPU version: J+K, K only, hermi 0/1, range-separated (omega), with and without the auxiliary
 # basis response, with many integral blocks; full DF-RKS nuclear gradients of hybrids.
 #
-# Tolerances: the device applies the dense metric inverse J^-1 (pyscf: Cholesky solve), which for
-# the jkfit metric (cond ~1e6) moves single vj/vk elements by ~1e-10. The omega-attenuated metric is
-# numerically singular, so pyscf's own rhoj there is only defined to ~1e-8 (summation order); the
-# traced gradients agree to ~1e-12.
+# Tolerances: the omega-attenuated metric is numerically singular (pyscf uses its eigenvalue
+# pseudo-inverse), so pyscf's own rhoj there is only defined to ~1e-8 (summation order); the traced
+# gradients agree to ~1e-12. BUTANE (aug-cc-pvtz-jkfit, cond ~8e8) checks the Cholesky path: a
+# dense J^-1 in place of the triangular solves loses ~2e-6 there (cond ~1e11 for the 66-atom
+# production case, where it broke the gradient).
 
 ATOM = "O 0 0 0; H 0 0.76 0.59; H 0 -0.76 0.59"
 BLOCK_MB = 3.0 # tiny device blocks: many integral blocks per phase
 CASES = [dict(), dict(hermi=1), dict(with_j=False), dict(omega=0.3), dict(omega=0.3, with_j=False)]
 XCS = ['pbe0', 'wb97m-v']
+BUTANE = ("C 0 0 0; C 1.53 0 0; C 2.04 1.44 0; C 3.57 1.44 0; H -0.39 1.02 0; H -0.39 -0.51 0.88; "
+          "H -0.39 -0.51 -0.88; H 1.92 -0.51 0.88; H 1.92 -0.51 -0.88; H 1.65 1.95 0.88; H 1.65 1.95 -0.88; "
+          "H 3.96 0.42 0; H 3.96 1.95 0.88; H 3.96 1.95 -0.88")
 
 def _mol (use_gpu=None):
     kwargs = {} if use_gpu is None else {'use_gpu': use_gpu}
@@ -35,8 +39,17 @@ def _get_jk (mf, mol, dm, kw, aux):
     g.auxbasis_response = aux
     return g.get_jk(mol, dm, **kw)
 
+def _butane (use_gpu=None):
+    kwargs = {} if use_gpu is None else {'use_gpu': use_gpu}
+    mol = gto.M(atom=BUTANE, basis='cc-pvdz', verbose=0, **kwargs)
+    mf = dft.RKS(mol).density_fit(auxbasis='aug-cc-pvtz-jkfit')
+    mf.xc = 'pbe0'
+    mf.grids.level = 1
+    mf.conv_tol = 1e-10
+    return mf
+
 def setUpModule():
-    global mf_ref, dm_ref, jk_refs, grad_refs
+    global mf_ref, dm_ref, jk_refs, grad_refs, butane_ref
     assert getattr(lib.param, 'use_gpu', None) is None
     mol = _mol()
     mf_ref = _mf(mol, 'wb97m-v')
@@ -48,10 +61,14 @@ def setUpModule():
         mf = _mf(_mol(), xc)
         mf.kernel()
         grad_refs[xc] = (mf, mf.nuc_grad_method().kernel())
+    mf = _butane()
+    mf.kernel()
+    g = mf.nuc_grad_method()
+    butane_ref = (mf, g.get_jk(mf.mol, mf.make_rdm1()), g.kernel())
 
 def tearDownModule():
-    global mf_ref, dm_ref, jk_refs, grad_refs
-    del mf_ref, dm_ref, jk_refs, grad_refs
+    global mf_ref, dm_ref, jk_refs, grad_refs, butane_ref
+    del mf_ref, dm_ref, jk_refs, grad_refs, butane_ref
 
 class KnownValues (unittest.TestCase):
 
@@ -98,6 +115,21 @@ class KnownValues (unittest.TestCase):
                 with self.subTest(xc=xc):
                     self.assertGreater(ip1.call_count, 0)
                     self.assertAlmostEqual(abs(de - de_ref).max(), 0, 11)
+
+    def test_ill_conditioned_metric (self):
+        mf, (vj0, vk0), de0 = butane_ref
+        with mock.patch.object(gg, 'max_block_mb', BLOCK_MB), \
+             mock.patch.object(mf.mol, 'use_gpu', self.gpu, create=True), \
+             mock.patch.object(libgpu, 'init_dfgrad', wraps=libgpu.init_dfgrad) as init:
+            g = mf.nuc_grad_method()
+            vj1, vk1 = g.get_jk(mf.mol, mf.make_rdm1())
+            de1 = g.kernel()
+        self.assertEqual(init.call_args_list[0].args[-1], 1) # Cholesky path
+        self.assertAlmostEqual(abs(vk1 - vk0).max(), 0, 9)
+        self.assertAlmostEqual(abs(vj1 - vj0).max(), 0, 9)
+        self.assertAlmostEqual(abs(vk1.aux - vk0.aux).max(), 0, 9)
+        self.assertAlmostEqual(abs(vj1.aux - vj0.aux).max(), 0, 9)
+        self.assertAlmostEqual(abs(de1 - de0).max(), 0, 10)
 
     def test_multiple_dms_use_cpu (self):
         mol = _mol(self.gpu)
