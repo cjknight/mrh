@@ -34,6 +34,7 @@ from gpu4mrh.df.grad_rhf import prefetch_blocks
 use_device = True # False: DF.build is pyscf's
 block_mb = 2000.  # target size of one host block of integrals (MB)
 blocks_per_device = 2 # at least this many blocks per device when the blocks are small
+host_local = True # host tensor on the threads' local memory node (see cholesky_eri)
 
 _INT_MAX = 2**31 - 1 # device buffers are sized in int elements
 
@@ -94,6 +95,13 @@ def cholesky_eri (mol, auxmol, gpu, int3c='int3c2e', int2c='int2c2e', max_memory
     cintopt = gto.moleintor.make_cintopt (atm, bas, env, int3c)
 
     cderi = numpy.empty ((naux, npair))
+    if host_local:
+        # Before the first touch: the host tensor is cold (the working copy is the device ERI
+        # cache), so keep it on the threads' local memory node. Under numactl --preferred=<HBM>
+        # it would otherwise fill the preferred fast memory first (Aurora: 61 of 64 GB), and every
+        # later hot array would stall on failed huge-page compaction there before falling back.
+        log.debug ('gpu4mrh df build: host tensor on memory node %d (-1: default placement)',
+                   libgpu.host_mem_local (cderi))
     def intor (sh_range, out):
         bstart, bend, nrow = sh_range
         shls_slice = (bstart, bend, 0, mol.nbas, mol.nbas, mol.nbas+auxmol.nbas)

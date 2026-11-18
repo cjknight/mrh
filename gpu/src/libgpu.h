@@ -129,6 +129,7 @@ extern "C"
   void libgpu_init_dfbuild(void *, py::array_t<double>, int, int, int, int);
   void libgpu_compute_dfbuild(void *, py::array_t<double>, py::array_t<double>, int, int, int);
   void libgpu_free_dfbuild(void *);
+  int libgpu_host_mem_local(py::array_t<double>);
 
   //FCI
   void libgpu_init_tdm1(void *,
@@ -314,6 +315,7 @@ PYBIND11_MODULE(libgpu, m) {
   m.def("init_dfbuild", &libgpu_init_dfbuild, "pyscf/df/df.py::DF.build: push the metric factor (Cholesky L or eigenvalue projection)");
   m.def("compute_dfbuild", &libgpu_compute_dfbuild, "pyscf/df/df.py::DF.build: metric solve of one AO-pair block, written into the host tensor");
   m.def("free_dfbuild", &libgpu_free_dfbuild, "pyscf/df/df.py::DF.build: release device and pinned buffers");
+  m.def("host_mem_local", &libgpu_host_mem_local, "place an untouched host array on the calling CPU's memory node (MPOL_PREFERRED); returns the node or -1");
   // DEPRECATED: legacy integral engine (orbital_response) -- commented out.
   //m.def("orbital_response", &libgpu_orbital_response, "mrh/lasscf_sync_o0.py::orbital_response");
   // RDM can be used from previously made JKs

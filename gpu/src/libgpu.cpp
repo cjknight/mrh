@@ -4,6 +4,11 @@
 #include <stdexcept>
 #include <string>
 #include <set>
+#include <cstdint>
+#ifdef __linux__
+#include <unistd.h>
+#include <sys/syscall.h>
+#endif
 
 #include "libgpu.h"
 #include "pm/pm.h"
@@ -516,6 +521,45 @@ void libgpu_free_dfbuild(void * ptr)
 {
   LIBGPU_DEVICE(ptr)
   dev->free_dfbuild();
+}
+
+/* ---------------------------------------------------------------------- */
+
+/* Place a large host array, not yet touched, on the memory node of the calling CPU (the DDR
+ * next to the threads; CPU-less nodes such as HBM are never the calling CPU's node). Policy
+ * MPOL_PREFERRED: pages go elsewhere if that node fills, as without the call. Meant for big,
+ * long-lived host arrays that are cold on the host (the DF tensor, whose working copy is on the
+ * devices) so they do not take a preferred fast-memory node (numactl --preferred) from the hot
+ * working arrays. Returns the node, or -1 if not applied (non-Linux, or mbind failed). */
+int libgpu_host_mem_local(py::array_t<double> a)
+{
+#ifdef __linux__
+  py::buffer_info info = a.request();
+  const size_t page = (size_t) sysconf(_SC_PAGESIZE);
+  const uintptr_t beg = (uintptr_t) info.ptr;
+  const uintptr_t end = beg + (size_t) info.size * sizeof(double);
+  const uintptr_t b = (beg + page - 1) / page * page; // whole pages only
+  const uintptr_t e = end / page * page;
+  if(e <= b) return -1;
+
+  unsigned cpu = 0, node = 0;
+  if(syscall(SYS_getcpu, &cpu, &node, nullptr) != 0) return -1;
+
+  const int nbits = 8 * sizeof(unsigned long);
+  const int nlongs = 16; // nodes 0..1023
+  if(node >= (unsigned) (nbits * nlongs)) return -1;
+  unsigned long mask[nlongs] = {0};
+  mask[node / nbits] = 1UL << (node % nbits);
+  const int MPOL_PREFERRED_ = 1;
+  if(syscall(SYS_mbind, (void *) b, (unsigned long) (e - b), MPOL_PREFERRED_, mask,
+             (unsigned long) (nbits * nlongs), 0U) != 0) {
+    perror("LIBGPU :: host_mem_local mbind");
+    return -1;
+  }
+  return (int) node;
+#else
+  return -1;
+#endif
 }
 
 /* ---------------------------------------------------------------------- */
