@@ -84,6 +84,21 @@ class KnownValues (unittest.TestCase):
                 self.assertEqual(r1._cderi.shape, r0._cderi.shape)
                 self.assertAlmostEqual(abs(r1._cderi - r0._cderi).max(), 0, 12)
 
+    def test_projected_metric_fits (self):
+        # omega tensor: 139 auxiliary functions, 83 kept by the eigenvalue projection. pyscf's memory
+        # test counts 139 (1.90 MB, on disk at max_memory 1.6 MB); in memory it is 83 (1.14 MB).
+        d0 = df.DF(_mol(), auxbasis=AUXBASIS)
+        d1 = df.DF(_mol(use_gpu=self.gpu), auxbasis=AUXBASIS)
+        with self._calls() as calls, d1.range_coulomb(0.3) as r1, d0.range_coulomb(0.3) as r0:
+            r0.build()
+            r1.max_memory = 1.6
+            with mock.patch.object(lib, 'current_memory', return_value=(0., 0.)):
+                r1.build()
+            self.assertGreater(calls.call_count, 0)
+            self.assertIsInstance(r1._cderi, numpy.ndarray)
+            self.assertEqual(r1._cderi.shape, (83, 1711))
+            self.assertAlmostEqual(abs(r1._cderi - r0._cderi).max(), 0, 12)
+
     def test_rks_energy (self):
         mf = _mf(_mol(use_gpu=self.gpu))
         with mock.patch.object(df_build, 'block_mb', BLOCK_MB), self._calls() as calls:

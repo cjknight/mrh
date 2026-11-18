@@ -12,9 +12,11 @@ Only the work changes:
     columns of ``_cderi``.
 
 pyscf's own in-memory loop runs these steps serially with single-threaded copies, so it is slower
-than writing the tensor to disk (anouar, 66 atoms: 309 s in memory vs 142 s on disk). Builds that
-pyscf would write to disk (tensor too large for max_memory, or a file requested in
-``_cderi_to_save``) are left to pyscf unchanged.
+than writing the tensor to disk (anouar, 66 atoms: 309 s in memory vs 142 s on disk; this build
+23 s for the full tensor). Builds that do not fit in max_memory, or with a file requested in
+``_cderi_to_save``, are left to pyscf unchanged (on disk). The memory test is pyscf's, except that
+a metric with linear dependencies is counted with the functions its projection keeps (pyscf
+counts all of them: anouar's omega tensor, 1957 of 5092).
 
 The metric is factored on the host exactly as pyscf does (scipy Cholesky, else the eigenvalue
 projection with pyscf's linear-dependency threshold), so the tensor matches pyscf's to rounding.
@@ -45,9 +47,22 @@ def _block_rows (npair, naoaux, naux, ndev, max_memory):
     rows = min (rows, _INT_MAX // max (naoaux, naux))
     return max (rows, 1)
 
+def metric (mol, auxmol, int2c='int2c2e', decompose_j2c='cd', lindep=incore.LINEAR_DEP_THR):
+    '''The metric factor as pyscf.df.incore.cholesky_eri: (low, decompose_j2c), low the Cholesky
+    factor L (naoaux, naoaux), or if that fails the eigenvalue projection (naux, naoaux) that drops
+    the linearly dependent functions.'''
+    j2c = auxmol.intor (int2c, hermi=1)
+    if decompose_j2c == 'eig':
+        return incore._eig_decompose (mol, j2c, lindep), 'eig'
+    try:
+        return scipy.linalg.cholesky (j2c, lower=True), 'cd'
+    except scipy.linalg.LinAlgError:
+        return incore._eig_decompose (mol, j2c, lindep), 'eig'
+
 def cholesky_eri (mol, auxmol, gpu, int3c='int3c2e', int2c='int2c2e', max_memory=2000,
-                  decompose_j2c='cd', lindep=incore.LINEAR_DEP_THR, verbose=0):
+                  decompose_j2c='cd', lindep=incore.LINEAR_DEP_THR, verbose=0, low=None):
     '''As pyscf.df.incore.cholesky_eri (aosym 's2ij', comp 1) with the metric applied on the device.
+    low, decompose_j2c: the metric factor from metric(), if already computed.
 
     Returns:
         2D array of (naux, nao*(nao+1)/2) in C-contiguous
@@ -55,17 +70,8 @@ def cholesky_eri (mol, auxmol, gpu, int3c='int3c2e', int2c='int2c2e', max_memory
     t0 = (logger.process_clock (), logger.perf_counter ())
     log = logger.new_logger (mol, verbose)
 
-    j2c = auxmol.intor (int2c, hermi=1)
-    if decompose_j2c == 'eig':
-        low = incore._eig_decompose (mol, j2c, lindep)
-    else:
-        try:
-            low = scipy.linalg.cholesky (j2c, lower=True)
-            decompose_j2c = 'cd'
-        except scipy.linalg.LinAlgError:
-            low = incore._eig_decompose (mol, j2c, lindep)
-            decompose_j2c = 'eig'
-    j2c = None
+    if low is None:
+        low, decompose_j2c = metric (mol, auxmol, int2c, decompose_j2c, lindep)
     naux, naoaux = low.shape
     log.debug ('size of aux basis %d', naux)
     t1 = log.timer_debug1 ('gpu4mrh df build 2c2e', *t0)
@@ -124,7 +130,13 @@ def build (dfobj, gpu, cpu_build):
     nao, naux = mol.nao_nr (), auxmol.nao_nr ()
     nao_pair = nao * (nao+1) // 2
     max_memory = dfobj.max_memory - lib.current_memory ()[0]
-    if not nao_pair * naux * 8 / 1e6 < .9 * max_memory: return cpu_build (dfobj) # pyscf: on disk
+    low = decompose_j2c = None
+    if not nao_pair * naux * 8 / 1e6 < .9 * max_memory:
+        # pyscf's test counts all auxiliary functions; the eigenvalue projection of a singular
+        # metric (e.g. omega-attenuated) keeps fewer, so its tensor may fit after all
+        low, decompose_j2c = metric (mol, auxmol, mol._add_suffix ('int2c2e'))
+        if not nao_pair * low.shape[0] * 8 / 1e6 < .9 * max_memory:
+            return cpu_build (dfobj) # pyscf: on disk
 
     t0 = (logger.process_clock (), logger.perf_counter ())
     log = logger.Logger (dfobj.stdout, dfobj.verbose)
@@ -133,6 +145,6 @@ def build (dfobj, gpu, cpu_build):
     dfobj.auxmol = auxmol
     dfobj._cderi = cholesky_eri (mol, auxmol, gpu, int3c=mol._add_suffix ('int3c2e'),
                                  int2c=mol._add_suffix ('int2c2e'), max_memory=max_memory,
-                                 verbose=log)
+                                 decompose_j2c=decompose_j2c or 'cd', verbose=log, low=low)
     log.timer ('gpu4mrh df build', *t0)
     return dfobj
