@@ -89,6 +89,7 @@ private:
   std::vector<DFGradBuffers> bufs;
 
   int nao, naux, nocc, npair, with_j, aux_response, metric_cd;
+  int c_old; // LIBGPU_DFGRAD_C_OLD debug switch
 
   double * h_buf; // pinned staging for the per-device pulls
   size_t size_h_buf;

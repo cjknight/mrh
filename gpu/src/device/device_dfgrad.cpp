@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "device.h"
 
@@ -9,7 +10,7 @@
 
 DeviceDFGrad::DeviceDFGrad(DeviceContext & _ctx)
   : ctx(_ctx), nao(0), naux(0), nocc(0), npair(0), with_j(0), aux_response(0), metric_cd(0),
-    h_buf(nullptr), size_h_buf(0)
+    h_buf(nullptr), size_h_buf(0), c_old(0)
 {
   DFGradBuffers empty;
   memset(&empty, 0, sizeof(DFGradBuffers));
@@ -91,6 +92,12 @@ void DeviceDFGrad::init_dfgrad(py::array_t<double> _orbol, py::array_t<double> _
   with_j = _with_j;
   aux_response = _aux_response;
   metric_cd = _metric_cd;
+  // LIBGPU_DFGRAD_C_OLD (debug, bitmask) restores the original phase C calls: 1 = S_P by two strided
+  // gemm_batch (stride 0 on one operand), 2 = vkaux by an m = n = 1 gemm_batch over npair
+  {
+    const char * env = getenv("LIBGPU_DFGRAD_C_OLD");
+    c_old = env ? atoi(env) : 0;
+  }
 
   // orbol, orbor: C-contiguous (nao, nocc); dm: C-contiguous (nao, nao) = orbor . orbol^T, passed
   // transposed so that d_dm is its column-major copy; dm_tril: (npair); metric (naux, naux): the
@@ -427,23 +434,51 @@ void DeviceDFGrad::compute_dfgrad_ip2(py::array_t<double> _int3c, py::array_t<do
 	       &zero, b->d_t, &nao);
 
   // S_P = Z_P orbol^T + orbol Z_P^T
-  ctx.ml->set_handle();
-  ctx.ml->gemm_batch((char *) "N", (char *) "T", &nao, &nao, &nocc,
-		     &one, b->d_t, &nao, &strideZ, b->d_orbolF, &nao, &stride0,
-		     &zero, b->d_s, &nao, &strideS, &nP);
-  ctx.ml->set_handle();
-  ctx.ml->gemm_batch((char *) "N", (char *) "T", &nao, &nao, &nocc,
-		     &one, b->d_orbolF, &nao, &stride0, b->d_t, &nao, &strideZ,
-		     &one, b->d_s, &nao, &strideS, &nP);
+  if(c_old & 1) {
+    ctx.ml->set_handle();
+    ctx.ml->gemm_batch((char *) "N", (char *) "T", &nao, &nao, &nocc,
+		       &one, b->d_t, &nao, &strideZ, b->d_orbolF, &nao, &stride0,
+		       &zero, b->d_s, &nao, &strideS, &nP);
+    ctx.ml->set_handle();
+    ctx.ml->gemm_batch((char *) "N", (char *) "T", &nao, &nao, &nocc,
+		       &one, b->d_orbolF, &nao, &stride0, b->d_t, &nao, &strideZ,
+		       &one, b->d_s, &nao, &strideS, &nP);
+  } else {
+    // plain GEMMs per P (k = nocc, small); kept in place of the strided gemm_batch while the
+    // oneMKL large-k issue below is pinned down (LIBGPU_DFGRAD_C_OLD=1 restores it)
+    for(int P=0; P<nP; ++P) {
+      double * S_P = b->d_s + (size_t) P*nao*nao;
+      const double * Z_P = b->d_t + (size_t) P*nao*nocc;
+      ctx.ml->set_handle();
+      ctx.ml->gemm((char *) "N", (char *) "T", &nao, &nao, &nocc,
+		   &one, Z_P, &nao, b->d_orbolF, &nao, &zero, S_P, &nao);
+      ctx.ml->gemm((char *) "N", (char *) "T", &nao, &nao, &nocc,
+		   &one, b->d_orbolF, &nao, Z_P, &nao, &one, S_P, &nao);
+    }
+  }
 
   dfgrad_pack_tril(b->d_sp, b->d_s, nao, nP);
 
   // vkaux[x,P] = sum_pair I2[x,P,pair] Sp[P,pair]
-  for(int x=0; x<3; ++x) {
-    ctx.ml->set_handle();
-    ctx.ml->gemm_batch((char *) "T", (char *) "N", &ione, &ione, &npair,
-		       &one, b->d_int3c + (size_t) x*npair*nP, &npair, &npair, b->d_sp, &npair, &npair,
-		       &zero, b->d_vkaux + x*naux + P0, &ione, &ione, &nP);
+  if(c_old & 2) {
+    for(int x=0; x<3; ++x) {
+      ctx.ml->set_handle();
+      ctx.ml->gemm_batch((char *) "T", (char *) "N", &ione, &ione, &npair,
+			 &one, b->d_int3c + (size_t) x*npair*nP, &npair, &npair, b->d_sp, &npair, &npair,
+			 &zero, b->d_vkaux + x*naux + P0, &ione, &ione, &nP);
+    }
+  } else {
+    // one dot product (gemv, n = 1) per (x, P). oneMKL SYCL on PVC returns wrong transposed GEMM
+    // products for very large k (>= ~1.4e6) when a call covers more than one row/column (reported
+    // independently; k = npair = 2.7e6 at nao 2324): both the gemm_batch above and a single
+    // gemm("T","N", nP, nP, npair) for the diagonal hit that. gemv("T") over npair is exact there
+    // (drhoj above).
+    for(int x=0; x<3; ++x)
+      for(int P=0; P<nP; ++P) {
+	ctx.ml->set_handle();
+	ctx.ml->gemv((char *) "T", &npair, &ione, &one, b->d_int3c + (size_t) (x*nP + P)*npair, &npair,
+		     b->d_sp + (size_t) P*npair, &inc, &zero, b->d_vkaux + x*naux + P0 + P, &inc);
+      }
   }
 
   (void) nn;
