@@ -8,8 +8,10 @@ from pyscf import gto, dft, lib
 # basis response, with many integral blocks; full DF-RKS nuclear gradients of hybrids.
 #
 # Tolerances: the omega-attenuated metric is numerically singular (pyscf uses its eigenvalue
-# pseudo-inverse), so pyscf's own rhoj there is only defined to ~1e-8 (summation order); the traced
-# gradients agree to ~1e-12. BUTANE (aug-cc-pvtz-jkfit, cond ~8e8) checks the Cholesky path: a
+# pseudo-inverse), so anything through it is only defined to summation order: pyscf's own CPU
+# get_jk(omega=0.3) changes by up to ~3e-9 in vk (and ~1e-8 in vj) and its wb97m-v gradient by up to
+# ~5e-10 between OMP_NUM_THREADS = 1, 2, 4, 8. The omega cases and range-separated gradients are
+# checked at that level, everything else tightly. BUTANE (aug-cc-pvtz-jkfit, cond ~8e8) checks the Cholesky path: a
 # dense J^-1 in place of the triangular solves loses ~2e-6 there (cond ~1e11 for the 66-atom
 # production case, where it broke the gradient).
 
@@ -93,9 +95,10 @@ class KnownValues (unittest.TestCase):
             for kw, aux, (vj0, vk0) in jk_refs:
                 vj1, vk1 = _get_jk(mf, mol, dm_ref, kw, aux)
                 tol_j = 7 if 'omega' in kw else 9
+                tol_k = 8 if 'omega' in kw else 9
                 with self.subTest(kw=kw, aux=aux):
-                    self.assertAlmostEqual(abs(vk1 - vk0).max(), 0, 9)
-                    if aux: self.assertAlmostEqual(abs(vk1.aux - vk0.aux).max(), 0, 9)
+                    self.assertAlmostEqual(abs(vk1 - vk0).max(), 0, tol_k)
+                    if aux: self.assertAlmostEqual(abs(vk1.aux - vk0.aux).max(), 0, tol_k)
                     if vj0 is None:
                         self.assertIsNone(vj1)
                     else:
@@ -112,9 +115,10 @@ class KnownValues (unittest.TestCase):
                 with mock.patch.object(mf.mol, 'use_gpu', self.gpu, create=True), \
                      mock.patch.object(libgpu, 'compute_dfgrad_ip1', wraps=libgpu.compute_dfgrad_ip1) as ip1:
                     de = mf.nuc_grad_method().kernel()
+                tol = 9 if dft.libxc.rsh_coeff(xc)[0] != 0 else 11 # range-separated: omega metric
                 with self.subTest(xc=xc):
                     self.assertGreater(ip1.call_count, 0)
-                    self.assertAlmostEqual(abs(de - de_ref).max(), 0, 11)
+                    self.assertAlmostEqual(abs(de - de_ref).max(), 0, tol)
 
     def test_ill_conditioned_metric (self):
         mf, (vj0, vk0), de0 = butane_ref
