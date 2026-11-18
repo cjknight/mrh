@@ -23,6 +23,12 @@ from mrh.my_pyscf.gpu import libgpu
 # (ncomp + 1) * ngrid * nao * 8 bytes, ncomp = AO components (1 or 4; gradient 4 or 10).
 max_block_mb = 4000
 
+# True: evaluate the AO values of every grid block into one host buffer (the device copy is
+# complete before the next block is evaluated) instead of a fresh array per block. Off: on Aurora,
+# with ~150 GB of huge-page memory resident (in-memory DF tensors), the reused buffer was slower
+# (SCF XC 5.5 s vs 3.0 s per cycle, anouar); with nothing resident both take the same time.
+reuse_buffers = False
+
 _NROW = {'LDA': 1, 'GGA': 4, 'MGGA': 5}
 _INT_MAX = 2**31 - 1
 
@@ -86,11 +92,15 @@ def xc_block_loop (gpu, ni, mol, grids, xc_code, cocc, vmat, grad, block_weights
 
     libgpu.init_numint (gpu, cocc, nao, nocc, nrow, int (bool (grad)))
     ndev = libgpu.get_num_devices (gpu)
-    for block, (p0, p1) in enumerate (_grid_blocks (ngrids, nao, ncomp, ndev)):
+    blocks = _grid_blocks (ngrids, nao, ncomp, ndev)
+    aobuf = None
+    if reuse_buffers:
+        aobuf = numpy.empty (ncomp * nao * max (p1 - p0 for p0, p1 in blocks))
+    for block, (p0, p1) in enumerate (blocks):
         ng = p1 - p0
         mask = None if non0tab is None else non0tab[p0//BLKSIZE:]
         ao = ni.eval_ao (mol, grids.coords[p0:p1], deriv=ao_deriv, non0tab=mask,
-                         cutoff=grids.cutoff)
+                         cutoff=grids.cutoff, out=aobuf)
         # eval_ao's memory order is (ncomp, nao, ngrid): pass that buffer, no copy
         ao = numpy.ascontiguousarray (ao.reshape (ncomp, ng, nao).transpose (0,2,1))
         rho = numpy.empty ((nrow, ng))

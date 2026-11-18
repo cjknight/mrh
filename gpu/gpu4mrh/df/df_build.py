@@ -29,6 +29,7 @@ from pyscf.df import addons, incore
 from pyscf.df.outcore import _guess_shell_ranges
 
 from mrh.my_pyscf.gpu import libgpu
+from gpu4mrh.df.grad_rhf import prefetch_blocks
 
 use_device = True # False: DF.build is pyscf's
 block_mb = 2000.  # target size of one host block of integrals (MB)
@@ -93,18 +94,19 @@ def cholesky_eri (mol, auxmol, gpu, int3c='int3c2e', int2c='int2c2e', max_memory
     cintopt = gto.moleintor.make_cintopt (atm, bas, env, int3c)
 
     cderi = numpy.empty ((naux, npair))
-    def intor (sh_range):
+    def intor (sh_range, out):
         bstart, bend, nrow = sh_range
         shls_slice = (bstart, bend, 0, mol.nbas, mol.nbas, mol.nbas+auxmol.nbas)
         return sh_range, gto.moleintor.getints3c (int3c, atm, bas, env, shls_slice, 1, 's2ij',
-                                                  ao_loc, cintopt)
+                                                  ao_loc, cintopt, out=out)
+    size = max (x[2] for x in shranges) * naoaux
 
     libgpu.init_dfbuild (gpu, numpy.ascontiguousarray (low), naoaux, naux, npair,
                          int (decompose_j2c == 'cd'))
     low = None
     p1 = 0
     try:
-        for block, ((bstart, bend, nrow), ints) in enumerate (lib.map_with_prefetch (intor, shranges)):
+        for block, ((bstart, bend, nrow), ints) in enumerate (prefetch_blocks (intor, shranges, size)):
             p0 = int (ao_loc[bstart]) * (int (ao_loc[bstart]) + 1) // 2
             assert p0 == p1 and ints.shape == (nrow, naoaux) and ints.flags.f_contiguous
             p1 = p0 + nrow

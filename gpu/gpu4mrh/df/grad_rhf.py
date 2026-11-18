@@ -22,7 +22,7 @@ import os
 import ctypes
 import numpy
 import scipy.linalg
-from pyscf import lib
+from pyscf import gto, lib
 from pyscf.lib import logger
 from pyscf.ao2mo.outcore import balance_partition
 from pyscf.df.grad import rhf as df_rhf_grad
@@ -33,9 +33,36 @@ from mrh.my_pyscf.gpu import libgpu
 # Device memory cap per integral block (integrals plus work arrays), in MB
 max_block_mb = 4000
 
+# Write the libcint blocks of each phase alternately into two host buffers (the prefetch thread
+# fills one while the device consumes the other) instead of a fresh array per block: fresh
+# multi-GB arrays cost page faults and zeroing (kernel time) on every block. False: fresh arrays.
+reuse_buffers = True
+
 _INT_MAX = 2**31 - 1
 
 _cpu_get_jk = df_rhf_grad.get_jk
+
+def _int3c_wrapper (mol, auxmol, intor, aosym):
+    '''As pyscf.df.grad.rhf._int3c_wrapper, with an output buffer (out).'''
+    nbas = mol.nbas
+    pmol = mol + auxmol
+    intor = mol._add_suffix (intor)
+    opt = gto.moleintor.make_cintopt (mol._atm, mol._bas, mol._env, intor)
+    def get_int3c (shls_slice, out=None):
+        shls_slice = shls_slice[:4] + (nbas+shls_slice[4], nbas+shls_slice[5])
+        return gto.moleintor.getints (intor, pmol._atm, pmol._bas, pmol._env, shls_slice,
+                                      aosym=aosym, cintopt=opt, out=out)
+    return get_int3c
+
+def prefetch_blocks (intor, ranges, size):
+    '''lib.map_with_prefetch (intor, ranges) for intor (rng, out), with the blocks written
+    alternately into two buffers of size elements. A buffer is reused for block i+2, which the
+    prefetch thread starts only after the consumer has asked for block i+1, i.e. is done with
+    block i (the libgpu calls wait for their host-to-device copies before returning).'''
+    if not reuse_buffers:
+        return lib.map_with_prefetch (intor, ranges, [None] * len (ranges))
+    bufs = (numpy.empty (size), numpy.empty (size))
+    return lib.map_with_prefetch (intor, ranges, [bufs[i % 2] for i in range (len (ranges))])
 
 # GPU4MRH_DFGRAD_CHECK=1: debug check of the aux-response K terms against host references (rhok_oo
 # from the host rhok; vkaux per aux block as pyscf); prints the deviations, slow
@@ -129,13 +156,14 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
     t1 = logger.timer_debug1 (mf_grad, 'gpu4mrh df grad init', *t0)
 
     # A: (P|mn) by AO blocks -> rhoj (unsolved), rhok (host), rhok_oo
-    get_int3c_s1 = df_rhf_grad._int3c_wrapper (mol, auxmol, 'int3c2e', 's1')
+    get_int3c_s1 = _int3c_wrapper (mol, auxmol, 'int3c2e', 's1')
     ranges = _ranges (ao_loc, 8 * (nao*naux + 2*naux*nocc), max (nao, nocc) * naux, cap)
-    def intor_a (rng):
+    def intor_a (rng, out):
         shl0, shl1 = rng
-        return rng, get_int3c_s1 ((0, nbas, shl0, shl1, 0, auxmol.nbas))
+        return rng, get_int3c_s1 ((0, nbas, shl0, shl1, 0, auxmol.nbas), out=out)
+    size = max (ao_loc[s1] - ao_loc[s0] for s0, s1 in ranges) * nao * naux
     rhok = numpy.empty ((naux, nocc, nao))
-    for block, ((shl0, shl1), int3c) in enumerate (lib.map_with_prefetch (intor_a, ranges)):
+    for block, ((shl0, shl1), int3c) in enumerate (prefetch_blocks (intor_a, ranges, size)):
         p0, p1 = ao_loc[shl0], ao_loc[shl1]
         buf = numpy.empty ((naux, nocc, p1-p0))
         libgpu.compute_dfgrad_rhok (gpu, int3c.reshape (-1, order='F'), buf, p0, p1-p0, block)
@@ -157,12 +185,13 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
     t1 = logger.timer_debug1 (mf_grad, 'gpu4mrh df grad rhoj, rhok', *t1)
 
     # B: (d_x m n|P) by aux blocks -> vj, vk
-    get_int3c_ip1 = df_rhf_grad._int3c_wrapper (mol, auxmol, 'int3c2e_ip1', 's1')
+    get_int3c_ip1 = _int3c_wrapper (mol, auxmol, 'int3c2e_ip1', 's1')
     ranges = _ranges (aux_loc, 8 * (3*nao*nao + 2*nocc*nao), 3*nao*nao, cap)
-    def intor_b (rng):
+    def intor_b (rng, out):
         shl0, shl1 = rng
-        return rng, get_int3c_ip1 ((0, nbas, 0, nbas, shl0, shl1))
-    for block, ((shl0, shl1), int3c) in enumerate (lib.map_with_prefetch (intor_b, ranges)):
+        return rng, get_int3c_ip1 ((0, nbas, 0, nbas, shl0, shl1), out=out)
+    size = max (aux_loc[s1] - aux_loc[s0] for s0, s1 in ranges) * 3 * nao * nao
+    for block, ((shl0, shl1), int3c) in enumerate (prefetch_blocks (intor_b, ranges, size)):
         p0, p1 = aux_loc[shl0], aux_loc[shl1]
         int3c = int3c.transpose (0,3,2,1) # memory order [x][P][j][i]
         assert int3c.flags.c_contiguous
@@ -175,12 +204,13 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
     vkaux_ref = numpy.zeros ((3, naux)) if (_check and aux_response) else None
     blocks_c = []
     if aux_response:
-        get_int3c_ip2 = df_rhf_grad._int3c_wrapper (mol, auxmol, 'int3c2e_ip2', 's2ij')
+        get_int3c_ip2 = _int3c_wrapper (mol, auxmol, 'int3c2e_ip2', 's2ij')
         ranges = _ranges (aux_loc, 8 * (4*npair + nao*nao + nocc*nao), 3*npair + nao*nao, cap)
-        def intor_c (rng):
+        def intor_c (rng, out):
             shl0, shl1 = rng
-            return rng, get_int3c_ip2 ((0, nbas, 0, nbas, shl0, shl1))
-        for block, ((shl0, shl1), int3c) in enumerate (lib.map_with_prefetch (intor_c, ranges)):
+            return rng, get_int3c_ip2 ((0, nbas, 0, nbas, shl0, shl1), out=out)
+        size = max (aux_loc[s1] - aux_loc[s0] for s0, s1 in ranges) * 3 * npair
+        for block, ((shl0, shl1), int3c) in enumerate (prefetch_blocks (intor_c, ranges, size)):
             p0, p1 = aux_loc[shl0], aux_loc[shl1]
             blocks_c.append ((p0, p1))
             if vkaux_ref is not None:
