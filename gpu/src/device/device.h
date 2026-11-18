@@ -27,6 +27,7 @@ namespace py = pybind11;
 #include "device_fci.h"
 #include "device_numint.h"
 #include "device_dfgrad.h"
+#include "device_dfbuild.h"
 
 using namespace PM_NS;
 using namespace MATHLIB_NS;
@@ -164,6 +165,11 @@ public :
   void pull_dfgrad(py::array_t<double>, py::array_t<double>, py::array_t<double>, py::array_t<double>);
   void free_dfgrad();
 
+  //DF tensor build, metric solve (df/df.py::DF.build, in-memory) -> DeviceDFBuild
+  void init_dfbuild(py::array_t<double>, int, int, int, int);
+  void compute_dfbuild(py::array_t<double>, py::array_t<double>, int, int, int);
+  void free_dfbuild();
+
   //FCI (tdm/rdm orchestration -> DeviceFci via _fci shims)
   void init_tdm1(int);
   void init_tdm2(int);
@@ -297,6 +303,7 @@ private:
   DeviceAo2mo * _ao2mo; // ao2mo domain; owns buf_j_pc/buf_k_pc/buf_ppaa/buf_papa staging
   DeviceNumint * _numint; // DFT numint domain; owns its per-device buffers and h_vmat staging
   DeviceDFGrad * _dfgrad; // DF J/K gradient domain; owns its per-device buffers
+  DeviceDFBuild * _dfbuild; // DF tensor build (metric solve) domain; owns its per-device buffers
   DeviceFci * _fci;     // fci domain; owns h_bravecs/h_ketvecs/h_dm1_full/h_dm2_full/h_dm2_p_full staging
 
   // DEPRECATED: legacy integral engine helpers (fdrv/ftrans/fmmm/my_AO2MOEnvs/

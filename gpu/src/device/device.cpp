@@ -38,6 +38,7 @@ Device::Device()
   _fci = nullptr;
   _numint = nullptr;
   _dfgrad = nullptr;
+  _dfbuild = nullptr;
   _comm = nullptr;
   _cache = nullptr;
   _utils = nullptr;
@@ -186,6 +187,7 @@ Device::Device()
   _fci = new DeviceFci(dev_ctx);
   _numint = new DeviceNumint(dev_ctx);
   _dfgrad = new DeviceDFGrad(dev_ctx);
+  _dfbuild = new DeviceDFBuild(dev_ctx);
 
   // check device connectivity, then decide the runtime P2P toggle. Peer access
   // is an optimization, not a requirement: if the topology check or the enable
@@ -239,6 +241,8 @@ Device::~Device()
   _numint = nullptr;
   delete _dfgrad;
   _dfgrad = nullptr;
+  delete _dfbuild;
+  _dfbuild = nullptr;
 
   delete _comm;
   _comm = nullptr;

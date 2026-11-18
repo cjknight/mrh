@@ -21,6 +21,22 @@ def _reset(self, mol=None):
 DF.reset = _reset
 print(f'{DF}.reset monkey-patched to evict the GPU ERI cache')
 
+from gpu4mrh.lib.utils import resolve_use_gpu
+from gpu4mrh.df import df_build
+
+_cpu_build = DF.build
+
+def _build(self):
+    '''In-memory DF tensor build with the metric solve on the device (gpu4mrh.df.df_build); the
+    result is pyscf's ordinary host _cderi. Builds pyscf writes to disk stay pyscf's.'''
+    gpu = resolve_use_gpu(self)
+    if gpu is None:
+        return _cpu_build(self)
+    return df_build.build(self, gpu, _cpu_build)
+
+DF.build = _build
+print(f'{DF}.build monkey-patched to GPU accelerated version (in-memory tensor)')
+
 from pyscf.df.grad import rhf as df_rhf_grad
 from gpu4mrh.df import grad_rhf as gpu_df_rhf_grad
 

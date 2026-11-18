@@ -495,6 +495,30 @@ void libgpu_free_dfgrad(void * ptr)
 }
 
 /* ---------------------------------------------------------------------- */
+
+void libgpu_init_dfbuild(void * ptr, py::array_t<double> low, int naoaux, int naux, int npair, int metric_cd)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->init_dfbuild(low, naoaux, naux, npair, metric_cd);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_compute_dfbuild(void * ptr, py::array_t<double> ints, py::array_t<double> cderi, int p0, int nrow, int block)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->compute_dfbuild(ints, cderi, p0, nrow, block);
+}
+
+/* ---------------------------------------------------------------------- */
+
+void libgpu_free_dfbuild(void * ptr)
+{
+  LIBGPU_DEVICE(ptr)
+  dev->free_dfbuild();
+}
+
+/* ---------------------------------------------------------------------- */
 void libgpu_init_tdm1(void * ptr, 
                       int norb)
 {
