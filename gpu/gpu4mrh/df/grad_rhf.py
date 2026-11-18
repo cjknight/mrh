@@ -18,6 +18,8 @@ pyscf.
 Handled: one real density matrix, with_k (any with_j), either auxbasis_response. Falls back to
 the CPU get_jk otherwise (J only, several density matrices, complex, only_dfj).
 '''
+import os
+import ctypes
 import numpy
 import scipy.linalg
 from pyscf import lib
@@ -34,6 +36,25 @@ max_block_mb = 4000
 _INT_MAX = 2**31 - 1
 
 _cpu_get_jk = df_rhf_grad.get_jk
+
+# GPU4MRH_DFGRAD_CHECK=1: debug check of the aux-response K terms against host references (rhok_oo
+# from the host rhok; vkaux per aux block as pyscf); prints the deviations, slow
+_check = os.environ.get ('GPU4MRH_DFGRAD_CHECK', '0') not in ('', '0')
+
+def _vkaux_ref (int3c, orbol, orbor, rhok_oo_blk, nao):
+    '''pyscf's (ij|d_x P) rhok_oo contraction for one aux block; int3c (3, npair, nP) as returned
+    by the s2ij int3c2e_ip2 wrapper.'''
+    from pyscf.ao2mo import _ao2mo
+    nP, nocc = rhok_oo_blk.shape[0], orbol.shape[1]
+    orbol = numpy.asfortranarray (orbol) # as pyscf's _decompose_rdm1*: AO2MOmmm_bra reads it so
+    buf = numpy.empty ((3, nP, nocc, nao))
+    _ao2mo.libao2mo.AO2MOnr_e2_drv (_ao2mo.libao2mo.AO2MOtranse2_nr_s2,
+        _ao2mo.libao2mo.AO2MOmmm_bra_nr_s2, buf.ctypes.data_as (ctypes.c_void_p),
+        int3c.ctypes.data_as (ctypes.c_void_p), orbol.ctypes.data_as (ctypes.c_void_p),
+        ctypes.c_int (3*nP), ctypes.c_int (nao), (ctypes.c_int*4)(0, nocc, 0, nao),
+        lib.c_null_ptr (), ctypes.c_int (0))
+    int3c_ij = lib.dot (buf.reshape (-1, nao), orbor).reshape (3, nP, nocc, nocc)
+    return lib.einsum ('xpij,pij->xp', int3c_ij, rhok_oo_blk)
 
 def _ranges (loc, nbytes, nelem, cap_bytes):
     '''balance_partition shell ranges of at most cap_bytes per block, given the device bytes and
@@ -124,6 +145,12 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
     rhoj = numpy.zeros (naux)
     rhok_oo = numpy.zeros ((naux, nocc, nocc)) if aux_response else numpy.zeros (1)
     libgpu.pull_dfgrad_rho (gpu, rhoj, rhok_oo)
+    if _check and aux_response:
+        ref = lib.dot (rhok.reshape (-1, nao), orbol).reshape (naux, nocc, nocc)
+        err = abs (rhok_oo - ref).max (axis=(1,2))
+        logger.note (mf_grad, 'GPU4MRH_DFGRAD_CHECK rhok_oo: max|dev-host| %.3e  max|host| %.3e  bad P %d / %d',
+                     err.max (), abs (ref).max (), (err > 1e-8).sum (), naux)
+        ref = err = None
     if with_j:
         rhoj = solve_j2c (rhoj[:,None])[:,0]
         libgpu.set_dfgrad_rhoj (gpu, numpy.ascontiguousarray (rhoj))
@@ -145,6 +172,8 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
     t1 = logger.timer_debug1 (mf_grad, 'gpu4mrh df grad vj, vk', *t1)
 
     # C: (m n|d_x P) by aux blocks -> drhoj, vkaux
+    vkaux_ref = numpy.zeros ((3, naux)) if (_check and aux_response) else None
+    blocks_c = []
     if aux_response:
         get_int3c_ip2 = df_rhf_grad._int3c_wrapper (mol, auxmol, 'int3c2e_ip2', 's2ij')
         ranges = _ranges (aux_loc, 8 * (4*npair + nao*nao + nocc*nao), 3*npair + nao*nao, cap)
@@ -153,6 +182,9 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
             return rng, get_int3c_ip2 ((0, nbas, 0, nbas, shl0, shl1))
         for block, ((shl0, shl1), int3c) in enumerate (lib.map_with_prefetch (intor_c, ranges)):
             p0, p1 = aux_loc[shl0], aux_loc[shl1]
+            blocks_c.append ((p0, p1))
+            if vkaux_ref is not None:
+                vkaux_ref[:,p0:p1] = _vkaux_ref (int3c, orbol, orbor, rhok_oo[p0:p1], nao)
             int3c = int3c.transpose (0,2,1) # memory order [x][P][pair]
             assert int3c.flags.c_contiguous
             libgpu.compute_dfgrad_ip2 (gpu, int3c.reshape (-1), rhok_oo[p0:p1], p0, p1-p0, block)
@@ -165,6 +197,16 @@ def get_jk (mf_grad, mol=None, dm=None, hermi=0, with_j=True, with_k=True,
     vkaux = numpy.zeros ((3, naux)) if aux_response else numpy.zeros (1)
     libgpu.pull_dfgrad (gpu, vj, vk, drhoj, vkaux)
     libgpu.free_dfgrad (gpu)
+    if vkaux_ref is not None:
+        err = abs (vkaux - vkaux_ref).max (axis=0)
+        logger.note (mf_grad, 'GPU4MRH_DFGRAD_CHECK vkaux (ij|d_x P) part: max|dev-host| %.3e  max|host| %.3e  bad P %d / %d',
+                     err.max (), abs (vkaux_ref).max (), (err > 1e-8).sum (), naux)
+        for block, (p0, p1) in enumerate (blocks_c):
+            e = err[p0:p1].max ()
+            if e > 1e-8:
+                logger.note (mf_grad, '    block %d (device %d) P [%d, %d) nP %d: max err %.3e',
+                             block, block % libgpu.get_num_devices (gpu), p0, p1, p1-p0, e)
+        err = vkaux_ref = None
     vk = vk.transpose (0,2,1) # column-major on the device
     if with_j: vj = vj.transpose (0,2,1)
 

@@ -15,9 +15,13 @@ PM::PM()
 {
 }
 
+// LIBGPU_HOST_NDEV=n emulates n devices (sharing host memory) to exercise the multi-device
+// code paths (round-robin blocks, per-device partial sums) on the host backend
 int PM::dev_num_devices()
 {
-  return 1;
+  const char * env = getenv("LIBGPU_HOST_NDEV");
+  const int n = env ? atoi(env) : 1;
+  return (n > 0) ? n : 1;
 }
 
 void PM::dev_properties(int device)
